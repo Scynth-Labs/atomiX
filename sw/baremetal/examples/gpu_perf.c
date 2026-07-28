@@ -11,6 +11,7 @@
  * and 4-lane builds (fewer lanes only means more waves, i.e. more cycles, never
  * a wrong result).  Runs on the RTL SoC only; the ISS does not model the role
  * window. */
+#include "bench_report.h"
 #include "platform.h"
 #include "role.h"
 
@@ -29,12 +30,6 @@ static int32_t a_in[512], b_in[512], c_cpu[512];
 static uint32_t rng = 0x1234abcdu;
 
 static uint32_t rnd(void) { rng = rng * 1103515245u + 12345u; return rng >> 16; }
-
-static uint32_t rdcycle(void) {
-  uint32_t v;
-  __asm__ volatile("csrr %0, mcycle" : "=r"(v));
-  return v;
-}
 
 static void fail(unsigned code, const char *what) {
   uart_puts("gpu-perf: FAIL ");
@@ -71,24 +66,46 @@ static void upload_inputs(int n) {
   }
 }
 
-/* Run a kernel over n threads, returning the doorbell-to-done cycle count. */
-static uint32_t run_gpu(const uint32_t *prog, int ninsn, int n) {
+struct gpu_timing {
+  uint32_t upload;
+  uint32_t compute;
+  uint32_t readback;
+  uint32_t total;
+  uint32_t checksum;
+};
+
+/* Time the complete offload boundary. Upload includes program, operands, and
+ * launch registers. Readback includes correctness verification and a stable
+ * checksum suitable for comparing simulation with physical UART output. */
+static struct gpu_timing run_gpu(const uint32_t *prog, int ninsn, int n,
+                                 const int32_t *expected, unsigned code,
+                                 const char *what) {
+  struct gpu_timing timing;
+  const uint32_t total0 = ax_bench_rdcycle();
+  const uint32_t upload0 = ax_bench_rdcycle();
   upload_prog(prog, ninsn);
   upload_inputs(n);
   mmio_write32(AX_ROLE_GPU_NTHREADS, (uint32_t)n);
   mmio_write32(AX_ROLE_GPU_NINSN, (uint32_t)ninsn);
-  uint32_t t0 = rdcycle();
+  timing.upload = ax_bench_rdcycle() - upload0;
+
+  const uint32_t compute0 = ax_bench_rdcycle();
   role_ring_doorbell();
   role_wait_done();
-  uint32_t cyc = rdcycle() - t0;
+  timing.compute = ax_bench_rdcycle() - compute0;
   mmio_write32(AX_ROLE_STATUS, AX_ROLE_STATUS_DONE);
-  return cyc;
-}
 
-static void check_c(int n, unsigned code, const char *what) {
-  for (int i = 0; i < n; ++i)
-    if (mmio_read32(AX_ROLE_GPU_DATA + 4u * (uint32_t)(BASE_C + i)) != (uint32_t)c_cpu[i])
-      fail(code, what);
+  const uint32_t readback0 = ax_bench_rdcycle();
+  timing.checksum = 2166136261u;
+  for (int i = 0; i < n; ++i) {
+    const uint32_t actual =
+        mmio_read32(AX_ROLE_GPU_DATA + 4u * (uint32_t)(BASE_C + i));
+    timing.checksum = ax_bench_checksum_step(timing.checksum, actual);
+    if (actual != (uint32_t)expected[i]) fail(code, what);
+  }
+  timing.readback = ax_bench_rdcycle() - readback0;
+  timing.total = ax_bench_rdcycle() - total0;
+  return timing;
 }
 
 static void seed(int n) {
@@ -104,11 +121,12 @@ static int slen(const char *s) { int n = 0; while (s[n]) n++; return n; }
 static uint32_t bench(const char *name, const uint32_t *prog, int ninsn,
                       int n, void (*cpu)(int), unsigned code) {
   seed(n);
-  uint32_t g = run_gpu(prog, ninsn, n);
-  uint32_t t0 = rdcycle();
+  uint32_t t0 = ax_bench_rdcycle();
   cpu(n);
-  uint32_t c = rdcycle() - t0;
-  check_c(n, code, name);
+  uint32_t c = ax_bench_rdcycle() - t0;
+  const struct gpu_timing gpu =
+      run_gpu(prog, ninsn, n, c_cpu, code, name);
+  const uint32_t g = gpu.compute;
 
   uart_puts("  ");
   uart_puts(name);
@@ -119,6 +137,14 @@ static uint32_t bench(const char *name, const uint32_t *prog, int ninsn,
   uart_puts("  speedup="); pad((c * 10u) / g / 10u, 2);
   uart_putchar('.'); putdec((c * 10u) / g % 10u);
   uart_puts("x\n");
+
+  uart_puts("    e2e upload="); putdec(gpu.upload);
+  uart_puts(" compute="); putdec(gpu.compute);
+  uart_puts(" readback+verify="); putdec(gpu.readback);
+  uart_puts(" total="); putdec(gpu.total);
+  uart_puts(" checksum=0x"); ax_bench_puthex(gpu.checksum);
+  ax_bench_report_projected_time(gpu.total);
+  uart_puts("\n");
   return (c * 10u) / g;   /* speedup x10 */
 }
 

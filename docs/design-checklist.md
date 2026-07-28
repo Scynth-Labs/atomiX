@@ -100,7 +100,9 @@ aXos has a scheduler, an allocator, a filesystem, and a shell, but no way to
 compiled from C can target it today, which is the gap between "the CPU can run a
 real program" and "the system can host one".  Two findings from the render
 benchmark make the gap concrete: the bare-metal link has no libgcc (so a 64-bit
-divide is an undefined `__udivdi3`), and `link.ld` hardcodes a 128 KiB image.
+divide is an undefined `__udivdi3`). The former fixed 128 KiB link limit is now
+parameterized by `RAM_BYTES`, so small Tang payloads get a matching stack top
+and a link-time capacity check.
 
 **Decision: follow the RISC-V Linux ABI where one exists, and make every layer
 of it replaceable.**  Standard numbers and a standard ELF entry contract mean an
@@ -292,8 +294,9 @@ component work above.  It is the final platform-evidence gate.
   `DPB` cells. P&R, timing, programming, and the UART transcript await the
   physical board and matched apicula tools.
 - [~] Tang Primer performance profiles are measured. `tangprimer25k-ax2`
-  is peaked at 2-wide/2 KiB I$/64-entry BTB: 20,893 LUTs and 36,558 benchmark
-  cycles. `tangprimer25k-gpu` explicitly maps three GW5A DSPs per multiplier
+  is peaked at 2-wide/2 KiB I$/64-entry BTB: 20,893 LUTs and 25,729 measured
+  workload cycles. `tangprimer25k-gpu` explicitly maps three GW5A DSPs per
+  multiplier
   and reaches 8 lanes: 22,623 LUTs, 24 DSPs, and 359 SAXPY engine cycles.
   `tangprimer25k-tpu` folds K=8 over 24 MACs and makes its C buffer infer
   BSRAM: 14,555 LUTs, 24 DSPs, and 179 cycles versus 35,132 on CPU. All have

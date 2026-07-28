@@ -1,12 +1,12 @@
-/* atomiX bare-metal link script: everything in the v1 128 KiB BRAM at
- * 0x80000000 (DESIGN.md §3.2). Phase 6's SDRAM platform will raise this
- * limit; keeping it exact today prevents trap stacks from escaping RTL RAM.
- * vaddr == paddr; no ELF headers mapped into memory. */
+/* atomiX bare-metal link script: everything lives in RAM at 0x80000000.
+ * The Makefile supplies __ram_bytes (128 KiB by default, 16/32 KiB for Tang
+ * FPGA payloads), so the stack top and link-time overflow check match the
+ * actual synthesized memory. vaddr == paddr; no ELF headers are mapped. */
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
 MEMORY {
-  RAM (rwx) : ORIGIN = 0x80000000, LENGTH = 128K
+  RAM (rwx) : ORIGIN = 0x80000000, LENGTH = __ram_bytes
 }
 
 PHDRS {

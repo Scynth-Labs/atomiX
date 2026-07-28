@@ -64,7 +64,7 @@ one combined image:
 
 | Capability | Profile | Configuration | LUT1–LUT4 | FF | Main/role RAM | DSP | Simulation result |
 |---|---|---|---:|---:|---|---:|---|
-| **CPU** | `tangprimer25k-ax2` | 2-wide AX2, 2 KiB I$, 64-entry BTB | 20,893 (90.7%) | 4,618 | 32 DPB + 6 SDPX9B | 0 | 36,558 cycles, 1.60× over pipeline5 |
+| **CPU** | `tangprimer25k-ax2` | 2-wide AX2, 2 KiB I$, 64-entry BTB | 20,893 (90.7%) | 4,618 | 32 DPB + 6 SDPX9B | 0 | 25,729 measured cycles, 1.67× over pipeline5 |
 | **GPU** | `tangprimer25k-gpu` | minimal host + 8-lane SIMT | 22,623 (98.2%) | 3,473 | 32 DPB + 4 SDPX9B | 24 MULTALU27X18 | 359 SAXPY engine cycles |
 | **TPU** | `tangprimer25k-tpu` | 8 columns × 3 folded K MACs | 14,555 (63.2%) | 3,698 | 32 DPB + 8 DPX9B + 4 SDPX9B | 24 MULT12X12 | 179 cycles vs 35,132 CPU, 196× |
 
@@ -83,9 +83,28 @@ Its programming interface and numerical result are unchanged.
 
 The larger AX2 experiments establish the CPU boundary: 2 KiB/64 fits, while
 2 KiB/128 jumps to 34,701 LUT primitives and 8 KiB/128 reaches 46,871. The
-64-entry profile is 10 cycles faster than the 32-entry default in the current
-benchmark. Exact packed utilisation, routing, and the 50 MHz verdict remain
-nextpnr/physical-board gates, especially for the 98.2%-LUT GPU.
+64-entry and 32-entry profiles are identical on the current workload-only
+metric; this working set does not justify the extra predictor entries on
+performance alone. Exact packed utilisation, routing, and the 50 MHz verdict
+remain nextpnr/physical-board gates, especially for the 98.2%-LUT GPU.
+
+### Tang Nano versus Primer in readable time
+
+`python3 tools/bench.py tang` runs the exact independently-maximized profile for
+each board with a correctly sized 16/32 KiB payload, checks the result, and
+converts RTL cycles using each target clock:
+
+| Workload | Tang Nano 20K | Tang Primer 25K | Primer wall-time speedup |
+|---|---:|---:|---:|
+| CPU workload windows | 42,978 cycles / 1,591.8 us | 25,729 cycles / 514.6 us | 3.09× |
+| GPU SAXPY N=256, complete | 23,097 cycles / 855.4 us | 22,809 cycles / 456.2 us | 1.88× |
+| GPU polynomial N=256, complete | 23,520 cycles / 871.1 us | 23,133 cycles / 462.7 us | 1.88× |
+| TPU 12x8x8 GEMM, complete | 5,257 cycles / 194.7 us | 5,257 cycles / 105.1 us | 1.85× |
+
+“Complete” includes upload, doorbell-to-done execution, checked readback, and
+checksum generation. This makes host/MMIO cost visible: the Primer GPU computes
+faster with 8 instead of 6 lanes, but transfer and verification dominate the
+full operation. The time column remains a pre-P&R projection.
 
 ## ULX3S-85F (Lattice ECP5) — the large part
 
@@ -173,16 +192,16 @@ both when they are independent.
 Retired instructions per cycle, `sw/baremetal/examples/cpu_perf.c`.  `core.ax2`
 is one component, so these rows are parameter settings, not variants:
 
-| configuration | alu | chain | branch | memcpy | mixed | total cycles | vs `core.minimal` |
+| configuration | alu | chain | branch | memcpy | mixed | measured cycles | vs `core.minimal` |
 |---|---|---|---|---|---|---|---|
-| `core.minimal` | 0.50 | 0.50 | 0.50 | 0.43 | 0.45 | 92,348 | 1.00× |
-| `core.pipeline5` | 0.77 | 0.83 | 0.66 | 0.77 | 0.84 | 58,314 | 1.58× |
-| ax2 1-wide, 1K I$, no BTB | 0.77 | 0.83 | 0.66 | 0.77 | 0.84 | 57,937 | 1.59× |
-| ax2 1-wide, 2K I$, BTB 32 | 0.99 | 0.99 | 0.99 | 0.99 | 0.99 | 45,748 | 2.02× |
-| ax2 2-wide, 2K I$, no BTB | 1.15 | 0.90 | 0.79 | 0.99 | 0.99 | 48,498 | 1.90× |
-| **ax2 defaults** (2-wide, 2K I$, BTB 32) | 1.71 | 1.10 | 1.32 | 1.39 | 1.21 | 36,568 | **2.53×** |
-| **GW5A-25 max** (2-wide, 2K I$, BTB 64) | 1.71 | 1.10 | 1.32 | 1.39 | 1.21 | 36,558 | **2.53×** |
-| ax2 2-wide, 8K I$, BTB 128 | 1.71 | 1.10 | 1.32 | 1.39 | 1.21 | 36,540 | 2.53× |
+| `core.minimal` | 0.50 | 0.50 | 0.50 | 0.43 | 0.45 | 70,650 | 1.00× |
+| `core.pipeline5` | 0.77 | 0.83 | 0.66 | 0.77 | 0.84 | 42,978 | 1.64× |
+| ax2 1-wide, 1K I$, no BTB | 0.77 | 0.83 | 0.66 | 0.77 | 0.84 | 43,078 | 1.64× |
+| ax2 1-wide, 2K I$, BTB 32 | 0.99 | 0.99 | 0.99 | 0.99 | 0.99 | 33,432 | 2.11× |
+| ax2 2-wide, 2K I$, no BTB | 1.15 | 0.90 | 0.79 | 0.99 | 0.99 | 35,375 | 2.00× |
+| **ax2 defaults** (2-wide, 2K I$, BTB 32) | 1.72 | 1.10 | 1.32 | 1.38 | 1.21 | 25,729 | **2.75×** |
+| **GW5A-25 max** (2-wide, 2K I$, BTB 64) | 1.72 | 1.10 | 1.32 | 1.38 | 1.21 | 25,729 | **2.75×** |
+| ax2 2-wide, 8K I$, BTB 128 | 1.72 | 1.10 | 1.32 | 1.38 | 1.21 | 25,729 | 2.75× |
 
 What each knob is actually worth, which a fixed set of tiers could not have
 shown:

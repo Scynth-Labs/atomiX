@@ -27,9 +27,9 @@ help:
 	@echo "  make software CONFIG=configs/sim-hello.json"
 	@echo "  make fpga CONFIG=configs/ulx3s-85f.json"
 	@echo "  make fpga CONFIG=configs/tangprimer25k.json"
-	@echo "  make fpga CONFIG=configs/tangprimer25k-ax2.json"
-	@echo "  make fpga CONFIG=configs/tangprimer25k-gpu.json"
-	@echo "  python3 tools/bench.py cpu|gpu|tpu"
+	@echo "  make fpga CONFIG=configs/tangprimer25k-ax2.json PROGRAM=cpu_perf"
+	@echo "  make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf"
+	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make component-test"
 
 component-list:

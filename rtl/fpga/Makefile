@@ -14,7 +14,6 @@ BUILD := build
 COMPONENT_CONFIG ?= ../../configs/ulx3s-85f.json
 COMPONENT_CONFIG_KEY := $(subst /,_,$(basename $(abspath $(COMPONENT_CONFIG))))
 COMPONENT_MK := $(BUILD)/component$(COMPONENT_CONFIG_KEY).mk
-CONFIG_BUILD := $(BUILD)/$(COMPONENT_CONFIG_KEY)
 COMPONENT_MANIFESTS := $(wildcard ../../components/*/*/component.json)
 
 $(COMPONENT_MK): $(COMPONENT_CONFIG) ../../tools/configure.py $(COMPONENT_MANIFESTS)
@@ -28,6 +27,15 @@ $(COMPONENT_MK): $(COMPONENT_SELECTED_MANIFESTS)
 # Flow is board-selected; default to the ECP5 flow for backward compatibility.
 COMPONENT_FPGA_FLOW ?= ecp5
 TOP ?= $(COMPONENT_FPGA_TOP)
+PROGRAM ?= hello
+RAM_BYTES ?= $(COMPONENT_RAM_BYTES)
+PROGRAM_BUILD_DIR := build/ram$(RAM_BYTES)
+PROGRAM_HEX := ../../sw/baremetal/$(PROGRAM_BUILD_DIR)/$(PROGRAM).hex
+PROGRAM_KEY := $(subst /,_,$(basename $(abspath $(PROGRAM_HEX))))
+# Gowin BRAM-only images bake software into the netlist, so the payload is part
+# of the artifact identity. ECP5 boots from a separate ROM image and therefore
+# remains keyed by configuration alone.
+CONFIG_BUILD := $(BUILD)/$(COMPONENT_CONFIG_KEY)$(if $(filter gowin,$(COMPONENT_FPGA_FLOW)),/$(PROGRAM_KEY),)
 BOOT_HEX := ../../sw/bootrom/build/bootrom.hex
 JSON := $(CONFIG_BUILD)/$(TOP).json
 SYNTH_SV := $(CONFIG_BUILD)/atomiX_synth.sv
@@ -61,6 +69,7 @@ config: $(COMPONENT_MK)
 	@echo "  memory: $(COMPONENT_MEMORY_ID)"
 	@echo "  role:   $(COMPONENT_ROLE_ID)"
 	@echo "  board:  $(COMPONENT_BOARD_ID)"
+	@if [ "$(COMPONENT_FPGA_FLOW)" = "gowin" ]; then echo "  program: $(PROGRAM) ($(PROGRAM_HEX))"; fi
 
 $(BOOT_HEX):
 	$(MAKE) -C ../../sw/bootrom images
@@ -84,16 +93,17 @@ PROG_BOARD := $(COMPONENT_FPGA_PROG_BOARD)
 PNR_JSON := $(CONFIG_BUILD)/$(TOP)_pnr.json
 BIT := $(CONFIG_BUILD)/$(TOP).fs
 
-# BRAM-only Tang bring-up bakes a bare-metal program into on-chip block RAM at
-# synthesis time; build it first so the RAM_INIT_FILE $readmemh resolves.
-PROGRAM_HEX := ../../sw/baremetal/build/hello.hex
+# BRAM-only Tang bring-up bakes the selected bare-metal program into on-chip
+# block RAM at synthesis time. Build that exact payload first and specialize
+# the board top's string parameter so $readmemh cannot fall back to hello.hex.
 $(PROGRAM_HEX):
-	$(MAKE) -C ../../sw/baremetal images
+	$(MAKE) -C ../../sw/baremetal BUILD_DIR=$(PROGRAM_BUILD_DIR) \
+	  RAM_BYTES=$(RAM_BYTES) $(PROGRAM_BUILD_DIR)/$(PROGRAM).hex
 
 # The board top's RAM_BYTES follows the selected profile so a role-heavy
 # profile can trade main memory for the block RAM its accelerator needs.
-RAM_BYTES ?= $(COMPONENT_RAM_BYTES)
 RAM_BYTES_CHPARAM := $(if $(RAM_BYTES),chparam -set RAM_BYTES $(RAM_BYTES) $(TOP);,)
+PROGRAM_CHPARAM := chparam -set RAM_INIT_FILE "$(abspath $(PROGRAM_HEX))" $(TOP);
 
 # Yosys 0.67's final Gowin `autoname` pass scales pathologically on the larger
 # CPU/GPU/TPU netlists. Cell names are not part of nextpnr's input contract, so
@@ -102,7 +112,7 @@ RAM_BYTES_CHPARAM := $(if $(RAM_BYTES),chparam -set RAM_BYTES $(RAM_BYTES) $(TOP
 # instead of hanging for minutes.
 GOWIN_SETUNDEF_CMD := $(if $(filter -setundef,$(COMPONENT_GOWIN_SYNTH_ARGS)),setundef -undriven -params -zero;,)
 $(JSON): $(SYNTH_SV) $(PROGRAM_HEX) Makefile | $(CONFIG_BUILD)
-	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
+	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) $(PROGRAM_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
 
 $(PNR_JSON): $(JSON) $(CST) | check-tools
 	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@

@@ -20,11 +20,13 @@
  *
  * IPC is reported in hundredths (so 150 means 1.50 instructions per cycle) to
  * keep the program free of floating point. */
+#include "bench_report.h"
 #include "platform.h"
 #include "csr.h"
 
 #define ARR 256
 static volatile int32_t src[ARR], dst[ARR];
+static uint32_t measured_cycles;
 
 static uint32_t rdcycle(void) {
   uint32_t v; __asm__ volatile("csrr %0, mcycle" : "=r"(v)); return v;
@@ -51,6 +53,7 @@ static uint32_t ipc_x100(uint32_t insns, uint32_t cycles) {
 
 static uint32_t report(const char *name, uint32_t insns, uint32_t cycles) {
   uint32_t ipc = ipc_x100(insns, cycles);
+  measured_cycles += cycles;
   uart_puts("  ");
   uart_puts(name);
   uart_puts(": insns=");
@@ -150,6 +153,16 @@ int main(void) {
   if (ipc_branch < 15) { uart_puts("cpu_perf: FAIL branch ipc\n"); test_finish(3); }
   if (ipc_memcpy < 15) { uart_puts("cpu_perf: FAIL memcpy ipc\n"); test_finish(4); }
   if (ipc_mixed  < 15) { uart_puts("cpu_perf: FAIL mixed ipc\n");  test_finish(5); }
+
+  uint32_t checksum = 2166136261u;
+  for (int i = 0; i < ARR; ++i)
+    checksum = ax_bench_checksum_step(checksum, (uint32_t)dst[i]);
+  uart_puts("cpu_perf measured: cycles=");
+  ax_bench_putdec(measured_cycles);
+  uart_puts(" checksum=0x");
+  ax_bench_puthex(checksum);
+  ax_bench_report_projected_time(measured_cycles);
+  uart_puts("\n");
 
   uart_puts("cpu_perf: PASS\n");
   test_finish(0);

@@ -187,14 +187,22 @@ make -C sw/baremetal images
 python3 tools/bench.py cpu     # IPC per core and per ax2 parameter setting
 python3 tools/bench.py gpu     # kernel cycles per role parameter setting
 python3 tools/bench.py tpu     # int8 GEMM accelerator versus the host CPU
+python3 tools/bench.py tang    # exact Nano/Primer max-profile wall-time view
 python3 tools/bench.py render  # render workload vs cache policy/size and divider
-python3 tools/bench.py         # all four
+python3 tools/bench.py         # all five
 ```
 The sweep needs a profile per configuration, but those are measurement fixtures
 rather than supported ones, so `bench.py` generates them into a scratch
 directory instead of the catalog.  What it sweeps is mostly *parameters* now,
 which is the point: the numbers show what each knob is worth instead of
 asserting that several near-identical components differ.
+
+The CPU sweep uses the workload-only `cpu_perf measured` cycle count, excluding
+setup and UART overhead. The board payloads also print stable checksums and
+time projections for 27 MHz Tang Nano and 50 MHz Tang Primer. GPU/TPU payloads
+separate upload, doorbell-to-done compute, and readback-plus-verification from
+the complete offload total. Those projected microseconds are pre-P&R; use the
+achieved hardware clock as the final frequency.
 
 ### 3.5 Kernel (aXos) — needs `qemu-system-riscv32` ≥ 7
 

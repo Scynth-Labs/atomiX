@@ -10,8 +10,9 @@ usage:
   tools/bench.py cpu      IPC and cycle counts per core
   tools/bench.py gpu      GPU kernel cycles per role tier
   tools/bench.py tpu      TPU GEMM cycles versus the host CPU
+  tools/bench.py tang     exact Nano/Primer max-profile end-to-end comparison
   tools/bench.py render   render workload vs cache size and divider latency
-  tools/bench.py all      all four (default)
+  tools/bench.py all      all five (default)
 
 Requires the baremetal images: make -C sw/baremetal images
 """
@@ -74,15 +75,28 @@ def make_profile(workdir, name, core, role=None, params=None):
     return path
 
 
+def make_board_sim_profile(workdir, source):
+    """Turn an FPGA profile into an exact board-independent sim fixture."""
+    profile = json.load(open(os.path.join(CONFIGS, source)))
+    profile["name"] = "sim-" + profile["name"]
+    profile["components"]["board"] = "board.sim"
+    profile["components"]["harness"] = "harness.verilator-soc"
+    profile["components"].pop("software", None)
+    path = os.path.join(workdir, profile["name"] + ".json")
+    json.dump(profile, open(path, "w"), indent=2)
+    return path
+
+
 def slug(text):
     return re.sub(r"[^A-Za-z0-9]+", "-", text).strip("-")
 
 
 def run(profile, image, max_cycles):
+    image_path = image if os.path.isabs(image) else os.path.join(IMAGES, image)
     out = subprocess.run(
         ["make", "-s", "-C", os.path.join(ROOT, "sim", "soc"), "run",
          "COMPONENT_CONFIG=" + profile,
-         "RAM_INIT_FILE=" + os.path.join(IMAGES, image),
+         "RAM_INIT_FILE=" + image_path,
          "RESET_PC=0x80000000", "MAX_CYCLES=%d" % max_cycles],
         capture_output=True, text=True)
     return out.stdout + out.stderr
@@ -96,14 +110,19 @@ def bench_cpu(workdir):
                             params={"core": params} if params else None)
         text = run(prof, "cpu_perf.hex", 2000000)
         ipc = dict(re.findall(r"(\w+)\s*: insns=\d+ cycles=\d+ ipc_x100=(\d+)", text))
-        total = re.search(r"\[soc\] exit 0 \(cycles=(\d+)\)", text)
-        if not ipc or not total:
+        measured = re.search(r"cpu_perf measured: cycles=(\d+)", text)
+        # Older images did not emit the workload-only aggregate. Keep the
+        # whole-program counter as a compatibility fallback, but prefer the
+        # stable number that excludes UART and setup overhead.
+        if not measured:
+            measured = re.search(r"\[soc\] exit 0 \(cycles=(\d+)\)", text)
+        if not ipc or not measured:
             print("  %-38s FAILED TO RUN" % note)
             continue
-        rows.append((note, ipc, int(total.group(1))))
+        rows.append((note, ipc, int(measured.group(1))))
 
     hdr = ("configuration", "alu", "chain", "branch", "memcpy", "mixed",
-           "total cyc", "vs minimal")
+           "measured cyc", "vs minimal")
     print("  %-38s %6s %6s %7s %7s %6s %11s %11s" % hdr)
     print("  " + "-" * 98)
     baseline = rows[0][2] if rows else 1
@@ -159,6 +178,137 @@ def bench_tpu():
     print("  %-20s %12d" % ("pipeline5 CPU", host_cycles))
     print("\n  accelerator speedup: %.2fx" % (host_cycles / accel_cycles))
     print("  Note: TPU timing is doorbell-to-done; operand upload is excluded.")
+
+
+def projected_us(cycles, mhz):
+    return cycles / float(mhz)
+
+
+def sized_image(program, ram_bytes):
+    build_dir = "build/ram%d" % ram_bytes
+    target = "%s/%s.hex" % (build_dir, program)
+    subprocess.run(
+        ["make", "-s", "-C", os.path.join(ROOT, "sw", "baremetal"),
+         "BUILD_DIR=" + build_dir, "RAM_BYTES=%d" % ram_bytes, target],
+        check=True)
+    return os.path.join(ROOT, "sw", "baremetal", target)
+
+
+def bench_tang(workdir):
+    """Compare the exact independently-maximized profiles for both Tang boards."""
+    boards = [
+        ("Tang Nano 20K", 27, "tangnano20k.json",
+         "tangnano20k-gpu.json", "tangnano20k-tpu.json"),
+        ("Tang Primer 25K", 50, "tangprimer25k-ax2.json",
+         "tangprimer25k-gpu.json", "tangprimer25k-tpu.json"),
+    ]
+    rows = {}
+    images = {
+        "cpu": sized_image("cpu_perf", 32768),
+        "gpu": sized_image("gpu_perf", 16384),
+        "tpu": sized_image("tpu", 32768),
+    }
+    print("\n== Tang board-max profiles: complete checked boundaries ==\n")
+    for board, mhz, cpu_cfg, gpu_cfg, tpu_cfg in boards:
+        cpu = run(make_board_sim_profile(workdir, cpu_cfg),
+                  images["cpu"], 2000000)
+        gpu = run(make_board_sim_profile(workdir, gpu_cfg),
+                  images["gpu"], 3000000)
+        tpu = run(make_board_sim_profile(workdir, tpu_cfg),
+                  images["tpu"], 1000000)
+
+        cpu_m = re.search(
+            r"cpu_perf measured: cycles=(\d+) checksum=0x([0-9a-f]+)", cpu)
+        gpu_matches = re.findall(
+            r"(saxpy|poly)\s+N=\s*(\d+)\s+gpu=\s*(\d+).*?\n"
+            r"\s+e2e upload=(\d+) compute=(\d+) "
+            r"readback\+verify=(\d+) total=(\d+) checksum=0x([0-9a-f]+)",
+            gpu)
+        tpu_m = re.search(
+            r"tpu e2e: upload=(\d+) compute=(\d+) "
+            r"readback\+verify=(\d+) total=(\d+) checksum=0x([0-9a-f]+)",
+            tpu)
+        gpu_256 = {m[0]: m for m in gpu_matches if m[1] == "256"}
+        if (not cpu_m or set(gpu_256) != {"saxpy", "poly"} or not tpu_m or
+                "cpu_perf: PASS" not in cpu or "gpu-perf: PASS" not in gpu or
+                "role tpu-lite: PASS" not in tpu):
+            print("  %-20s FAILED TO RUN" % board)
+            continue
+        rows[board] = {
+            "mhz": mhz,
+            "cpu": (int(cpu_m.group(1)), cpu_m.group(2)),
+            "gpu": {
+                name: {
+                    "upload": int(m[3]), "compute": int(m[4]),
+                    "readback": int(m[5]), "total": int(m[6]),
+                    "checksum": m[7],
+                } for name, m in gpu_256.items()
+            },
+            "tpu": {
+                "upload": int(tpu_m.group(1)),
+                "compute": int(tpu_m.group(2)),
+                "readback": int(tpu_m.group(3)),
+                "total": int(tpu_m.group(4)),
+                "checksum": tpu_m.group(5),
+            },
+        }
+
+    print("  CPU (five workload windows; setup/UART excluded)")
+    print("  %-20s %5s %12s %12s %12s" % (
+        "board / max profile", "MHz", "cycles", "time (us)", "checksum"))
+    for board, _, _, _, _ in boards:
+        if board not in rows:
+            continue
+        cycles, checksum = rows[board]["cpu"]
+        mhz = rows[board]["mhz"]
+        print("  %-20s %5d %12d %12.1f   0x%s" % (
+            board, mhz, cycles, projected_us(cycles, mhz), checksum))
+
+    for kernel in ("saxpy", "poly"):
+        print("\n  GPU %s, N=256 (complete offload)" % kernel)
+        print("  %-20s %8s %8s %10s %8s %10s %12s" % (
+            "board / max profile", "upload", "compute", "read+check",
+            "total", "time (us)", "checksum"))
+        for board, _, _, _, _ in boards:
+            if board not in rows:
+                continue
+            data = rows[board]["gpu"][kernel]
+            print("  %-20s %8d %8d %10d %8d %10.1f   0x%s" % (
+                board, data["upload"], data["compute"], data["readback"],
+                data["total"],
+                projected_us(data["total"], rows[board]["mhz"]),
+                data["checksum"]))
+
+    print("\n  TPU 12x8x8 int8 GEMM (complete offload)")
+    print("  %-20s %8s %8s %10s %8s %10s %12s" % (
+        "board / max profile", "upload", "compute", "read+check",
+        "total", "time (us)", "checksum"))
+    for board, _, _, _, _ in boards:
+        if board not in rows:
+            continue
+        data = rows[board]["tpu"]
+        print("  %-20s %8d %8d %10d %8d %10.1f   0x%s" % (
+            board, data["upload"], data["compute"], data["readback"],
+            data["total"], projected_us(data["total"], rows[board]["mhz"]),
+            data["checksum"]))
+
+    nano, primer = "Tang Nano 20K", "Tang Primer 25K"
+    if nano in rows and primer in rows:
+        def time_ratio(group, item=None):
+            n = rows[nano][group]
+            p = rows[primer][group]
+            if item:
+                n, p = n[item], p[item]
+            ncycles = n[0] if group == "cpu" else n["total"]
+            pcycles = p[0] if group == "cpu" else p["total"]
+            return (ncycles / rows[nano]["mhz"]) / (
+                pcycles / rows[primer]["mhz"])
+
+        print("\n  Primer wall-time speedup at target clocks:")
+        print("    CPU %.2fx, GPU saxpy %.2fx, GPU poly %.2fx, TPU %.2fx" % (
+            time_ratio("cpu"), time_ratio("gpu", "saxpy"),
+            time_ratio("gpu", "poly"), time_ratio("tpu")))
+        print("  Times are RTL-cycle projections; achieved P&R clocks are final.")
 
 
 # Memory-system sweep for the render workload.  Cache geometry is (lines,
@@ -218,16 +368,17 @@ def bench_render(workdir):
 
 def main():
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
-    choices = {"cpu", "gpu", "tpu", "render", "all"}
+    choices = {"cpu", "gpu", "tpu", "tang", "render", "all"}
     if what not in choices:
-        sys.exit("usage: tools/bench.py [cpu|gpu|tpu|render|all]")
+        sys.exit("usage: tools/bench.py [cpu|gpu|tpu|tang|render|all]")
     needed = {
         "cpu": ("cpu_perf.hex",),
         "gpu": ("gpu.hex", "gpu1.hex"),
         "tpu": ("tpu.hex",),
+        "tang": (),
         "render": ("render_perf.hex",),
-        "all": ("cpu_perf.hex", "gpu.hex", "gpu1.hex", "tpu.hex",
-                "render_perf.hex"),
+        "all": ("cpu_perf.hex", "gpu.hex", "gpu1.hex", "gpu_perf.hex",
+                "tpu.hex", "render_perf.hex"),
     }
     if any(not os.path.exists(os.path.join(IMAGES, image)) for image in needed[what]):
         sys.exit("missing images: run `make -C sw/baremetal images` first")
@@ -238,6 +389,8 @@ def main():
             bench_gpu(workdir)
         if what in ("tpu", "all"):
             bench_tpu()
+        if what in ("tang", "all"):
+            bench_tang(workdir)
         if what in ("render", "all"):
             bench_render(workdir)
     print()

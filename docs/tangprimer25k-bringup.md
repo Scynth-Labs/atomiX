@@ -92,14 +92,18 @@ Keep `tangprimer25k.json` as the first-UART baseline. After that succeeds,
 three independently maximized alternatives are available:
 
 ```bash
-make fpga CONFIG=configs/tangprimer25k-ax2.json
-make fpga CONFIG=configs/tangprimer25k-gpu.json
-make fpga CONFIG=configs/tangprimer25k-tpu.json
+make fpga CONFIG=configs/tangprimer25k-ax2.json PROGRAM=cpu_perf
+make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf
+make fpga CONFIG=configs/tangprimer25k-tpu.json PROGRAM=tpu
 ```
+
+`PROGRAM` names the bare-metal image baked into on-chip RAM. It is part of the
+artifact directory key, so each profile/payload pair produces an independent
+netlist and bitstream. Use `PROGRAM=hello` for the initial UART smoke test.
 
 `tangprimer25k-ax2.json` selects the dual-issue AX2 core with a 2 KiB
 instruction cache and the largest fitting predictor, a 64-entry BTB. It maps
-to 20,893 LUT primitives and runs the CPU benchmark in 36,558 cycles.
+to 20,893 LUT primitives.
 `tangprimer25k-gpu.json` pairs the minimal host with the lean 8-lane SIMT
 engine. Explicit GW5A multiplier decomposition maps its lanes to 24
 `MULTALU27X18` DSPs; it fits at 22,623/23,040 LUT primitives (98.2%), so treat
@@ -110,12 +114,36 @@ buffer to BSRAM; it fits at 14,555 LUT primitives.
 Reproduce the board-independent comparisons with:
 
 ```bash
+python3 tools/bench.py tang
 python3 tools/bench.py cpu
 python3 tools/bench.py gpu
 python3 tools/bench.py tpu
 ```
 
-The simulation measurements are 36,558 total cycles for the max CPU profile,
-359 engine cycles for the 8-lane GPU SAXPY workload, and 179 cycles for the
-folded TPU versus 35,132 CPU cycles. These prove RTL behavior and synthesis
-capacity; they do not replace physical timing and UART tests.
+Each hardware payload prints a checksum and projected time at both Tang clock
+rates. The GPU and TPU payloads split the result into upload,
+doorbell-to-done `compute`, `readback+verify`, and full `total` cycles. Capture
+the complete UART transcript: matching the simulation checksum proves that the
+board ran the same workload and result, while the phase split shows whether
+the accelerator or the host/MMIO boundary dominates.
+
+The compute-only simulation measurements remain 359 engine cycles for the
+8-lane GPU SAXPY workload and 179 cycles for the folded TPU versus 35,132 CPU
+cycles. The CPU comparison now uses the sum of its five measured workload
+windows rather than whole-program cycles, because UART output is not useful
+work. All time values are pre-P&R projections; the achieved 50 MHz timing
+result and physical UART run remain the final gates.
+
+At the target clocks, the exact max-profile simulation currently reports:
+
+| Workload | Tang Nano 20K | Tang Primer 25K | Primer wall-time speedup |
+|---|---:|---:|---:|
+| CPU, five measured windows | 42,978 cycles / 1,591.8 us | 25,729 cycles / 514.6 us | 3.09× |
+| GPU SAXPY, N=256, complete offload | 23,097 cycles / 855.4 us | 22,809 cycles / 456.2 us | 1.88× |
+| GPU polynomial, N=256, complete offload | 23,520 cycles / 871.1 us | 23,133 cycles / 462.7 us | 1.88× |
+| TPU 12x8x8 GEMM, complete offload | 5,257 cycles / 194.7 us | 5,257 cycles / 105.1 us | 1.85× |
+
+The CPU difference combines the Primer's AX2 core with its higher clock. GPU
+compute improves from 6 to 8 lanes, but upload and checked readback dominate
+the full boundary. The TPU RTL and host core are identical on both profiles,
+so its projected gain is entirely the 50/27 MHz clock ratio.
