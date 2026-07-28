@@ -76,6 +76,19 @@ int fstat(int fd, struct stat *out) {
   return (int)__libc_ret(__libc_syscall(80, fd, (long)out, 0));
 }
 
+int role_info(struct ax_role_info *out) {
+  return (int)__libc_ret(__libc_syscall(0x1000, (long)out, 0, 0));
+}
+
+long role_submit(uint32_t op, const void *request, size_t request_len) {
+  return __libc_ret(__libc_syscall(0x1001, op, (long)request, request_len));
+}
+
+ssize_t role_wait(uint32_t token, void *response, size_t response_capacity) {
+  return (ssize_t)__libc_ret(
+      __libc_syscall(0x1002, token, (long)response, response_capacity));
+}
+
 int getpid(void) { return (int)__libc_ret(__libc_syscall(172, 0, 0, 0)); }
 
 void _exit(int status) {

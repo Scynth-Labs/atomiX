@@ -114,6 +114,47 @@ int main(int argc, char **argv) {
   if (reopened != 3) return 33;
   if (close(reopened) != 0) return 34;
 
+  /* Accelerator access stays mediated by the kernel: discovery copies a
+   * fixed record, submit accepts a bounded encoded job, and wait collects the
+   * tokenized result.  The default role.none profile exercises discovery of
+   * absence; check-role-driver runs this same ELF against role.loopback. */
+  struct ax_role_info role;
+  if (role_info(&role) != 0) return 39;
+  if (role_info((struct ax_role_info *)1) != -1 || errno != EFAULT) return 40;
+  if (role.id == 0) {
+    if (role.version != 0 || role.capabilities != 0) return 41;
+    if (role_submit(AX_ROLE_OP_LOOPBACK, NULL, 0) != -1 ||
+        errno != ENODEV) return 50;
+  } else if (role.id == AX_ROLE_ID_LOOPBACK) {
+    if (role.version == 0 ||
+        !(role.capabilities & AX_ROLE_CAP_LOOPBACK)) return 42;
+
+    const uint32_t input[4] = {
+        0x10203040u, 0x55667788u, 0xa5a55a5au, 0xdeadbeefu};
+    uint8_t request[2 + sizeof(input)];
+    request[0] = 4;
+    request[1] = 0;
+    memcpy(&request[2], input, sizeof(input));
+
+    const long token =
+        role_submit(AX_ROLE_OP_LOOPBACK, request, sizeof(request));
+    if (token <= 0) return 43;
+    if (role_submit(AX_ROLE_OP_LOOPBACK, request, sizeof(request)) != -1 ||
+        errno != EBUSY) return 44;
+
+    uint32_t output[4];
+    if (role_wait((uint32_t)token + 1u, output, sizeof(output)) != -1 ||
+        errno != EINVAL) return 45;
+    if (role_wait((uint32_t)token, output, sizeof(output) - 1u) != -1 ||
+        errno != EMSGSIZE) return 46;
+    if (role_wait((uint32_t)token, output, sizeof(output)) !=
+        (ssize_t)sizeof(output)) return 47;
+    if (memcmp(input, output, sizeof(input)) != 0) return 48;
+    if (role_wait((uint32_t)token, output, sizeof(output)) != -1 ||
+        errno != EINVAL) return 49;
+    puts("role-user: loopback ok");
+  }
+
   printf("%s: pid=%d n=%d hex=%x str=%s motd=%d\n", greeting,
          getpid() > 0 ? 1 : 0, 42, 0xbeef, again, motd_size);
   return 0;

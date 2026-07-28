@@ -268,6 +268,12 @@ Use this for a substantive implementation or interface change:
   all three real accelerators over the link, each checked against a host-side
   reference.  Evidence: `make -C sw/kernel check-hostlink` (loopback, TPU-lite,
   and GPU-compute profiles).
+- [x] Kernel-mediated userspace role ABI: `role_info`, token-returning
+  `role_submit`, and retry-safe `role_wait`, using the same checked job
+  encodings as the host link. The physical role window remains supervisor-only
+  through a dedicated Sv32 alias, and device polling is bounded. Evidence:
+  `make -C sw/kernel check-role-driver` (resident shell plus U-mode loopback
+  job) and `make -C sw/kernel check-boot` (safe role absence on ISS/QEMU).
 - [ ] Remaining host-link enhancements: a dedicated USB-serial channel (a
   second byte-pipe peripheral, so console and host-link coexist — lands with the
   board gate); buffer/stream and asynchronous-completion ops; and bitstream-

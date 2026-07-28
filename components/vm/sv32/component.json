@@ -4,5 +4,5 @@
   "kind": "vm",
   "title": "aXos Sv32 bootstrap and per-task address spaces",
   "sources": ["components/vm/sv32/vm.c"],
-  "capabilities": ["sv32", "user-mappings", "fork-copy", "page-tables"]
+  "capabilities": ["sv32", "user-mappings", "fork-copy", "page-tables", "supervisor-role-alias"]
 }

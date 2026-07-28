@@ -80,6 +80,39 @@ supervisor_trap_entry:
   sret
   .size supervisor_trap_entry, . - supervisor_trap_entry
 
+/* Probe one supervisor-visible MMIO word without turning an absent device into
+ * a kernel panic.  kmain calls this before entering userspace, when sscratch is
+ * the ordinary supervisor trap stack.  supervisor_trap redirects a delegated
+ * load-access fault to role_probe_fault while role_probe_active is set.
+ *
+ * int role_probe_read32(addr, out): 1 and *out on success, 0 on decode fault. */
+  .globl role_probe_read32
+  .type role_probe_read32, @function
+role_probe_read32:
+  .option push
+  .option norelax
+  la t0, role_probe_active
+  .option pop
+  li t1, 1
+  sw t1, 0(t0)
+  lw t2, 0(a0)
+  sw t2, 0(a1)
+  li a0, 1
+  j role_probe_done
+
+  .globl role_probe_fault
+role_probe_fault:
+  li a0, 0
+
+role_probe_done:
+  .option push
+  .option norelax
+  la t0, role_probe_active
+  .option pop
+  sw zero, 0(t0)
+  ret
+  .size role_probe_read32, . - role_probe_read32
+
 /* The existing CLINT exposes only MTIP. M-mode acknowledges/rearms it, then
  * raises delegated SSIP so the kernel's real policy stays in S-mode. */
   .globl machine_timer_trap

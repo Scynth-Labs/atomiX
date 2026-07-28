@@ -80,7 +80,8 @@ interesting and has no business being disguised as an `ioctl`:
 | number | call | notes |
 |---|---|---|
 | 0x1000 | `role_info` | discover the role: id, version, capability word |
-| 0x1001 | `role_submit` | run a job on the role window |
+| 0x1001 | `role_submit` | submit one checked encoded accelerator job |
+| 0x1002 | `role_wait` | collect a tokenized job result |
 
 These are ours to define and to change.  Anything in the standard range is not.
 
@@ -129,11 +130,15 @@ The subset the initial calls can return, with Linux values:
 | 9 | `EBADF` | bad file descriptor |
 | 12 | `ENOMEM` | out of memory |
 | 14 | `EFAULT` | bad address from userspace |
+| 16 | `EBUSY` | the role already has an uncollected completion |
+| 19 | `ENODEV` | the requested role operation is not present |
 | 22 | `EINVAL` | invalid argument |
 | 24 | `EMFILE` | descriptor table full |
 | 30 | `EROFS` | write access to a read-only volume |
 | 36 | `ENAMETOOLONG` | path longer than `path_max` |
 | 38 | `ENOSYS` | syscall not implemented |
+| 90 | `EMSGSIZE` | role request or response buffer is too small |
+| 110 | `ETIMEDOUT` | the role did not complete within the driver bound |
 
 `ENOSYS` is the honest answer for every number the table does not carry, and a
 libc will do the right thing with it.
@@ -143,7 +148,7 @@ libc will do the right thing with it.
 | layer | how |
 |---|---|
 | syscall table and dispatch | the `syscall` component; write another to define a different ABI |
-| descriptor count, path length, I/O chunk, write size | parameters on that component |
+| descriptor count, path length, I/O chunk, write size, role payload size | parameters on that component |
 | the on-disk format and the diskless root | the `filesystem` component |
 | private calls | the `0x1000+` range |
 | loader input format | the `loader` component, if a flat image is wanted after all |
@@ -200,6 +205,63 @@ reaping resets the released slot. This gives processes independent descriptor
 lifetimes. A future full POSIX open-file-description layer should make cloned
 descriptors share offsets; today the copied offsets advance independently.
 
+## Accelerator roles
+
+Userspace never maps physical role MMIO. The kernel maps the physical
+`0x4000_0000` aperture through its supervisor-only `0x5000_0000` alias and
+offers three explicit calls:
+
+```c
+struct ax_role_info {
+    uint32_t id;
+    uint32_t version;
+    uint32_t capabilities;
+};
+
+int role_info(struct ax_role_info *out);
+long role_submit(uint32_t op, const void *request, size_t request_len);
+ssize_t role_wait(uint32_t token, void *response, size_t capacity);
+```
+
+`role_info` succeeds with three zero words when no role exists. This includes
+ISS and QEMU, which have no decoded role aperture at all: a bounded boot-time
+probe converts that decode fault into absence. Known IDs and capability bits
+are:
+
+| role | id | capability |
+|---|---:|---:|
+| loopback | `0x4c4f4f50` (`LOOP`) | bit 0 |
+| TPU-lite | `0x5450554c` (`TPUL`) | bit 1 |
+| GPU-compute | `0x47505543` (`GPUC`) | bit 2 |
+
+`role_submit` copies at most 1280 request bytes into kernel memory, validates
+the role-specific dimensions, drives the descriptor/doorbell/status cycle, and
+returns a positive token. The job encodings are the same little-endian
+payloads used by the host protocol:
+
+| op | request | response |
+|---:|---|---|
+| `0x10` | `words`(u16) · `words`×u32, at most 62 words | copied u32 words |
+| `0x11` | `m`(u8) · `ctrl`(u8) · `W`[64 i8] · `A`[8·m i8], `1 <= m <= 32` | `C`[m·8 i32] |
+| `0x12` | `nthreads`(u16) · `ninsn`(u16) · `ndata`(u16) · program and data u32 arrays | returned data u32 array |
+
+GPU requests are capped at 64 instructions and 200 data words. Invalid
+encodings return `EINVAL`; an op that does not match the installed role returns
+`ENODEV`.
+
+`role_wait` copies the saved result and returns its byte count. A wrong token,
+a token owned by another task, or a second wait returns `EINVAL`. A short or
+bad output buffer returns `EMSGSIZE` or `EFAULT` without consuming the
+completion, so the owner can retry. Only one completion may be outstanding
+because the physical role accepts one job at a time; another submit returns
+`EBUSY`, and task teardown discards an uncollected result.
+
+The hardware driver polls today, so device work has completed by the time
+`role_submit` returns. The split submit/wait contract is intentional: adding a
+role interrupt and PLIC can make completion asynchronous without changing
+userspace. Polling is bounded meanwhile, so a wedged device returns
+`ETIMEDOUT` instead of wedging the kernel.
+
 ### Where the files come from when there is no disk
 
 The filesystem component mounts the SD card, and presents a small built-in
@@ -226,7 +288,7 @@ Not in the first ABI, each for a reason rather than by oversight:
 
 ## Status
 
-Everything in the table is implemented except the private range.
+Every call in the table is implemented.
 
 | call | state |
 |---|---|
@@ -235,7 +297,7 @@ Everything in the table is implemented except the private range.
 | `read` (fd 0) | implemented, returns 0 (no input source bound) |
 | `brk` | implemented: maps/unmaps heap pages between the image and the stack |
 | `openat`, `close`, `read`, `lseek`, `fstat` | implemented, read-only |
-| `role_info`, `role_submit` | numbers reserved, `-ENOSYS` |
+| `role_info`, `role_submit`, `role_wait` | implemented, kernel-mediated role access |
 | ELF loader | implemented (`loader.elf32`) |
 | C library | implemented (`libc.axlibc`) |
 
@@ -248,6 +310,11 @@ killing the process, that `getpid` is plausible, that a bad user pointer is
 child exit code of 7 is reported as status `7 << 8`.  Evidence:
 `make -C sw/kernel check-boot`, which runs it on the ISS, on QEMU, and on the
 RTL.
+
+The ordinary `hello.elf` fixture additionally verifies safe role absence on
+ISS/QEMU and bad-pointer handling. `make -C sw/kernel check-role-driver` runs
+that same ELF against RTL `role.loopback` and checks discovery, busy ownership,
+wrong-token and short-buffer retries, and a completed U-mode hardware job.
 
 The loader is `loader.elf32`, behind a `loader` component seam so the image
 format is replaceable without touching the kernel or the ABI.  It parses

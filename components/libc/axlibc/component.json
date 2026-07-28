@@ -11,5 +11,5 @@
     "components/libc/axlibc/stdio.c"
   ],
   "make": {"libc_include": "components/libc/axlibc/include"},
-  "capabilities": ["crt0", "sysv-entry", "errno", "syscall-wrappers", "string", "malloc-over-sbrk", "printf-subset", "file-descriptors", "no-float", "no-stdio-streams"]
+  "capabilities": ["crt0", "sysv-entry", "errno", "syscall-wrappers", "string", "malloc-over-sbrk", "printf-subset", "file-descriptors", "role-info", "role-submit-wait", "no-float", "no-stdio-streams"]
 }

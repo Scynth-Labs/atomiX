@@ -37,11 +37,15 @@ enum {
   AX_ECHILD = 10,
   AX_ENOMEM = 12,
   AX_EFAULT = 14,
+  AX_EBUSY = 16,
+  AX_ENODEV = 19,
   AX_EINVAL = 22,
   AX_EMFILE = 24,
   AX_EROFS = 30,
   AX_ENAMETOOLONG = 36,
   AX_ENOSYS = 38,
+  AX_EMSGSIZE = 90,
+  AX_ETIMEDOUT = 110,
 };
 
 /* Services the syscall component needs from the kernel.  Passed in rather than
@@ -91,6 +95,13 @@ struct syscall_ops {
   /* Read up to `len` bytes at `offset`; 0 means end of file, negative is an
    * error. */
   int32_t (*file_read)(int file, uint32_t offset, void *dst, uint32_t len);
+
+  /* Accelerator role control.  The kernel owns MMIO and returns only checked
+   * discovery data and encoded job results to the ABI component. */
+  void (*role_info)(uint32_t info[3]); /* id, version, capability word */
+  int (*role_execute)(uint32_t op, const uint8_t *request,
+                      uint32_t request_len, uint8_t *response,
+                      uint32_t response_cap, uint32_t *response_len);
 };
 
 /* Descriptor lifecycle remains owned by the ABI component. Reset every table,

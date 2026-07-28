@@ -7,6 +7,7 @@
 #include "page.h"
 #include "platform.h"
 #include "process.h"
+#include "role.h"
 #include "scheduler.h"
 #include "syscall.h"
 #include "task.h"
@@ -20,6 +21,7 @@ enum {
   MSTATUS_MPP_S = 1u << 11,
   SSTATUS_SPIE = 1u << 5,
   TRAP_FRAME_BYTES = 128,
+  SCAUSE_LOAD_ACCESS_FAULT = 5,
   SCAUSE_USER_ECALL = 8,
   SCAUSE_SUPERVISOR_SOFTWARE = 0x80000001u,
   USER_CODE_VA = 0x40000000u,
@@ -30,6 +32,8 @@ extern void s_entry(void);
 extern void machine_timer_trap(void);
 extern void user_entry(void);
 extern void shell_run(void);
+extern void role_probe_fault(void);
+extern volatile uint32_t role_probe_active;
 
 static volatile uint32_t supervisor_ticks;
 static uint32_t allocator_total_pages;
@@ -148,6 +152,11 @@ static inline uint32_t csr_read_scause(void) {
   __asm__ volatile("csrr %0, scause" : "=r"(value));
   return value;
 }
+static inline uint32_t csr_read_stval(void) {
+  uint32_t value;
+  __asm__ volatile("csrr %0, stval" : "=r"(value));
+  return value;
+}
 
 static inline uint32_t csr_read_sepc(void) {
   uint32_t value;
@@ -187,7 +196,8 @@ void m_setup(void) {
   vm_bootstrap_map(root_pt, low_pt);
   csr_write_mscratch(csr_read_sp());
   csr_write_mtvec((uint32_t)(uintptr_t)machine_timer_trap);
-  csr_write_medeleg(1u << SCAUSE_USER_ECALL);
+  csr_write_medeleg((1u << SCAUSE_LOAD_ACCESS_FAULT) |
+                    (1u << SCAUSE_USER_ECALL));
   /* MTIP stays M-owned; the shim raises delegated SSIP for S-mode policy. */
   csr_write_mideleg(1u << 1);
   csr_write_mie((1u << 7) | (1u << 1));
@@ -240,6 +250,11 @@ static uint32_t *schedule(uint32_t *trap_frame) {
 uint32_t *supervisor_trap(uint32_t *trap_frame) {
   const uint32_t cause = csr_read_scause();
 
+  if (cause == SCAUSE_LOAD_ACCESS_FAULT && role_probe_active) {
+    csr_write_sepc((uint32_t)(uintptr_t)role_probe_fault);
+    return trap_frame;
+  }
+
   if (cause == SCAUSE_SUPERVISOR_SOFTWARE) {
     /* M-mode turns MTIP into delegated SSIP for scheduler policy. */
     csr_write_sip(0);
@@ -256,6 +271,19 @@ uint32_t *supervisor_trap(uint32_t *trap_frame) {
 
   if (cause == SCAUSE_USER_ECALL) return syscall_dispatch(trap_frame, &kernel_ops);
 
+  static const char hex[] = "0123456789abcdef";
+  uart_puts("kernel: trap cause=");
+  for (int shift = 28; shift >= 0; shift -= 4)
+    uart_putchar(hex[(cause >> shift) & 0xfu]);
+  uart_puts(" sepc=");
+  const uint32_t fault_pc = csr_read_sepc();
+  for (int shift = 28; shift >= 0; shift -= 4)
+    uart_putchar(hex[(fault_pc >> shift) & 0xfu]);
+  uart_puts(" stval=");
+  const uint32_t fault_value = csr_read_stval();
+  for (int shift = 28; shift >= 0; shift -= 4)
+    uart_putchar(hex[(fault_value >> shift) & 0xfu]);
+  uart_puts("\n");
   test_finish(1);
 }
 
@@ -478,6 +506,20 @@ static int32_t k_file_read(int file, uint32_t offset, void *dst, uint32_t len) {
   return fs_read(file, offset, dst, len);
 }
 
+static void k_role_info(uint32_t info[3]) {
+  const uint32_t id = role_discover();
+  info[0] = id;
+  info[1] = id == 0 ? 0 : role_version();
+  info[2] = role_capabilities(id);
+}
+
+static int k_role_execute(uint32_t op, const uint8_t *request,
+                          uint32_t request_len, uint8_t *response,
+                          uint32_t response_cap, uint32_t *response_len) {
+  return role_execute(op, request, request_len, response, response_cap,
+                      response_len);
+}
+
 static const struct syscall_ops kernel_ops = {
     .fork = sys_fork,
     .wait = sys_wait,
@@ -491,6 +533,8 @@ static const struct syscall_ops kernel_ops = {
     .file_open = k_file_open,
     .file_size = k_file_size,
     .file_read = k_file_read,
+    .role_info = k_role_info,
+    .role_execute = k_role_execute,
 };
 
 static uint32_t *sys_fork(uint32_t *trap_frame) {
@@ -569,6 +613,9 @@ static uint32_t *sys_wait(uint32_t *trap_frame, uint32_t status_va) {
 static uint32_t *sys_exit(uint32_t *trap_frame, uint32_t code) {
   if (current_task == TASK_NONE) test_finish(1);
   struct task *const task = &tasks[current_task];
+  /* Descriptors and any uncollected role result stop belonging to the process
+   * at exit, not later when its parent happens to reap the zombie. */
+  syscall_task_reset(current_task);
   task->exit_status = code;
   task->state = TASK_ZOMBIE;
   for (uint32_t i = 0; i < TASK_SLOTS; ++i) {
@@ -591,7 +638,10 @@ static uint32_t *sys_exit(uint32_t *trap_frame, uint32_t code) {
   if (expect_fork_markers && console_mask != 7u) test_finish(1);
   /* Every page the task used must come back, for either demo: a loader that
    * leaks a segment page fails here rather than silently. */
-  if (page_free_count() != scheduler_free_pages) test_finish(1);
+  if (page_free_count() != scheduler_free_pages) {
+    uart_puts("kernel: process page leak\n");
+    test_finish(1);
+  }
   scheduler_running = 0;
   process_session_done = 1;
   return resume_supervisor_context();
@@ -657,6 +707,7 @@ void kmain(void) {
   page_init();
   allocator_total_pages = page_free_count();
   page_allocator_self_test();
+  role_init();
 #ifdef AXOS_HOSTLINK
   /* Host-managed personality: the console byte pipe carries the host-link
    * protocol instead of the interactive shell (DESIGN.md §3.3). */

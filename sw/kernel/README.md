@@ -26,15 +26,20 @@ deliberately absent; runtime-created and copied files remain limited to one
 
 `role` is the first piece of the shell + role control plane (DESIGN.md §3.3):
 aXos itself — not a bare-metal test program — administers the accelerator.
-`vm_bootstrap_map` device-maps the fixed 64 KiB role window into the kernel's
-S-mode address space, and the in-kernel driver in [role.c](role.c) discovers
-the role (`ROLE_ID`/`VERSION`) and drives the generic
-doorbell/status/descriptor cycle.  The shell `role` command prints the
-discovered role and, for `role.loopback`, drives one copy job end-to-end as a
-self-test.  Per-role job marshaling (GEMM for TPU-lite, SIMT kernels for
-GPU-compute) and the host-link service that will call this driver on behalf of
-remote requests layer on top of this same header driver. Evidence:
-`make -C sw/kernel check-role-driver`.
+`vm_bootstrap_map` maps the physical 64 KiB role window through a kernel-only
+`0x5000_0000` virtual alias, and the in-kernel driver in [role.c](role.c)
+discovers the role (`ROLE_ID`/`VERSION`) and drives the generic
+doorbell/status/descriptor cycle. The alias remains present under process page
+tables while user ELF text keeps its existing `0x4000_0000` virtual address.
+
+The shell `role` command drives a loopback self-test. U-mode programs use
+`role_info`, `role_submit`, and `role_wait`; the kernel validates and copies
+the same loopback, TPU GEMM, and GPU kernel encodings used by the host link, so
+neither userspace nor the host daemon receives raw MMIO access. Completion is
+tokenized and retry-safe, with bounded polling under the current hardware.
+Evidence: `make -C sw/kernel check-role-driver` runs both the resident-shell and
+U-mode paths against RTL `role.loopback`; `check-hostlink` covers all three
+role job formats.
 
 The initial immutable RAM disk is a named-file table. An optional AXFS v1 SD
 image path runs on cached external-memory RTL: `check-storage` mounts `motd`,
@@ -42,8 +47,8 @@ image path runs on cached external-memory RTL: `check-storage` mounts `motd`,
 may occupy contiguous sector extents, while `write`, `touch`, and `cp` create
 one-sector files and `mv`/`rm` update the flat directory through SD CMD24; it is
 deliberately not a crash-safe general filesystem. Storage builds load
-`hello.elf` from AXFS for `exec`. The boot image places AXFS at sector 96,
-leaving a 48 KiB kernel envelope without changing the ROM's length-prefixed
+`hello.elf` from AXFS for `exec`. The boot image places AXFS at sector 128,
+leaving a 64 KiB kernel envelope without changing the ROM's length-prefixed
 loader contract. Diskless ISS/QEMU/RTL builds retain the built-in root and
 embedded user program.
 

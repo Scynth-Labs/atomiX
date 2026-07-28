@@ -10,9 +10,10 @@ architecture signpost.
 no role present), `VERSION`, `DOORBELL`, and `STATUS` (BUSY/DONE, DONE is
 write-1-to-clear) — followed by role-defined registers and windows.  Software
 discovers the role by reading `ROLE_ID`, programs role-defined descriptor
-registers, rings the doorbell, and polls `STATUS` (an interrupt line arrives
-with the PLIC).  Roles do **not** execute RISC-V; they consume descriptors
-that aXos feeds them.  `sw/baremetal/include/role.h` is the software-side
+registers, rings the doorbell, and currently polls `STATUS`. A role interrupt
+replaces that polling when the PLIC integration lands. Roles do **not** execute
+RISC-V; they consume descriptors that aXos feeds them.
+`sw/baremetal/include/role.h` is the software-side
 header; `components/role/loopback/axrole.sv` is the reference device shape.
 
 Current and planned roles:

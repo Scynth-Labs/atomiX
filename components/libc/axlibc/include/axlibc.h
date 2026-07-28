@@ -34,11 +34,15 @@ typedef unsigned char uint8_t;
 #define EBADF  9
 #define ENOMEM 12
 #define EFAULT 14
+#define EBUSY  16
+#define ENODEV 19
 #define EINVAL 22
 #define EMFILE 24
 #define EROFS  30
 #define ENAMETOOLONG 36
 #define ENOSYS 38
+#define EMSGSIZE 90
+#define ETIMEDOUT 110
 
 extern int errno;
 extern char **__libc_environ;
@@ -100,6 +104,30 @@ void *sbrk(intptr_t increment);
 /* fcntl / stat */
 int open(const char *path, int flags);
 int fstat(int fd, struct stat *out);
+
+/* atomiX accelerator ABI.  The role window remains kernel-only; programs pass
+ * checked encoded jobs whose formats are shared with docs/host-protocol.md. */
+#define AX_ROLE_ID_LOOPBACK 0x4c4f4f50u
+#define AX_ROLE_ID_TPU      0x5450554cu
+#define AX_ROLE_ID_GPU      0x47505543u
+
+#define AX_ROLE_OP_LOOPBACK 0x10u
+#define AX_ROLE_OP_TPU_GEMM 0x11u
+#define AX_ROLE_OP_GPU_RUN  0x12u
+
+#define AX_ROLE_CAP_LOOPBACK (1u << 0)
+#define AX_ROLE_CAP_TPU_GEMM (1u << 1)
+#define AX_ROLE_CAP_GPU_RUN  (1u << 2)
+
+struct ax_role_info {
+  uint32_t id;
+  uint32_t version;
+  uint32_t capabilities;
+};
+
+int role_info(struct ax_role_info *out);
+long role_submit(uint32_t op, const void *request, size_t request_len);
+ssize_t role_wait(uint32_t token, void *response, size_t response_capacity);
 
 /* stdlib */
 void exit(int status);

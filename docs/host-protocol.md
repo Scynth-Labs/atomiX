@@ -3,9 +3,9 @@
 The wire contract between `axhost` on the host PC and the aXos host-link
 service on the FPGA shell (DESIGN.md §3.3).  This is the **base**: a minimal,
 functionally complete request/response protocol that proves the whole
-host → shell → role control plane end-to-end.  Richer capability (per-role job
-submission, streaming buffers, asynchronous completion, flow control, CRC) is
-layered on this frame format without breaking it.
+host → shell → role control plane end-to-end. Per-role job submission is
+implemented; streaming buffers, asynchronous completion, flow control, and CRC
+can layer on this frame format without breaking it.
 
 ## Transport
 
@@ -78,10 +78,13 @@ window and runs the shared doorbell/status cycle.
 | 0x01 | `BAD_OP` — unknown opcode                            |
 | 0x02 | `BAD_LEN` — payload length invalid for the opcode    |
 | 0x03 | `NO_ROLE` — op needs a role the shell does not have  |
+| 0x04 | `DEVICE` — the accelerator did not complete          |
 
 ## Authority
 
 `sw/kernel/include/hostlink.h` (aXos side) and `sw/host/axhost.py` (host side)
 implement this document; keep both in step with it.  Evidence:
 `make -C sw/kernel check-hostlink` runs `axhost` against the simulated shell
-with `role.loopback` and checks every response.
+with `role.loopback` and checks every response. Role job parsing and MMIO
+marshaling live in the same checked kernel dispatcher used by the userspace
+`role_submit` ABI, so the local and remote encodings cannot drift apart.

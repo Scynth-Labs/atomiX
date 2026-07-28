@@ -146,6 +146,9 @@ The endgame architecture. The FPGA design is split into two parts:
   doorbell, a status register, and role-defined descriptor registers and
   windows, plus an interrupt line via PLIC when it exists. aXos discovers
   the role via `ROLE_ID`, feeds it work, and exposes it over the host link.
+  Under Sv32, aXos uses a supervisor-only `0x5000_0000` virtual alias for this
+  physical aperture, leaving user text at virtual `0x4000_0000`; U-mode submits
+  checked jobs through `role_info`/`role_submit`/`role_wait`, never raw MMIO.
   A role does **not** execute RISC-V; it consumes descriptors.  Roles are
   selectable `role` components; `role.none` (the default) makes discovery
   read zero, and `role.loopback` is the executable contract proof.
@@ -404,7 +407,11 @@ The host plane now drives **all three real accelerators** with per-role opcodes
 on that same frame format — `TPU_GEMM` and `GPU_RUN` alongside the loopback
 `ROLE_RUN`, backed by in-kernel TPU-lite and GPU-compute drivers, each checked
 against a host-side reference (`make -C sw/kernel check-hostlink`).  The
-remaining platform work enhances this base: a dedicated USB-serial channel so a
+same checked encodings are now available to local U-mode programs through the
+tokenized role ABI (`make -C sw/kernel check-role-driver`), while the driver
+retains bounded polling behind a submit/wait boundary ready for PLIC-backed
+completion. The remaining platform work enhances this base: a dedicated
+USB-serial channel so a
 console and the host daemon coexist (with the board gate), buffer/stream and
 asynchronous-completion ops, and bitstream-upload mode switching.  ECP5 place-and-route and physical ULX3S
 bring-up remain the final gate: they do not block simulation or component work,

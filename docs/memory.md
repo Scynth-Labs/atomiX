@@ -33,6 +33,17 @@ make -C sw/kernel run-rtl \
 intentionally more demanding, so the regression sets it to 500000; it may be
 overridden for interactive experiments.
 
+### Supervisor role alias
+
+The role remains physically decoded at `0x4000_0000`. User executables also
+start at virtual `0x4000_0000`, so process page tables cannot identity-map the
+device there: the user L0 table intentionally occupies that root entry. Sv32
+therefore maps the role superpage at supervisor-only virtual `0x5000_0000`.
+Kernel drivers use that alias under both the kernel and process page tables;
+U-mode reaches the role only through the checked calls in [abi.md](abi.md).
+ISS and QEMU do not decode the physical role range, so a recoverable boot-time
+probe records absence before any process starts.
+
 ## Delayed backing store
 
 `components/memory/reference/axdram_model.sv` implements the future controller-facing shape today:
@@ -158,8 +169,9 @@ This proves write → directory update → readback in a cached RTL session.
 `sw/bootrom/` contains a less-than-4-KiB ROM-resident M-mode loader. It brings
 up SPI SDHC, validates the `AXBT` boot header, copies the raw kernel sectors to
 `0x8000_0000`, and jumps to the kernel's existing reset entry. The boot disk
-places AXFS at sector 96 so the persistent-process kernel and future service
-growth fit before the filesystem while the loaded kernel mounts the same image.
+places AXFS at sector 128, leaving a 64 KiB kernel envelope so the role ABI and
+future service growth fit before the filesystem while the loaded kernel mounts
+the same image.
 
 ```bash
 make -C sw/kernel check-sdboot

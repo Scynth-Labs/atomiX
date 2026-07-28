@@ -19,6 +19,9 @@ EXPECTED = (
     "aXos> role\n"
     "role: loopback v1\n"
     "role: copy ok\n"
+    "aXos> exec hello.elf\n"
+    "exec: role-user: loopback ok\n"
+    "axlibc: pid=1 n=42 hex=beef str=reused motd=17\n"
     "aXos> exit\n"
 )
 
@@ -28,7 +31,7 @@ def main() -> None:
     command = [
         "make", "-s", "--no-print-directory", "-C", str(ROOT / "sim/soc"),
         "run", f"RAM_INIT_FILE={image}", "RESET_PC=0x80000000",
-        f"COMPONENT_CONFIG={CONFIG}", "MAX_CYCLES=300000",
+        f"COMPONENT_CONFIG={CONFIG}", "MAX_CYCLES=500000",
         f"UART_INPUT_FILE={ROLE_INPUT}", "BUILD_ID=role-driver",
     ]
     try:

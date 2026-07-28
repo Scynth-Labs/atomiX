@@ -18,6 +18,7 @@
 #define HOSTLINK_ST_BAD_OP  0x01u
 #define HOSTLINK_ST_BAD_LEN 0x02u
 #define HOSTLINK_ST_NO_ROLE 0x03u
+#define HOSTLINK_ST_DEVICE  0x04u
 
 /* Frame and per-op payload caps.  MAX_PAYLOAD bounds the staging buffer; the
  * per-role caps bound the job dimensions so a request cannot overrun it. */

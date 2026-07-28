@@ -1,2 +1,3 @@
 role
+exec hello.elf
 exit

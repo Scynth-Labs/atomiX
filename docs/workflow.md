@@ -237,6 +237,10 @@ make -C sw/kernel check-role-driver     # aXos drives role.loopback from its own
 make -C sw/kernel check-hostlink        # axhost drives loopback, TPU-lite, and GPU-compute over the link
 ```
 
+`check-role-driver` also executes `hello.elf` in U-mode against the loopback
+role, covering `role_info` plus tokenized `role_submit`/`role_wait`, retry
+errors, and the kernel-only MMIO alias.
+
 ### 3.7 Randomized + formal (run on core / RVFI / translation changes)
 ```bash
 make -C sim/testgen fuzz           # long randomized instruction lock-step

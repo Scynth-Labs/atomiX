@@ -23,6 +23,7 @@
  * the same design at different settings. */
 #include <stdint.h>
 
+#include "role.h"
 #include "syscall.h"
 
 #ifndef AXOS_MAX_FDS
@@ -36,6 +37,9 @@
 #endif
 #ifndef AXOS_IO_CHUNK
 #define AXOS_IO_CHUNK 128
+#endif
+#ifndef AXOS_ROLE_MAX_PAYLOAD
+#define AXOS_ROLE_MAX_PAYLOAD 1280
 #endif
 
 /* asm-generic/unistd.h numbers.  Only the ones this kernel answers are named;
@@ -56,6 +60,7 @@ enum {
   /* Private range: ours to define and to change. */
   NR_ax_role_info = 0x1000,
   NR_ax_role_submit = 0x1001,
+  NR_ax_role_wait = 0x1002,
 };
 
 /* Standard descriptor numbers.  0, 1 and 2 are the console and are never in the
@@ -89,13 +94,32 @@ struct fd_entry {
 
 static struct fd_entry task_fds[TASK_SLOTS][AXOS_MAX_FDS];
 
+/* One hardware job can own the single role window at a time.  Execution is
+ * polling-backed today, so submit has completed the device work when it
+ * returns; keeping the result behind a token preserves the submit/wait ABI
+ * that an interrupt-backed driver will use later. */
+static uint8_t role_request[AXOS_ROLE_MAX_PAYLOAD];
+static uint8_t role_response[AXOS_ROLE_MAX_PAYLOAD];
+static uint32_t role_response_len;
+static uint32_t role_owner = TASK_SLOTS;
+static uint32_t role_token;
+static uint32_t role_next_token = 1;
+static int role_pending;
+
 void syscall_reset(void) {
+  role_pending = 0;
+  role_owner = TASK_SLOTS;
+  role_next_token = 1;
   for (uint32_t task = 0; task < TASK_SLOTS; ++task)
     syscall_task_reset(task);
 }
 
 void syscall_task_reset(uint32_t task_slot) {
   if (task_slot >= TASK_SLOTS) return;
+  if (role_pending && role_owner == task_slot) {
+    role_pending = 0;
+    role_owner = TASK_SLOTS;
+  }
   for (uint32_t i = 0; i < AXOS_MAX_FDS; ++i)
     task_fds[task_slot][i].file = 0;
 }
@@ -366,6 +390,79 @@ static uint32_t *sys_fstat(uint32_t *trap_frame, const struct syscall_ops *ops) 
   return ret(trap_frame, 0);
 }
 
+/* role_info(info): copy `{id, version, capabilities}` to userspace.  Absence is
+ * a successful query with id/version/capabilities all zero, not an error. */
+static uint32_t *sys_role_info(uint32_t *trap_frame,
+                               const struct syscall_ops *ops) {
+  uint32_t info[3];
+  ops->role_info(info);
+  if (!ops->copy_to_user(trap_frame[TRAP_FRAME_A0], info, sizeof(info)))
+    return err(trap_frame, AX_EFAULT);
+  return ret(trap_frame, 0);
+}
+
+/* role_submit(op, request, request_len): validate/copy the opaque encoded job,
+ * run it through the kernel-owned driver, and return a positive completion
+ * token.  Only one result is retained because the hardware window itself
+ * accepts one job at a time. */
+static uint32_t *sys_role_submit(uint32_t *trap_frame,
+                                 const struct syscall_ops *ops) {
+  const uint32_t op = trap_frame[TRAP_FRAME_A0];
+  const uint32_t request_va = trap_frame[TRAP_FRAME_A1];
+  const uint32_t request_len = trap_frame[TRAP_FRAME_A2];
+  const uint32_t owner = ops->task_slot();
+
+  if (owner >= TASK_SLOTS) return err(trap_frame, AX_EINVAL);
+  if (role_pending) return err(trap_frame, AX_EBUSY);
+  if (request_len > sizeof(role_request))
+    return err(trap_frame, AX_EMSGSIZE);
+  if (request_len != 0 &&
+      !ops->copy_from_user(role_request, request_va, request_len))
+    return err(trap_frame, AX_EFAULT);
+
+  uint32_t out_len = 0;
+  const int rc = ops->role_execute(op, role_request, request_len,
+                                   role_response, sizeof(role_response),
+                                   &out_len);
+  if (rc == AX_ROLE_EXEC_BAD_OP || rc == AX_ROLE_EXEC_BAD_LEN)
+    return err(trap_frame, AX_EINVAL);
+  if (rc == AX_ROLE_EXEC_NO_ROLE) return err(trap_frame, AX_ENODEV);
+  if (rc == AX_ROLE_EXEC_NO_SPACE) return err(trap_frame, AX_EMSGSIZE);
+  if (rc == AX_ROLE_EXEC_TIMEOUT) return err(trap_frame, AX_ETIMEDOUT);
+  if (rc != AX_ROLE_EXEC_OK || out_len > sizeof(role_response))
+    return err(trap_frame, AX_EIO);
+
+  role_token = role_next_token++;
+  if (role_next_token == 0 || role_next_token > 0x7fffffffu)
+    role_next_token = 1;
+  role_response_len = out_len;
+  role_owner = owner;
+  role_pending = 1;
+  return ret(trap_frame, role_token);
+}
+
+/* role_wait(token, response, capacity): collect and retire the caller's saved
+ * result.  A bad pointer or short buffer leaves it pending so the caller may
+ * retry instead of losing a completed hardware job. */
+static uint32_t *sys_role_wait(uint32_t *trap_frame,
+                               const struct syscall_ops *ops) {
+  const uint32_t token = trap_frame[TRAP_FRAME_A0];
+  const uint32_t response_va = trap_frame[TRAP_FRAME_A1];
+  const uint32_t capacity = trap_frame[TRAP_FRAME_A2];
+
+  if (!role_pending || role_owner != ops->task_slot() || token != role_token)
+    return err(trap_frame, AX_EINVAL);
+  if (capacity < role_response_len) return err(trap_frame, AX_EMSGSIZE);
+  if (role_response_len != 0 &&
+      !ops->copy_to_user(response_va, role_response, role_response_len))
+    return err(trap_frame, AX_EFAULT);
+
+  const uint32_t result = role_response_len;
+  role_pending = 0;
+  role_owner = TASK_SLOTS;
+  return ret(trap_frame, result);
+}
+
 uint32_t *syscall_dispatch(uint32_t *trap_frame, const struct syscall_ops *ops) {
   const uint32_t nr = trap_frame[TRAP_FRAME_A7];
 
@@ -419,12 +516,15 @@ uint32_t *syscall_dispatch(uint32_t *trap_frame, const struct syscall_ops *ops) 
     case NR_fstat:
       return sys_fstat(trap_frame, ops);
 
-    /* --- atomiX private range ---------------------------------------------
-     * The role driver lands here in the next stage; the numbers are reserved
-     * now so the ABI does not shift under software written against it. */
+    /* --- atomiX private range --------------------------------------------- */
     case NR_ax_role_info:
+      return sys_role_info(trap_frame, ops);
+
     case NR_ax_role_submit:
-      return err(trap_frame, AX_ENOSYS);
+      return sys_role_submit(trap_frame, ops);
+
+    case NR_ax_role_wait:
+      return sys_role_wait(trap_frame, ops);
 
     default:
       /* An unknown number is never fatal.  A libc probing for a call it can

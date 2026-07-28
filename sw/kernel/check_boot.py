@@ -148,7 +148,7 @@ def main() -> None:
                   "-cpu", "rv32,pmp=false", "-nographic", "-kernel", str(elf)]),
         ("RTL", ["make", "-s", "--no-print-directory", "-C",
                  str(ROOT / "sim/soc"), "run", f"RAM_INIT_FILE={image}",
-                 "RESET_PC=0x80000000"]),
+                 "RESET_PC=0x80000000", "MAX_CYCLES=200000"]),
         ]
     for label, command in platforms:
         shell_command = command + ([f"UART_INPUT_FILE={SHELL_INPUT}"] if label.startswith("RTL")
