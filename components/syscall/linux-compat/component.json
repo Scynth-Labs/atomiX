@@ -8,7 +8,7 @@
     "max_fds": {
       "default": 8,
       "define": "AXOS_MAX_FDS",
-      "doc": "Open files a program may hold at once, beyond the three console descriptors. Costs 8 bytes of .bss each."
+      "doc": "Open files each task may hold at once, beyond the three console descriptors. Costs 8 bytes of .bss per descriptor per task slot."
     },
     "write_max": {
       "default": 1024,
@@ -26,5 +26,5 @@
       "doc": "Bounce-buffer size read() copies through, also on the trap stack. Larger means fewer filesystem calls per read and a deeper kernel stack."
     }
   },
-  "capabilities": ["riscv-linux-abi", "asm-generic-numbers", "errno-returns", "private-range-0x1000", "clone-fork", "wait4", "write-console", "brk", "getpid", "openat-readonly", "read-file", "llseek", "fstat", "close"]
+  "capabilities": ["riscv-linux-abi", "asm-generic-numbers", "errno-returns", "private-range-0x1000", "clone-fork", "wait4-exit-status", "per-task-fds", "write-console", "brk", "getpid", "openat-readonly", "read-file", "llseek", "fstat", "close"]
 }

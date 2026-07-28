@@ -15,7 +15,7 @@ SHELL_OUTPUT = (
     "aXos: shell online\n"
     "aXos> help\n"
     "commands: help clear uname uptime free ps pwd ls cat stat hexdump touch cp "
-    "mv rm write echo fork exec role shutdown exit\n"
+    "mv rm write echo fork exec run role shutdown exit\n"
     "aXos> ls\n"
     "motd\n"
     "readme\n"
@@ -33,8 +33,9 @@ FORK_PREFIX = "aXos: shell online\naXos> fork\nfork demo: "
 # The loaded program prints exactly this and then exits 0.  Anything else -- a
 # different string, a non-zero exit -- means the loader mapped something wrong,
 # and the program's exit code says which check failed (see userprog/hello.c).
-EXEC_OUTPUT = ("aXos: shell online\naXos> exec\n"
-               "exec: axlibc: pid=1 n=42 hex=beef str=reused motd=17\n")
+EXEC_OUTPUT = ("aXos: shell online\naXos> exec hello.elf one two\n"
+               "exec: axlibc: pid=1 n=42 hex=beef str=reused motd=17\n"
+               "aXos> exit\n")
 STORAGE_WRITE_OUTPUT = (
     "aXos: shell online\n"
     "aXos> write note phase6-persistent\n"
@@ -88,11 +89,13 @@ def run(label: str, command: list[str], input_file: Path, expected: str | None) 
     fork_prefix = BOOT_PREFIX + FORK_PREFIX if label.startswith("RTL SD boot") else FORK_PREFIX
     if expected is None and (
             not result.stdout.startswith(fork_prefix) or
-            result.stdout[len(fork_prefix):] not in {"PCW", "CPW"}):
+            result.stdout[len(fork_prefix):] not in {
+                "PCWaXos> exit\n", "CPWaXos> exit\n"}):
         sys.stderr.write(result.stderr)
         raise SystemExit(
             f"[kernel] {label}: fork UART mismatch\n"
-            f"  expected: {fork_prefix!r} followed by PCW or CPW\n"
+            f"  expected: {fork_prefix!r} followed by PCW or CPW, then a "
+            "returned shell prompt\n"
             f"  got:      {result.stdout!r}")
     print(f"[kernel] {label}: PASS")
 

@@ -130,9 +130,12 @@ static int push(struct task *task, uint32_t *sp, uint32_t value) {
   return 0;
 }
 
-int loader_load(struct task *task, const uint8_t *image, uint32_t size,
-                uint32_t *entry_out, uint32_t *sp_out) {
+int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
+                     uint32_t argc, const char *const argv[],
+                     uint32_t *entry_out, uint32_t *sp_out) {
   if (task == 0 || image == 0 || size < EHDR_SIZE) return LOADER_EBADIMAGE;
+  if (argc > LOADER_ARG_MAX || (argc != 0 && argv == 0))
+    return LOADER_ENOSPACE;
 
   if (!(image[0] == 0x7f && image[1] == 'E' && image[2] == 'L' &&
         image[3] == 'F'))
@@ -198,10 +201,8 @@ int loader_load(struct task *task, const uint8_t *image, uint32_t size,
     return LOADER_EBADIMAGE;   /* entry point is not in any loaded segment */
 
   /* --- initial stack -------------------------------------------------------
-   * One page below the top of the user region, holding the System V frame a
-   * libc _start reads.  argc is 0 for now: there is no path that supplies
-   * arguments yet, and inventing a fake argv[0] would be worse than an honest
-   * empty vector. */
+   * One page below the top of the user region, holding argument strings and
+   * the System V frame a libc _start reads. */
   void *const stack = page_alloc();
   if (stack == 0) return LOADER_ENOSPACE;
   uint8_t *const stack_bytes = stack;
@@ -214,6 +215,28 @@ int loader_load(struct task *task, const uint8_t *image, uint32_t size,
   task->user_stack = stack;
 
   uint32_t sp = USER_STACK_TOP;
+  uint32_t arg_va[LOADER_ARG_MAX];
+  for (uint32_t i = argc; i != 0; --i) {
+    const char *const text = argv[i - 1u];
+    if (text == 0) return LOADER_ENOSPACE;
+    uint32_t len = 0;
+    while (text[len] && len < 255u) ++len;
+    if (text[len] != 0 || sp - stack_va <= len) return LOADER_ENOSPACE;
+    ++len;                         /* include the NUL */
+    sp -= len;
+    uint8_t *const dst = vm_translate_user(task, sp, 1);
+    if (dst == 0) return LOADER_ENOSPACE;
+    for (uint32_t j = 0; j < len; ++j) dst[j] = (uint8_t)text[j];
+    arg_va[i - 1u] = sp;
+  }
+  sp &= ~3u;
+
+  /* The frame contains three mandatory auxv pairs, optionally three PHDR
+   * pairs, two vector terminators, argc argv pointers, and argc itself.
+   * Padding lives above AT_NULL so sp itself still points at argc. */
+  const uint32_t frame_words = 9u + argc + (phdr_va != 0 ? 6u : 0u);
+  while ((sp - frame_words * 4u) & 0xfu)
+    if (push(task, &sp, 0) != 0) return LOADER_ENOSPACE;
 
   /* Built top-down, so it reads bottom-up as argc, argv, NULL, envp, NULL,
    * auxv, AT_NULL -- the order _start walks. */
@@ -233,12 +256,9 @@ int loader_load(struct task *task, const uint8_t *image, uint32_t size,
   }
   if (push(task, &sp, 0) != 0) return LOADER_ENOSPACE;   /* envp terminator */
   if (push(task, &sp, 0) != 0) return LOADER_ENOSPACE;   /* argv terminator */
-  if (push(task, &sp, 0) != 0) return LOADER_ENOSPACE;   /* argc = 0 */
-
-  /* The RISC-V psABI wants a 16-byte aligned stack at entry.  Aligning down
-   * would bury argc, so the frame is sized to land aligned instead. */
-  while (sp & 0xfu)
-    if (push(task, &sp, 0) != 0) return LOADER_ENOSPACE;
+  for (uint32_t i = argc; i != 0; --i)
+    if (push(task, &sp, arg_va[i - 1u]) != 0) return LOADER_ENOSPACE;
+  if (push(task, &sp, argc) != 0) return LOADER_ENOSPACE;
 
   /* The heap starts on the first page past the image and may grow until it
    * would meet the stack.  Leaving a one-page guard between them means a heap
@@ -250,4 +270,9 @@ int loader_load(struct task *task, const uint8_t *image, uint32_t size,
   *entry_out = e_entry;
   *sp_out = sp;
   return 0;
+}
+
+int loader_load(struct task *task, const uint8_t *image, uint32_t size,
+                uint32_t *entry_out, uint32_t *sp_out) {
+  return loader_load_args(task, image, size, 0, 0, entry_out, sp_out);
 }

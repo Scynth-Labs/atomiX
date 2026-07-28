@@ -72,7 +72,11 @@ int main(void) {
   if (sector[0] != 'A' || sector[1] != 'X' || sector[2] != 'B' ||
       sector[3] != 'T') fail(3);
   const uint32_t blocks = le32(&sector[4]);
-  if (blocks == 0 || blocks > 63) fail(4);
+  /* RAM is 128 KiB and the top 4 KiB belongs to the kernel bootstrap stack.
+   * The ROM header carries the actual length; its safety bound must come from
+   * RAM capacity, not from whichever sector the current disk format chooses
+   * for its filesystem. */
+  if (blocks == 0 || blocks > 248) fail(4);
   volatile uint8_t *dst = (volatile uint8_t *)(uintptr_t)0x80000000u;
   for (uint32_t block = 0; block < blocks; ++block) {
     if (read_block(block + 1)) fail(5);

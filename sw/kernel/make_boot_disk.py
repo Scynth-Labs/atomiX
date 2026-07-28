@@ -1,28 +1,28 @@
 #!/usr/bin/env python3
-"""Build an SDHC image: boot header, raw kernel, then AXFS at block 64."""
+"""Build an SDHC image: boot header, raw kernel, then AXFS at a fixed block."""
 import struct
 import sys
 from pathlib import Path
 
-FS_BLOCK = 64
 SPARE_FS_BLOCKS = 16
 
 def main():
-    if len(sys.argv) != 4:
+    if len(sys.argv) != 5:
         raise SystemExit(
-            "usage: make_boot_disk.py KERNEL.bin USER.elf OUTPUT.img")
+            "usage: make_boot_disk.py KERNEL.bin USER.elf OUTPUT.img FS_BLOCK")
     kernel = Path(sys.argv[1]).read_bytes()
     user_elf = Path(sys.argv[2]).read_bytes()
+    fs_block = int(sys.argv[4], 0)
     files = [
         ("motd", b"Welcome to aXos.\n"),
         ("readme", b"aXos SD disk. Run `help` for commands.\n"),
         ("hello.elf", user_elf),
     ]
     count = (len(kernel) + 511) // 512
-    if count == 0 or count >= FS_BLOCK:
+    if fs_block < 2 or count == 0 or count >= fs_block:
         raise SystemExit("kernel does not fit boot image")
 
-    next_block = FS_BLOCK + 1
+    next_block = fs_block + 1
     extents = []
     for name, content in files:
         blocks = max(1, (len(content) + 511) // 512)
@@ -34,7 +34,7 @@ def main():
     sectors[0][:8] = b"AXBT" + struct.pack("<I", count)
     for block in range(count):
         sectors[block + 1][:] = kernel[block * 512:(block + 1) * 512].ljust(512, b"\0")
-    fs = sectors[FS_BLOCK]
+    fs = sectors[fs_block]
     fs[:6] = b"AXFS\x01" + bytes([len(extents)])
     for index, (name, content, first_block, blocks) in enumerate(extents, 1):
         at = 8 + (index - 1) * 24

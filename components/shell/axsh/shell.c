@@ -4,11 +4,9 @@
 #include "kernel_info.h"
 #include "page.h"
 #include "platform.h"
+#include "process.h"
 #include "role.h"
 #include "task.h"
-
-extern void kernel_fork_demo(void);
-extern void kernel_exec_demo(void);
 
 enum {
   SHELL_LINE_MAX = 128,
@@ -283,7 +281,9 @@ static void command_ps(uint32_t argc, char **argv) {
     put_u32(tasks[i].parent_pid);
     uart_puts(" ");
     uart_puts(task_state_name(tasks[i].state));
-    uart_puts(" user\n");
+    uart_puts(" ");
+    uart_puts(tasks[i].name[0] ? tasks[i].name : "user");
+    uart_puts("\n");
   }
 }
 
@@ -445,17 +445,53 @@ static void command_fork(uint32_t argc, char **argv) {
     return;
   }
   uart_puts("fork demo: ");
-  kernel_fork_demo();
+  const int status = kernel_fork_demo();
+  if (status != 0) {
+    uart_puts("fork: exit ");
+    put_u32((uint32_t)status);
+    uart_puts("\n");
+  }
 }
 
 static void command_exec(uint32_t argc, char **argv) {
-  (void)argv;
-  if (argc != 1) {
-    uart_puts("exec: usage exec\n");
+  const char *default_argv[] = {"hello.elf"};
+  const char *const label = argv[0];
+  const char *name;
+  const char *const *program_argv;
+  uint32_t program_argc;
+  if (argc == 1) {
+    if (streq(label, "run")) {
+      uart_puts("run: usage run FILE [ARG ...]\n");
+      return;
+    }
+    name = default_argv[0];
+    program_argv = default_argv;
+    program_argc = 1;
+  } else {
+    name = argv[1];
+    program_argv = (const char *const *)&argv[1];
+    program_argc = argc - 1u;
+  }
+  if (program_argc > KERNEL_PROCESS_ARG_MAX) {
+    uart_puts(label);
+    uart_puts(": too many program arguments\n");
     return;
   }
-  uart_puts("exec: ");
-  kernel_exec_demo();
+  uart_puts(label);
+  uart_puts(": ");
+  const int status =
+      kernel_run_program(name, program_argc, program_argv);
+  if (status == KERNEL_RUN_ENOENT) {
+    uart_puts("no such program\n");
+  } else if (status == KERNEL_RUN_ETOOBIG) {
+    uart_puts("program too large\n");
+  } else if (status < 0) {
+    uart_puts("load failed\n");
+  } else if (status != 0) {
+    uart_puts("exit ");
+    put_u32((uint32_t)status);
+    uart_puts("\n");
+  }
 }
 
 static void command_role(uint32_t argc, char **argv) {
@@ -497,7 +533,8 @@ const struct shell_command shell_commands[] = {
     {"write", "write NAME TEXT", "create or replace a one-sector AXFS file", command_write},
     {"echo", "echo [TEXT ...]", "print text", command_echo},
     {"fork", "fork", "run the fork/wait scheduler demonstration", command_fork},
-    {"exec", "exec", "load and run the configured user ELF", command_exec},
+    {"exec", "exec [FILE [ARG ...]]", "load a user ELF and return to the shell", command_exec},
+    {"run", "run FILE [ARG ...]", "run a named user ELF and return to the shell", command_exec},
     {"role", "role", "discover and test the accelerator role", command_role},
     {"shutdown", "shutdown", "halt the machine cleanly", command_shutdown},
     {"exit", "exit", "leave the shell and halt the machine", command_shutdown},

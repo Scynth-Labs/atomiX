@@ -75,26 +75,35 @@ enum { O_ACCMODE = 3, O_RDONLY = 0 };
 /* lseek whence values. */
 enum { SEEK_SET = 0, SEEK_CUR = 1, SEEK_END = 2 };
 
-/* The descriptor table.
- *
- * One table, not one per task.  A per-process table needs a place to live in
- * struct task and a duplication rule in fork, and this kernel runs one program
- * at a time; sharing it across a fork is also closer to correct than not, since
- * Linux's forked descriptors share their file offsets anyway.  The kernel calls
- * syscall_reset() when it starts a program, so descriptors do not survive a
- * run.  When more than one program is ever runnable at once this becomes a
- * per-task table, and that is the point at which it should. */
-static struct {
+/* Descriptor state is per task slot.  The syscall component still owns its
+ * layout and numbering; the kernel only tells it which stable slot is calling
+ * and when a task is created or cloned. */
+struct fd_entry {
   /* The filesystem id *plus one*, so that zero means free.  A table in .bss is
    * then already a table of closed descriptors, and a kernel that forgets to
-   * call syscall_reset() gets no descriptors rather than eight aliases of
+   * reset a task slot gets no descriptors rather than eight aliases of
    * file 0 -- the failure mode that would be silent. */
   uint32_t file;
   uint32_t offset;
-} fds[AXOS_MAX_FDS];
+};
+
+static struct fd_entry task_fds[TASK_SLOTS][AXOS_MAX_FDS];
 
 void syscall_reset(void) {
-  for (uint32_t i = 0; i < AXOS_MAX_FDS; ++i) fds[i].file = 0;
+  for (uint32_t task = 0; task < TASK_SLOTS; ++task)
+    syscall_task_reset(task);
+}
+
+void syscall_task_reset(uint32_t task_slot) {
+  if (task_slot >= TASK_SLOTS) return;
+  for (uint32_t i = 0; i < AXOS_MAX_FDS; ++i)
+    task_fds[task_slot][i].file = 0;
+}
+
+void syscall_task_clone(uint32_t child_slot, uint32_t parent_slot) {
+  if (child_slot >= TASK_SLOTS || parent_slot >= TASK_SLOTS) return;
+  for (uint32_t i = 0; i < AXOS_MAX_FDS; ++i)
+    task_fds[child_slot][i] = task_fds[parent_slot][i];
 }
 
 static inline uint32_t csr_read_sepc(void) {
@@ -153,14 +162,21 @@ static uint32_t *sys_write(uint32_t *trap_frame, const struct syscall_ops *ops) 
  * when it stops being valid are ABI decisions rather than storage ones. */
 
 /* Map a user-visible descriptor to a table slot, or -1 if it is not open. */
-static int slot_of(int32_t fd) {
+static struct fd_entry *active_fds(const struct syscall_ops *ops) {
+  const uint32_t slot = ops->task_slot();
+  return slot < TASK_SLOTS ? task_fds[slot] : 0;
+}
+
+static int slot_of(const struct fd_entry *fds, int32_t fd) {
   if (fd < FD_FIRST || fd >= FD_FIRST + (int32_t)AXOS_MAX_FDS) return -1;
   const int slot = (int)(fd - FD_FIRST);
   return fds[slot].file == 0 ? -1 : slot;
 }
 
 /* The filesystem id behind an open slot. */
-static int file_of(int slot) { return (int)(fds[slot].file - 1u); }
+static int file_of(const struct fd_entry *fds, int slot) {
+  return (int)(fds[slot].file - 1u);
+}
 
 /* Pull a NUL-terminated path out of userspace.  Returns 0, or the errno to
  * report: an unterminated path is ENAMETOOLONG rather than a kernel that reads
@@ -195,6 +211,8 @@ static uint32_t *sys_openat(uint32_t *trap_frame, const struct syscall_ops *ops)
   const int file = ops->file_open(path);
   if (file < 0) return err(trap_frame, AX_ENOENT);
 
+  struct fd_entry *const fds = active_fds(ops);
+  if (fds == 0) return err(trap_frame, AX_EBADF);
   for (uint32_t i = 0; i < AXOS_MAX_FDS; ++i) {
     if (fds[i].file != 0) continue;
     fds[i].file = (uint32_t)file + 1u;
@@ -204,7 +222,8 @@ static uint32_t *sys_openat(uint32_t *trap_frame, const struct syscall_ops *ops)
   return err(trap_frame, AX_EMFILE);
 }
 
-static uint32_t *sys_close(uint32_t *trap_frame) {
+static uint32_t *sys_close(uint32_t *trap_frame,
+                           const struct syscall_ops *ops) {
   const int32_t fd = (int32_t)trap_frame[TRAP_FRAME_A0];
   /* Closing a console descriptor succeeds and does nothing.  The console is not
    * a file and cannot be reopened, and -EBADF here would break the ordinary
@@ -212,7 +231,9 @@ static uint32_t *sys_close(uint32_t *trap_frame) {
   if (fd == FD_STDIN || fd == FD_STDOUT || fd == FD_STDERR)
     return ret(trap_frame, 0);
 
-  const int slot = slot_of(fd);
+  struct fd_entry *const fds = active_fds(ops);
+  if (fds == 0) return err(trap_frame, AX_EBADF);
+  const int slot = slot_of(fds, fd);
   if (slot < 0) return err(trap_frame, AX_EBADF);
   fds[slot].file = 0;
   return ret(trap_frame, 0);
@@ -234,7 +255,9 @@ static uint32_t *sys_read(uint32_t *trap_frame, const struct syscall_ops *ops) {
   if (fd == FD_STDIN) return ret(trap_frame, 0);
   if (fd == FD_STDOUT || fd == FD_STDERR) return err(trap_frame, AX_EBADF);
 
-  const int slot = slot_of(fd);
+  struct fd_entry *const fds = active_fds(ops);
+  if (fds == 0) return err(trap_frame, AX_EBADF);
+  const int slot = slot_of(fds, fd);
   if (slot < 0) return err(trap_frame, AX_EBADF);
 
   uint32_t done = 0;
@@ -244,7 +267,7 @@ static uint32_t *sys_read(uint32_t *trap_frame, const struct syscall_ops *ops) {
     if (want > sizeof(chunk)) want = sizeof(chunk);
 
     const int32_t got =
-        ops->file_read(file_of(slot), fds[slot].offset, chunk, want);
+        ops->file_read(file_of(fds, slot), fds[slot].offset, chunk, want);
     if (got < 0) return done ? ret(trap_frame, done) : err(trap_frame, AX_EIO);
     if (got == 0) break;                                   /* end of file */
     if (!ops->copy_to_user(buf + done, chunk, (uint32_t)got))
@@ -262,7 +285,9 @@ static uint32_t *sys_read(uint32_t *trap_frame, const struct syscall_ops *ops) {
  * this part of it too -- a libc built for rv32 emits exactly this call, and a
  * simplified 32-bit `lseek` would work only with our own libc. */
 static uint32_t *sys_llseek(uint32_t *trap_frame, const struct syscall_ops *ops) {
-  const int slot = slot_of((int32_t)trap_frame[TRAP_FRAME_A0]);
+  struct fd_entry *const fds = active_fds(ops);
+  if (fds == 0) return err(trap_frame, AX_EBADF);
+  const int slot = slot_of(fds, (int32_t)trap_frame[TRAP_FRAME_A0]);
   const uint32_t offset_high = trap_frame[TRAP_FRAME_A1];
   const int32_t offset_low = (int32_t)trap_frame[TRAP_FRAME_A2];
   const uint32_t result_va = trap_frame[TRAP_FRAME_A3];
@@ -274,7 +299,7 @@ static uint32_t *sys_llseek(uint32_t *trap_frame, const struct syscall_ops *ops)
   if (offset_high != (uint32_t)(offset_low >> 31))
     return err(trap_frame, AX_EINVAL);
 
-  const int32_t size = ops->file_size(file_of(slot));
+  const int32_t size = ops->file_size(file_of(fds, slot));
   if (size < 0) return err(trap_frame, AX_EBADF);
 
   int32_t base;
@@ -324,9 +349,11 @@ static uint32_t *sys_fstat(uint32_t *trap_frame, const struct syscall_ops *ops) 
     st[STAT_NLINK] = 1;
     st[STAT_BLKSIZE] = 1;
   } else {
-    const int slot = slot_of(fd);
+    struct fd_entry *const fds = active_fds(ops);
+    if (fds == 0) return err(trap_frame, AX_EBADF);
+    const int slot = slot_of(fds, fd);
     if (slot < 0) return err(trap_frame, AX_EBADF);
-    const int32_t size = ops->file_size(file_of(slot));
+    const int32_t size = ops->file_size(file_of(fds, slot));
     if (size < 0) return err(trap_frame, AX_EBADF);
     st[STAT_MODE] = S_IFREG | 0444;
     st[STAT_NLINK] = 1;
@@ -384,7 +411,7 @@ uint32_t *syscall_dispatch(uint32_t *trap_frame, const struct syscall_ops *ops) 
       return sys_openat(trap_frame, ops);
 
     case NR_close:
-      return sys_close(trap_frame);
+      return sys_close(trap_frame, ops);
 
     case NR_lseek:
       return sys_llseek(trap_frame, ops);

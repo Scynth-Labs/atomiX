@@ -17,7 +17,14 @@ static const char greeting[] = "axlibc";
 static volatile int data_marker = 0x5a;
 static volatile int bss_marker;
 
-int main(void) {
+int main(int argc, char **argv) {
+  if (argc != 1 && argc != 3) return 35;
+  if (argv == NULL || argv[argc] != NULL) return 36;
+  if (strcmp(argv[0], "hello.elf") != 0) return 37;
+  if (argc == 3 &&
+      (strcmp(argv[1], "one") != 0 || strcmp(argv[2], "two") != 0))
+    return 38;
+
   if (data_marker != 0x5a) return 2;
   if (bss_marker != 0) return 3;
   data_marker = 0x11;

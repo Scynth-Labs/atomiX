@@ -72,7 +72,7 @@ user_entry:
   /* child */
   li a0, 'C'
   jal ra, putc
-  li a0, 0
+  li a0, 7                        /* parent must observe 7 << 8 via wait4 */
   li a7, NR_exit
   ecall
 0:
@@ -83,12 +83,18 @@ user_entry:
   /* parent */
   li a0, 'P'
   jal ra, putc
-  li a0, -1                       /* wait4(-1, NULL, 0, NULL): any child */
-  li a1, 0
+  li a0, -1                       /* wait4(-1, &status, 0, NULL): any child */
+  lui a1, 0x40001
+  addi a1, a1, 12
   li a2, 0
   li a3, 0
   li a7, NR_wait4
   ecall
+  blez a0, abi_fail
+  lui t0, 0x40001
+  lw t1, 12(t0)
+  li t2, 0x700
+  bne t1, t2, abi_fail
   li a0, 'W'
   jal ra, putc
   li a0, 0

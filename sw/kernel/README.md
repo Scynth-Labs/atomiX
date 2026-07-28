@@ -5,16 +5,17 @@ QEMU `virt`, and the RTL SoC.
 
 It provides Sv32 paging, M/S/U trap transitions, a physical-page allocator,
 CLINT-driven preemptive scheduling, and a minimal U-mode process model.
-`SYS_FORK` clones the Sv32 root, page table, user stack, and trap
-context; `SYS_WAIT` blocks and later reaps the child; `SYS_EXIT` releases every
-process page; `SYS_CONSOLE_PUTC` is the first user-visible write syscall.
+`clone` duplicates the Sv32 root, page table, user stack, trap context, and
+descriptor state; `wait4` blocks, reports encoded exit status, and reaps the
+child; `exit` releases every process page and resumes the resident S-mode
+shell.
 
 ## Shell and filesystem
 
 The resident shell runs in S-mode and uses the platform 16550 RX/TX console.
 Its baseline commands are `help`, `clear`, `uname`, `uptime`, `free`, `ps`,
 `pwd`, `ls`, `cat`, `stat`, `hexdump`, `touch`, `cp`, `mv`, `rm`, `write`,
-`echo`, `fork`, `exec`, `role`, `shutdown`, and `exit`. The parser supports
+`echo`, `fork`, `exec`, `run`, `role`, `shutdown`, and `exit`. The parser supports
 single/double-quoted arguments and backslash quoting. `uptime`, `free`, and
 `ps` use a read-only kernel observability interface rather than reaching into
 allocator or scheduler state. AXFS is a flat root, so directory commands are
@@ -41,14 +42,18 @@ image path runs on cached external-memory RTL: `check-storage` mounts `motd`,
 may occupy contiguous sector extents, while `write`, `touch`, and `cp` create
 one-sector files and `mv`/`rm` update the flat directory through SD CMD24; it is
 deliberately not a crash-safe general filesystem. Storage builds load
-`hello.elf` from AXFS for `exec`, which keeps the boot kernel below the
-sector-64 filesystem boundary. Diskless ISS/QEMU/RTL builds retain the built-in
-root and embedded user program.
+`hello.elf` from AXFS for `exec`. The boot image places AXFS at sector 96,
+leaving a 48 KiB kernel envelope without changing the ROM's length-prefixed
+loader contract. Diskless ISS/QEMU/RTL builds retain the built-in root and
+embedded user program.
 
-`fork` launches the U-mode parent/child demonstration. The child gets return
-value zero; the parent receives a child PID, blocks in `wait`, wakes when the
-child exits, and reaps it. The shell test accepts either valid first scheduling
-order, `PCW` or `CPW`.
+`exec [FILE [ARG...]]` and `run FILE [ARG...]` construct a System V
+`argc`/`argv` stack, run the root process synchronously, and restore the saved
+supervisor shell context when it exits. Repeated runs do not reboot the
+machine. `fork` launches the U-mode parent/child conformance fixture: the child
+exits with status 7, the parent verifies `wait4` reported `7 << 8`, and the
+fixture returns to the prompt. The shell test accepts either valid first
+scheduling order, `PCW` or `CPW`.
 
 ## Replaceable kernel policies
 
@@ -97,7 +102,7 @@ make -C sw/kernel kernel-component-test QEMU=/path/to/qemu-system-riscv32
 
 `check-sdboot` builds `build/axos_boot.img`, a bootable SD-card image with the
 kernel at its ROM-loader location and AXFS (including `hello.elf`) at sector
-64. It then proves the ROM loader, the real `axsdram` pin-level controller
+96. It then proves the ROM loader, the real `axsdram` pin-level controller
 model, the mounted shell, and filesystem-backed ELF execution in one RTL run.
 See [docs/ulx3s-bringup.md](../../docs/ulx3s-bringup.md) to use the same image
 on an ULX3S.

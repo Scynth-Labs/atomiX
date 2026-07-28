@@ -172,10 +172,10 @@ Staged so each step has its own evidence rather than landing as one large jump:
   built-in read-only root, which is what a diskless profile mounts — without it
   "can a program read a file" would be testable only where there is storage.
   Deliberate limits, each recorded in [abi.md](abi.md): read-only through the
-  ABI (`-EROFS`), one descriptor table rather than one per task, and `lseek`
-  implemented in its real 32-bit `llseek` shape rather than a simplified one
-  that would work only with this tree's libc.  Cost: 1,692 bytes of kernel text
-  and 104 of `.bss`.  Evidence: `make -C sw/kernel check-boot` (ISS, QEMU, RTL,
+  ABI (`-EROFS`) and `lseek` implemented in its real 32-bit `llseek` shape
+  rather than a simplified one that would work only with this tree's libc.
+  Descriptor state is now isolated per task slot and copied on `clone`.
+  Evidence: `make -C sw/kernel check-boot` (ISS, QEMU, RTL,
   built-in root) and `make -C sw/kernel check-storage` (the same program reading
   the same file off a real AXFS card over SPI).
 - [x] **Evidence.** A compiled C program that allocates, opens a file, reads it,
@@ -186,6 +186,14 @@ Staged so each step has its own evidence rather than landing as one large jump:
   that caught it.  The original bar is met.  What remains is scale rather than
   capability: raise the 128 KiB image ceiling and run something substantial
   enough to be a real test of the ABI rather than a demonstration of it.
+- [x] **Persistent process sessions.** The resident supervisor shell is now an
+  explicit saved/idle context rather than a one-way launcher. `exec`/`run`
+  build a real `argc`/`argv` frame, a root-process exit releases its pages and
+  returns to the prompt, non-zero status is reported without halting the
+  machine, and repeated runs prove task/descriptor cleanup. `wait4` reports
+  encoded child status and descriptor tables are isolated by task slot.
+  Evidence: `make -C sw/kernel check-shell`, `check-boot`,
+  `kernel-component-test`, `check-storage`, and `check-sdboot`.
 
 Both opening questions are settled in [abi.md](abi.md): the ABI is the RISC-V
 Linux subset, and the loader takes ELF directly rather than a pre-flattened

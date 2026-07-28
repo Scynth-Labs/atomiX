@@ -61,6 +61,9 @@ struct syscall_ops {
   uint32_t *(*exit)(uint32_t *trap_frame, uint32_t code);
   /* pid of the calling task. */
   uint32_t (*getpid)(void);
+  /* Stable task-table slot of the caller, used for ABI-owned per-process
+   * descriptor state. */
+  uint32_t (*task_slot)(void);
   /* Move the program break; returns the new break, or the current one when
    * `addr` is 0.  Returns 0 if the request cannot be satisfied. */
   uint32_t (*brk)(uint32_t addr);
@@ -90,10 +93,11 @@ struct syscall_ops {
   int32_t (*file_read)(int file, uint32_t offset, void *dst, uint32_t len);
 };
 
-/* Drop any per-run ABI state -- open descriptors, most of all.  The kernel
- * calls this when it starts a fresh program, so a run that exits without
- * closing does not leak descriptors into the next one. */
+/* Descriptor lifecycle remains owned by the ABI component. Reset every table,
+ * reset one stable task slot, or copy a parent's table during clone. */
 void syscall_reset(void);
+void syscall_task_reset(uint32_t task_slot);
+void syscall_task_clone(uint32_t child_slot, uint32_t parent_slot);
 
 /* Called by the kernel for every U-mode ecall.  Returns the trap frame to
  * resume.  The component is responsible for advancing sepc past the ecall for

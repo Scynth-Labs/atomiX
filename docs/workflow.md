@@ -207,8 +207,9 @@ achieved hardware clock as the final frequency.
 ### 3.5 Kernel (aXos) — needs `qemu-system-riscv32` ≥ 7
 
 `check-boot` covers three things on the ISS, QEMU, and the RTL: the interactive
-shell, the fork/wait demo, and `exec` — which loads `sw/kernel/userprog/hello.c`
-as an ELF the kernel has never linked against.  The userspace ABI it targets is
+shell, fork/wait with exit-status propagation, and persistent `exec` — which
+passes `argv` to `sw/kernel/userprog/hello.c`, then restores the shell instead
+of halting the machine. The userspace ABI it targets is
 [abi.md](abi.md); the syscall table (`syscall.linux-compat`) and the image
 format (`loader.elf32`) are both selectable components, as is the C library
 (`libc.axlibc`) that user programs link against.

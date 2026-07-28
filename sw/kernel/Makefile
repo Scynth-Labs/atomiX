@@ -28,6 +28,7 @@ MAX_CYCLES ?= 100000
 STORAGE ?= 0
 SD_IMAGE ?=
 FS_BLOCK ?= 0
+BOOT_FS_BLOCK ?= 96
 
 HOSTLINK ?= 0
 CPPFLAGS := -Iinclude -Ibuild -DAXOS_SD=$(STORAGE) -DAXFS_BLOCK=$(FS_BLOCK)
@@ -86,7 +87,7 @@ endif
 all: $(ELF)
 images: $(BIN) $(HEX)
 
-$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h include/kernel_info.h | build
+$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h include/kernel_info.h include/process.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
 
 $(BIN): $(ELF)
@@ -115,7 +116,8 @@ check-boot: images
 	$(MAKE) -C ../../sim/axsim axsim
 	python3 check_boot.py
 
-check-shell: $(ELF)
+check-shell:
+	$(MAKE) -B $(ELF) STORAGE=0 HOSTLINK=0
 	$(MAKE) -C ../../sim/axsim axsim
 	$(PYTHON) check_shell.py
 
@@ -156,9 +158,10 @@ check-storage-write: images $(USER_ELF)
 	SD_IMAGE=$(abspath build/axfs.img) python3 check_boot.py --storage-write
 
 boot-disk: images
-	$(MAKE) -B images STORAGE=1 FS_BLOCK=64
+	$(MAKE) -B images STORAGE=1 FS_BLOCK=$(BOOT_FS_BLOCK)
 	$(MAKE) -C ../bootrom images
-	python3 make_boot_disk.py build/axos_boot.bin $(USER_ELF) build/axos_boot.img
+	python3 make_boot_disk.py build/axos_boot.bin $(USER_ELF) \
+	  build/axos_boot.img $(BOOT_FS_BLOCK)
 
 check-sdboot: boot-disk
 	SD_IMAGE=$(abspath build/axos_boot.img) BOOT_ROM=$(abspath ../bootrom/build/bootrom.hex) python3 check_boot.py --sd-boot

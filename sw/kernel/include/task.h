@@ -32,4 +32,7 @@ struct task {
   uint32_t state;
   uint32_t pid;
   uint32_t parent_pid;
+  uint32_t exit_status;
+  uint32_t wait_status_va;
+  char name[16];
 };

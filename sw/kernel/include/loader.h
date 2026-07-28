@@ -22,6 +22,9 @@ enum {
   /* The image is valid but does not fit: a segment outside the mappable user
    * region, or not enough physical pages. */
   LOADER_ENOSPACE = -2,
+  /* Kernel-owned argv is deliberately bounded so malformed management input
+   * cannot consume the one-page initial user stack. */
+  LOADER_ARG_MAX = 8,
 };
 
 /* Load `image` into `task`'s address space and set up its initial state.
@@ -35,3 +38,9 @@ enum {
  * mapped; the caller destroys the address space, which frees them. */
 int loader_load(struct task *task, const uint8_t *image, uint32_t size,
                 uint32_t *entry_out, uint32_t *sp_out);
+
+/* The same load with a real argv vector. argv[0] is conventionally the program
+ * name; no environment is supplied yet. */
+int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
+                     uint32_t argc, const char *const argv[],
+                     uint32_t *entry_out, uint32_t *sp_out);

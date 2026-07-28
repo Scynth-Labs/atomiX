@@ -193,13 +193,12 @@ is honest for a filesystem that has never had them.  A regular file reports
 `S_IFREG | 0444`; a console descriptor reports `S_IFCHR | 0666`, which is what a
 libc checks to decide whether to line-buffer.
 
-**One descriptor table, not one per process.**  A per-process table needs a
-field in `struct task` and a duplication rule in `clone`, and this kernel runs
-one program at a time.  Sharing across a fork is also closer to correct than
-not, since Linux's forked descriptors share their file offsets anyway.  The
-kernel calls `syscall_reset()` when it starts a program, so descriptors never
-survive a run.  When more than one program is runnable at once this becomes a
-per-task table -- and that is the point at which it should, not before.
+**Descriptor tables are per task.** The syscall component owns one table for
+each stable kernel task slot. A fresh root process starts with an empty table;
+`clone` copies the parent's descriptors and offsets into the child's table, and
+reaping resets the released slot. This gives processes independent descriptor
+lifetimes. A future full POSIX open-file-description layer should make cloned
+descriptors share offsets; today the copied offsets advance independently.
 
 ### Where the files come from when there is no disk
 
@@ -245,7 +244,8 @@ is checked against *this document* rather than against whatever a libc happens
 to emit.  It verifies that an unknown number returns `-ENOSYS` rather than
 killing the process, that `getpid` is plausible, that a bad user pointer is
 `-EFAULT` rather than a supervisor fault, and that a bad descriptor is `-EBADF`
--- then runs the fork/wait demo through `clone` and `wait4`.  Evidence:
+-- then runs the fork/wait demo through `clone` and `wait4`, verifying that a
+child exit code of 7 is reported as status `7 << 8`.  Evidence:
 `make -C sw/kernel check-boot`, which runs it on the ISS, on QEMU, and on the
 RTL.
 
@@ -253,7 +253,9 @@ The loader is `loader.elf32`, behind a `loader` component seam so the image
 format is replaceable without touching the kernel or the ABI.  It parses
 ET_EXEC ELF32 RISC-V images, maps each `PT_LOAD` segment at its own virtual
 address with its own `p_flags` permissions, zero-fills the `.bss` tail beyond
-`p_filesz`, and builds the System V initial stack described above.  Dynamic
+`p_filesz`, and builds the System V initial stack described above, including
+kernel-supplied argument strings and `argv` pointers. `hello.elf` verifies both
+the one-argument default and the three-argument regression invocation. Dynamic
 linking is out of scope: `PT_INTERP` and relocations are rejected rather than
 half-handled, which is the whole of what a statically linked libc needs.
 

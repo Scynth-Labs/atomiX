@@ -59,6 +59,10 @@ def main() -> None:
         'aXos> echo "unterminated\nsh: unterminated quote\n',
         "aXos> echo 1 2 3 4 5 6 7 8 9 10 11 12\n"
         "sh: too many arguments\n",
+        "aXos> exec missing.elf\nexec: no such program\n",
+        "aXos> run hello.elf bad\nrun: exit 35\n",
+        "aXos> ps\nPID PPID STATE NAME\n"
+        "0 0 running [kernel/shell]\n",
         "aXos> shutdown\n",
     ]
     for fragment in fragments:
@@ -81,6 +85,16 @@ def main() -> None:
         raise SystemExit(
             "[kernel] shell commands: inconsistent allocator counts "
             f"(total={total}, free={free}, used={used})")
+    exec_output = (
+        "aXos> exec\n"
+        "exec: axlibc: pid=1 n=42 hex=beef str=reused motd=17\n")
+    run_output = (
+        "aXos> run hello.elf\n"
+        "run: axlibc: pid=1 n=42 hex=beef str=reused motd=17\n")
+    if output.count(exec_output) != 1 or output.count(run_output) != 1:
+        raise SystemExit(
+            "[kernel] shell commands: sequential exec/run did not return cleanly "
+            f"twice: {output!r}")
 
     print("[kernel] generic shell commands: PASS on ISS")
 

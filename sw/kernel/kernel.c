@@ -6,6 +6,7 @@
 #include "loader.h"
 #include "page.h"
 #include "platform.h"
+#include "process.h"
 #include "scheduler.h"
 #include "syscall.h"
 #include "task.h"
@@ -44,6 +45,17 @@ static volatile uint32_t console_mask;
  * apply the fork demo's assertion to every program that ever runs. */
 static volatile uint32_t expect_fork_markers;
 static uint32_t scheduler_free_pages;
+static volatile uint32_t process_session_active;
+static volatile uint32_t process_session_done;
+static volatile uint32_t process_session_status;
+
+struct supervisor_context {
+  uint32_t *trap_frame;
+  uint32_t sepc;
+  uint32_t sstatus;
+};
+
+static struct supervisor_context supervisor_context;
 
 uint32_t kernel_uptime_ticks(void) {
   return supervisor_ticks;
@@ -65,6 +77,8 @@ uint32_t kernel_task_snapshot(struct kernel_task_info *out, uint32_t capacity) {
     out[copied].pid = tasks[i].pid;
     out[copied].parent_pid = tasks[i].parent_pid;
     out[copied].state = tasks[i].state;
+    for (uint32_t j = 0; j < sizeof(out[copied].name); ++j)
+      out[copied].name[j] = tasks[i].name[j];
     ++copied;
   }
   return copied;
@@ -191,6 +205,18 @@ static uint32_t *sys_wait(uint32_t *trap_frame, uint32_t status_va);
 static uint32_t *sys_exit(uint32_t *trap_frame, uint32_t code);
 static const struct syscall_ops kernel_ops;
 
+static uint32_t *resume_supervisor_context(void) {
+  uint32_t *const frame = supervisor_context.trap_frame;
+  if (frame == 0) test_finish(1);
+  csr_write_satp(vm_root_satp(root_pt));
+  __asm__ volatile("sfence.vma zero, zero");
+  csr_write_sepc(supervisor_context.sepc);
+  csr_write_sstatus(supervisor_context.sstatus);
+  supervisor_context.trap_frame = 0;
+  current_task = TASK_NONE;
+  return frame;
+}
+
 static uint32_t *schedule(uint32_t *trap_frame) {
   if (!scheduler_running) return trap_frame;
 
@@ -201,7 +227,7 @@ static uint32_t *schedule(uint32_t *trap_frame) {
     tasks[current_task].state = TASK_RUNNABLE;
   }
   const uint32_t next = scheduler_select(tasks, TASK_SLOTS, current_task);
-  if (next == TASK_NONE) test_finish(1);
+  if (next == TASK_NONE) return resume_supervisor_context();
   current_task = next;
   tasks[current_task].state = TASK_RUNNING;
   csr_write_satp(tasks[current_task].satp);
@@ -219,6 +245,11 @@ uint32_t *supervisor_trap(uint32_t *trap_frame) {
     csr_write_sip(0);
     supervisor_ticks++;
     if (!scheduler_running) return trap_frame;
+    if (current_task == TASK_NONE && supervisor_context.trap_frame == 0) {
+      supervisor_context.trap_frame = trap_frame;
+      supervisor_context.sepc = csr_read_sepc();
+      supervisor_context.sstatus = csr_read_sstatus();
+    }
     scheduled_ticks++;
     return schedule(trap_frame);
   }
@@ -245,10 +276,24 @@ static void page_allocator_self_test(void) {
 }
 
 static void task_release(struct task *task) {
+  const uint32_t slot = (uint32_t)(task - tasks);
   vm_destroy_user_space(task);
   page_free(task->kernel_stack);
+  syscall_task_reset(slot);
   task->kernel_stack = 0;
   task->state = TASK_UNUSED;
+  task->pid = 0;
+  task->parent_pid = 0;
+  task->exit_status = 0;
+  task->wait_status_va = 0;
+  for (uint32_t i = 0; i < sizeof(task->name); ++i) task->name[i] = 0;
+}
+
+static void task_set_name(struct task *task, const char *name) {
+  uint32_t i = 0;
+  for (; i + 1u < sizeof(task->name) && name[i]; ++i)
+    task->name[i] = name[i];
+  for (; i < sizeof(task->name); ++i) task->name[i] = 0;
 }
 
 /* Create a task from a loaded ELF rather than from the built-in payload.
@@ -257,27 +302,27 @@ static void task_release(struct task *task) {
  * the entry point, and the stack come from: this one has no compiled-in
  * knowledge of the program at all, which is what makes it a loader test.  The
  * exit status the program chooses becomes the test's verdict. */
-static void scheduler_make_loaded_task(uint32_t slot, const uint8_t *image,
-                                       uint32_t size) {
-  /* A fresh program starts with no descriptors: a previous run that exited
-   * without closing must not leak them into this one. */
-  syscall_reset();
-  if (vm_create_empty_user_space(&tasks[slot], root_pt)) test_finish(1);
+static int scheduler_make_loaded_task(uint32_t slot, const char *name,
+                                      const uint8_t *image, uint32_t size,
+                                      uint32_t argc,
+                                      const char *const argv[]) {
+  syscall_task_reset(slot);
+  if (vm_create_empty_user_space(&tasks[slot], root_pt))
+    return KERNEL_RUN_ELOAD;
 
   uint32_t entry = 0;
   uint32_t sp = 0;
-  const int rc = loader_load(&tasks[slot], image, size, &entry, &sp);
+  const int rc = loader_load_args(&tasks[slot], image, size, argc, argv,
+                                  &entry, &sp);
   if (rc != 0) {
-    /* Distinct codes so a failure says whether the image was rejected or
-     * simply did not fit, rather than only that loading failed. */
-    uart_puts("[kernel] load failed\n");
-    test_finish(rc == LOADER_EBADIMAGE ? 20 : 21);
+    vm_destroy_user_space(&tasks[slot]);
+    return KERNEL_RUN_ELOAD;
   }
 
   uint32_t *const kernel_stack = page_alloc();
   if (kernel_stack == 0) {
     vm_destroy_user_space(&tasks[slot]);
-    test_finish(1);
+    return KERNEL_RUN_ELOAD;
   }
   uint32_t *const frame =
       (uint32_t *)((uintptr_t)kernel_stack + PAGE_SIZE - TRAP_FRAME_BYTES);
@@ -287,14 +332,19 @@ static void scheduler_make_loaded_task(uint32_t slot, const uint8_t *image,
   tasks[slot].state = TASK_RUNNABLE;
   tasks[slot].pid = next_pid++;
   tasks[slot].parent_pid = 0;
+  tasks[slot].exit_status = 0;
+  tasks[slot].wait_status_va = 0;
+  task_set_name(&tasks[slot], name);
   tasks[slot].sepc = entry;
   /* Nothing is passed in registers: docs/abi.md puts everything on the stack,
    * so a program must not read a0 at entry. */
   frame[TRAP_FRAME_SP] = sp;
   tasks[slot].sstatus = SSTATUS_SPIE;
+  return 0;
 }
 
 static void scheduler_make_user_task(uint32_t slot) {
+  syscall_task_reset(slot);
   if (vm_create_user_space(&tasks[slot], root_pt)) test_finish(1);
   uint32_t *const kernel_stack = page_alloc();
   if (kernel_stack == 0) {
@@ -309,6 +359,9 @@ static void scheduler_make_user_task(uint32_t slot) {
   tasks[slot].state = TASK_RUNNABLE;
   tasks[slot].pid = next_pid++;
   tasks[slot].parent_pid = 0;
+  tasks[slot].exit_status = 0;
+  tasks[slot].wait_status_va = 0;
+  task_set_name(&tasks[slot], "fork-demo");
   tasks[slot].sepc = USER_CODE_VA +
       ((uint32_t)(uintptr_t)user_entry & (PAGE_SIZE - 1u));
   frame[TRAP_FRAME_A0] = slot;
@@ -324,6 +377,10 @@ static void scheduler_make_user_task(uint32_t slot) {
 
 static uint32_t k_getpid(void) {
   return current_task == TASK_NONE ? 0u : tasks[current_task].pid;
+}
+
+static uint32_t k_task_slot(void) {
+  return current_task;
 }
 
 /* brk(addr): move the program break, returning the resulting break.
@@ -388,15 +445,20 @@ static int k_copy_from_user(void *dst, uint32_t user_va, uint32_t len) {
   return 1;
 }
 
-static int k_copy_to_user(uint32_t user_va, const void *src, uint32_t len) {
-  if (current_task == TASK_NONE) return 0;
+static int copy_to_task(struct task *task, uint32_t user_va, const void *src,
+                        uint32_t len) {
   const uint8_t *in = src;
   for (uint32_t i = 0; i < len; ++i) {
-    uint8_t *dst = vm_translate_user(&tasks[current_task], user_va + i, 1);
+    uint8_t *dst = vm_translate_user(task, user_va + i, 1);
     if (dst == 0) return 0;
     *dst = in[i];
   }
   return 1;
+}
+
+static int k_copy_to_user(uint32_t user_va, const void *src, uint32_t len) {
+  if (current_task == TASK_NONE) return 0;
+  return copy_to_task(&tasks[current_task], user_va, src, len);
 }
 
 /* --- files ------------------------------------------------------------------
@@ -421,6 +483,7 @@ static const struct syscall_ops kernel_ops = {
     .wait = sys_wait,
     .exit = sys_exit,
     .getpid = k_getpid,
+    .task_slot = k_task_slot,
     .brk = k_brk,
     .console_putc = k_console_putc,
     .copy_from_user = k_copy_from_user,
@@ -458,6 +521,10 @@ static uint32_t *sys_fork(uint32_t *trap_frame) {
   child->state = TASK_RUNNABLE;
   child->pid = next_pid++;
   child->parent_pid = parent->pid;
+  child->exit_status = 0;
+  child->wait_status_va = 0;
+  task_set_name(child, parent->name);
+  syscall_task_clone(slot, current_task);
   frame[TRAP_FRAME_A0] = 0;
   trap_frame[TRAP_FRAME_A0] = child->pid;
   csr_write_sepc(child->sepc);
@@ -465,96 +532,125 @@ static uint32_t *sys_fork(uint32_t *trap_frame) {
 }
 
 static uint32_t *sys_wait(uint32_t *trap_frame, uint32_t status_va) {
-  /* wait4's status-out pointer is accepted and unused: no exit status is
-   * recorded yet, and writing a fabricated one would be worse than not
-   * writing.  A libc treats a null status as "do not report". */
-  (void)status_va;
   if (current_task == TASK_NONE) test_finish(1);
   struct task *const parent = &tasks[current_task];
+  int has_child = 0;
   for (uint32_t i = 0; i < TASK_SLOTS; ++i) {
     struct task *const child = &tasks[i];
     if (child->parent_pid != parent->pid) continue;
+    has_child = 1;
     if (child->state == TASK_ZOMBIE) {
+      const uint32_t status = (child->exit_status & 0xffu) << 8;
+      if (status_va != 0 &&
+          !copy_to_task(parent, status_va, &status, sizeof(status))) {
+        trap_frame[TRAP_FRAME_A0] = (uint32_t)(-(int32_t)AX_EFAULT);
+        csr_write_sepc(csr_read_sepc() + 4u);
+        return trap_frame;
+      }
       trap_frame[TRAP_FRAME_A0] = child->pid;
       task_release(child);
       csr_write_sepc(csr_read_sepc() + 4u);
       return trap_frame;
     }
-    parent->trap_frame = trap_frame;
-    parent->sepc = csr_read_sepc() + 4u;
-    parent->sstatus = csr_read_sstatus();
-    parent->state = TASK_BLOCKED;
-    return schedule(trap_frame);
   }
-  test_finish(1);
+  if (!has_child) {
+    trap_frame[TRAP_FRAME_A0] = (uint32_t)(-(int32_t)AX_ECHILD);
+    csr_write_sepc(csr_read_sepc() + 4u);
+    return trap_frame;
+  }
+  parent->trap_frame = trap_frame;
+  parent->sepc = csr_read_sepc() + 4u;
+  parent->sstatus = csr_read_sstatus();
+  parent->state = TASK_BLOCKED;
+  parent->wait_status_va = status_va;
+  return schedule(trap_frame);
 }
 
 static uint32_t *sys_exit(uint32_t *trap_frame, uint32_t code) {
   if (current_task == TASK_NONE) test_finish(1);
-  /* A loaded program reports its own verdict through the exit code; the
-   * built-in fork demo only ever exits zero and is checked by its console
-   * markers instead. */
-  if (code != 0u) test_finish((int)code);
   struct task *const task = &tasks[current_task];
+  task->exit_status = code;
   task->state = TASK_ZOMBIE;
   for (uint32_t i = 0; i < TASK_SLOTS; ++i) {
     struct task *const parent = &tasks[i];
     if (parent->state == TASK_BLOCKED && parent->pid == task->parent_pid) {
-      parent->trap_frame[TRAP_FRAME_A0] = task->pid;
+      const uint32_t status = (code & 0xffu) << 8;
+      const int status_ok = parent->wait_status_va == 0 ||
+          copy_to_task(parent, parent->wait_status_va, &status, sizeof(status));
+      parent->trap_frame[TRAP_FRAME_A0] = status_ok ? task->pid :
+          (uint32_t)(-(int32_t)AX_EFAULT);
+      parent->wait_status_va = 0;
       parent->state = TASK_RUNNABLE;
-      task_release(task);
+      if (status_ok) task_release(task);
       return schedule(trap_frame);
     }
   }
   if (task->parent_pid != 0) return schedule(trap_frame);
-  csr_write_satp(vm_root_satp(root_pt));
-  __asm__ volatile("sfence.vma zero, zero");
+  process_session_status = code;
   task_release(task);
   if (expect_fork_markers && console_mask != 7u) test_finish(1);
   /* Every page the task used must come back, for either demo: a loader that
    * leaks a segment page fails here rather than silently. */
   if (page_free_count() != scheduler_free_pages) test_finish(1);
-  test_finish(0);
+  scheduler_running = 0;
+  process_session_done = 1;
+  return resume_supervisor_context();
 }
 
-static void scheduler_start(void) {
-  scheduler_free_pages = page_free_count();
-  scheduler_make_user_task(0);
+static int process_session_wait(void) {
+  if (process_session_active) return KERNEL_RUN_EBUSY;
+  process_session_active = 1;
+  process_session_done = 0;
+  process_session_status = 0;
+  supervisor_context.trap_frame = 0;
   scheduler_running = 1;
   clint_arm_timer(2000);
+  while (!process_session_done) __asm__ volatile("wfi");
+  process_session_active = 0;
+  return (int)process_session_status;
 }
 
-void kernel_fork_demo(void) {
+static int scheduler_start(void) {
+  scheduler_free_pages = page_free_count();
+  scheduler_make_user_task(0);
+  return process_session_wait();
+}
+
+int kernel_fork_demo(void) {
   expect_fork_markers = 1;
-  scheduler_start();
-  for (;;) __asm__ volatile("wfi");
+  console_mask = 0;
+  return scheduler_start();
 }
 
-/* Load and run the user ELF. The diskless personality uses the embedded loader
- * fixture; an SD personality reads the same ELF from AXFS. The program's own
- * exit code checks that every segment was mapped with the right contents. */
-void kernel_exec_demo(void) {
+#if AXOS_EMBED_USER
+static int same_name(const char *a, const char *b) {
+  while (*a && *a == *b) { ++a; ++b; }
+  return *a == *b;
+}
+#endif
+
+int kernel_run_program(const char *name, uint32_t argc,
+                       const char *const argv[]) {
+  if (process_session_active) return KERNEL_RUN_EBUSY;
   expect_fork_markers = 0;
   scheduler_free_pages = page_free_count();
 #if AXOS_EMBED_USER
-  scheduler_make_loaded_task(0, axos_user_image, axos_user_image_size);
+  if (!same_name(name, "hello.elf")) return KERNEL_RUN_ENOENT;
+  const int loaded = scheduler_make_loaded_task(
+      0, name, axos_user_image, axos_user_image_size, argc, argv);
 #else
   (void)fs_mount();
-  const int file = fs_lookup("hello.elf");
+  const int file = fs_lookup(name);
   const int32_t size = file < 0 ? -1 : fs_size(file);
-  if (size <= 0 || (uint32_t)size > sizeof(storage_user_image)) {
-    uart_puts("[kernel] user image missing or too large\n");
-    test_finish(22);
-  }
-  if (fs_read(file, 0, storage_user_image, (uint32_t)size) != size) {
-    uart_puts("[kernel] user image read failed\n");
-    test_finish(23);
-  }
-  scheduler_make_loaded_task(0, storage_user_image, (uint32_t)size);
+  if (size <= 0) return KERNEL_RUN_ENOENT;
+  if ((uint32_t)size > sizeof(storage_user_image)) return KERNEL_RUN_ETOOBIG;
+  if (fs_read(file, 0, storage_user_image, (uint32_t)size) != size)
+    return KERNEL_RUN_ELOAD;
+  const int loaded = scheduler_make_loaded_task(
+      0, name, storage_user_image, (uint32_t)size, argc, argv);
 #endif
-  scheduler_running = 1;
-  clint_arm_timer(2000);
-  for (;;) __asm__ volatile("wfi");
+  if (loaded != 0) return loaded;
+  return process_session_wait();
 }
 
 void kmain(void) {

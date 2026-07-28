@@ -18,4 +18,9 @@ clear
 not-a-command
 echo "unterminated
 echo 1 2 3 4 5 6 7 8 9 10 11 12
+exec missing.elf
+run hello.elf bad
+exec
+run hello.elf
+ps
 shutdown

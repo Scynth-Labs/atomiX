@@ -16,6 +16,7 @@ struct kernel_task_info {
   uint32_t pid;
   uint32_t parent_pid;
   uint32_t state;
+  char name[16];
 };
 
 /* Timer interrupts observed since S-mode started.  A tick deliberately has no

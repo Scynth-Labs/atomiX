@@ -1,1 +1,2 @@
-exec
+exec hello.elf one two
+exit

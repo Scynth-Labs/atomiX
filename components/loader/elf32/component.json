@@ -4,5 +4,5 @@
   "kind": "loader",
   "title": "Static ELF32 RISC-V program loader (PT_LOAD segments, System V initial stack)",
   "sources": ["components/loader/elf32/loader.c"],
-  "capabilities": ["elf32", "riscv", "static-exec", "pt-load", "per-segment-permissions", "bss-zero-fill", "sysv-initial-stack", "auxv"]
+  "capabilities": ["elf32", "riscv", "static-exec", "pt-load", "per-segment-permissions", "bss-zero-fill", "sysv-initial-stack", "argv", "auxv"]
 }

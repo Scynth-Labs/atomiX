@@ -158,7 +158,8 @@ This proves write → directory update → readback in a cached RTL session.
 `sw/bootrom/` contains a less-than-4-KiB ROM-resident M-mode loader. It brings
 up SPI SDHC, validates the `AXBT` boot header, copies the raw kernel sectors to
 `0x8000_0000`, and jumps to the kernel's existing reset entry. The boot disk
-places AXFS at sector 64 so the loaded kernel mounts the same SD image.
+places AXFS at sector 96 so the persistent-process kernel and future service
+growth fit before the filesystem while the loaded kernel mounts the same image.
 
 ```bash
 make -C sw/kernel check-sdboot

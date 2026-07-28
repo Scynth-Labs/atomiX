@@ -9,6 +9,8 @@
     "tokenized-command-dispatch",
     "quoted-arguments",
     "kernel-observability",
+    "persistent-user-sessions",
+    "exec-argv",
     "fork-demo",
     "axfs"
   ]
