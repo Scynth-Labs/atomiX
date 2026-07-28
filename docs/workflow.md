@@ -222,6 +222,7 @@ read-only root when there is not, so a program can read a file on every profile
 rather than only the ones with storage.
 ```bash
 make -C sw/kernel check-boot QEMU=/path/to/qemu-system-riscv32   # shell + fork/wait on ISS, QEMU, RTL
+make -C sw/kernel check-shell         # generic commands, parsing, and kernel observability on ISS
 make -C sw/kernel kernel-component-test QEMU=/path/to/...        # default + cooperative scheduler
 make -C sw/kernel check-memory          # 32 MiB cached external-memory RTL
 make -C sw/kernel check-storage         # AXFS mount over SPI-SD (RTL)

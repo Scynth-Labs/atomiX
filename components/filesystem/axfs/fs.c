@@ -47,7 +47,7 @@ static uint32_t cached_block;
  * byte-identical so the boot transcript does not depend on whether a card is
  * present. */
 static const char builtin_motd[] = "Welcome to aXos.\n";
-static const char builtin_readme[] = "aXos RAM disk: help, ls, cat, echo, exit.\n";
+static const char builtin_readme[] = "aXos RAM disk. Run `help` for commands.\n";
 
 static uint32_t read_u32(const uint8_t *p) {
   return (uint32_t)p[0] | ((uint32_t)p[1] << 8) |
@@ -188,11 +188,11 @@ int32_t fs_read(int id, uint32_t offset, void *dst, uint32_t len) {
   return (int32_t)count;
 }
 
-int fs_write(const char *name, const char *data) {
+int fs_write_bytes(const char *name, const void *data, uint32_t data_length) {
   if (mount_state != FS_MOUNT_RW) return -1;
   const uint32_t name_length = length(name);
-  const uint32_t data_length = length(data);
-  if (!name_length || name_length > 15 || data_length > 512) return -2;
+  if (!name_length || name_length > 15 || data_length > 512 ||
+      (data == 0 && data_length != 0)) return -2;
 
   uint32_t index = entry_count;
   for (uint32_t i = 0; i < entry_count; ++i) {
@@ -204,7 +204,8 @@ int fs_write(const char *name, const char *data) {
   /* `sector` is the read cache; reusing it as the write buffer invalidates it. */
   cached_block = 0xffffffffu;
   for (uint32_t i = 0; i < 512; ++i) sector[i] = 0;
-  for (uint32_t i = 0; i < data_length; ++i) sector[i] = (uint8_t)data[i];
+  const uint8_t *const source = data;
+  for (uint32_t i = 0; i < data_length; ++i) sector[i] = source[i];
   if (sd_write_block(block, sector)) return -4;
 
   if (sd_read_block(AXFS_BLOCK, metadata)) return -5;
@@ -221,5 +222,57 @@ int fs_write(const char *name, const char *data) {
   entries[index].length = data_length;
   entries[index].builtin = 0;
   if (index == entry_count) ++entry_count;
+  return 0;
+}
+
+int fs_write(const char *name, const char *data) {
+  return fs_write_bytes(name, data, length(data));
+}
+
+int fs_remove(const char *name) {
+  if (mount_state != FS_MOUNT_RW) return -1;
+  const int found = fs_lookup(name);
+  if (found < 0) return -2;
+  const uint32_t index = (uint32_t)found;
+
+  if (sd_read_block(AXFS_BLOCK, metadata)) return -3;
+  for (uint32_t i = index; i + 1 < entry_count; ++i) {
+    const uint32_t dst = 8 + i * 24;
+    const uint32_t src = dst + 24;
+    for (uint32_t j = 0; j < 24; ++j) metadata[dst + j] = metadata[src + j];
+  }
+  const uint32_t last = 8 + (entry_count - 1u) * 24;
+  for (uint32_t j = 0; j < 24; ++j) metadata[last + j] = 0;
+  metadata[5] = (uint8_t)(entry_count - 1u);
+  if (sd_write_block(AXFS_BLOCK, metadata)) return -4;
+
+  for (uint32_t i = index; i + 1 < entry_count; ++i) {
+    for (uint32_t j = 0; j < 16; ++j)
+      entries[i].name[j] = entries[i + 1].name[j];
+    entries[i].block = entries[i + 1].block;
+    entries[i].length = entries[i + 1].length;
+    entries[i].builtin = entries[i + 1].builtin;
+  }
+  --entry_count;
+  return 0;
+}
+
+int fs_rename(const char *old_name, const char *new_name) {
+  if (mount_state != FS_MOUNT_RW) return -1;
+  const uint32_t name_length = length(new_name);
+  if (!name_length || name_length > 15) return -2;
+  const int found = fs_lookup(old_name);
+  if (found < 0) return -3;
+  if (same(old_name, new_name)) return 0;
+  if (fs_lookup(new_name) >= 0) return -4;
+  const uint32_t index = (uint32_t)found;
+
+  if (sd_read_block(AXFS_BLOCK, metadata)) return -5;
+  const uint32_t at = 8 + index * 24;
+  for (uint32_t i = 0; i < 16; ++i) metadata[at + i] = 0;
+  for (uint32_t i = 0; i < name_length; ++i)
+    metadata[at + i] = (uint8_t)new_name[i];
+  if (sd_write_block(AXFS_BLOCK, metadata)) return -6;
+  set_name(&entries[index], new_name);
   return 0;
 }

@@ -86,7 +86,7 @@ endif
 all: $(ELF)
 images: $(BIN) $(HEX)
 
-$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h | build
+$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h include/kernel_info.h | build
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
 
 $(BIN): $(ELF)
@@ -114,6 +114,10 @@ check-boot: images
 	$(MAKE) -B images STORAGE=0
 	$(MAKE) -C ../../sim/axsim axsim
 	python3 check_boot.py
+
+check-shell: $(ELF)
+	$(MAKE) -C ../../sim/axsim axsim
+	$(PYTHON) check_shell.py
 
 # RTL-only: aXos's in-kernel role driver discovers and drives the accelerator
 # through the shell control plane.  Selects role.loopback so the shell's `role`
@@ -191,4 +195,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images run-iss run-qemu run-rtl check-boot check-role-driver check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean
+.PHONY: all images run-iss run-qemu run-rtl check-boot check-shell check-role-driver check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean

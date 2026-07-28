@@ -15,7 +15,7 @@ def main():
     user_elf = Path(sys.argv[2]).read_bytes()
     files = [
         ("motd", b"Welcome to aXos.\n"),
-        ("readme", b"aXos SD disk: help, ls, cat, echo, exit.\n"),
+        ("readme", b"aXos SD disk. Run `help` for commands.\n"),
         ("hello.elf", user_elf),
     ]
     count = (len(kernel) + 511) // 512

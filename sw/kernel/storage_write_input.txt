@@ -1,4 +1,12 @@
 write note phase6-persistent
 cat note
+cp note note-copy
+cat note-copy
+mv note-copy moved
+stat moved
+touch empty
+stat empty
+rm moved
+rm empty
 ls
 exit

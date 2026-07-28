@@ -4,5 +4,12 @@
   "kind": "shell",
   "title": "aXos UART shell and command loop",
   "sources": ["components/shell/axsh/shell.c"],
-  "capabilities": ["uart", "ramdisk", "fork-demo", "axfs"]
+  "capabilities": [
+    "uart",
+    "tokenized-command-dispatch",
+    "quoted-arguments",
+    "kernel-observability",
+    "fork-demo",
+    "axfs"
+  ]
 }

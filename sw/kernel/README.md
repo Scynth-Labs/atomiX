@@ -12,8 +12,14 @@ process page; `SYS_CONSOLE_PUTC` is the first user-visible write syscall.
 ## Shell and filesystem
 
 The resident shell runs in S-mode and uses the platform 16550 RX/TX console.
-It supports `help`, `ls`, `cat NAME`, `write NAME TEXT`, `echo`, `fork`,
-`role`, and `exit`.
+Its baseline commands are `help`, `clear`, `uname`, `uptime`, `free`, `ps`,
+`pwd`, `ls`, `cat`, `stat`, `hexdump`, `touch`, `cp`, `mv`, `rm`, `write`,
+`echo`, `fork`, `exec`, `role`, `shutdown`, and `exit`. The parser supports
+single/double-quoted arguments and backslash quoting. `uptime`, `free`, and
+`ps` use a read-only kernel observability interface rather than reaching into
+allocator or scheduler state. AXFS is a flat root, so directory commands are
+deliberately absent; runtime-created and copied files remain limited to one
+512-byte sector.
 
 ## Role control plane
 
@@ -32,11 +38,12 @@ remote requests layer on top of this same header driver. Evidence:
 The initial immutable RAM disk is a named-file table. An optional AXFS v1 SD
 image path runs on cached external-memory RTL: `check-storage` mounts `motd`,
 `readme`, and `hello.elf` through the kernel SPI block driver. Packaged files
-may occupy contiguous sector extents, while `write` creates or replaces one
-sector-sized AXFS file through SD CMD24; it is deliberately not a crash-safe
-general filesystem. Storage builds load `hello.elf` from AXFS for `exec`, which
-keeps the boot kernel below the sector-64 filesystem boundary. Diskless
-ISS/QEMU/RTL builds retain the built-in root and embedded user program.
+may occupy contiguous sector extents, while `write`, `touch`, and `cp` create
+one-sector files and `mv`/`rm` update the flat directory through SD CMD24; it is
+deliberately not a crash-safe general filesystem. Storage builds load
+`hello.elf` from AXFS for `exec`, which keeps the boot kernel below the
+sector-64 filesystem boundary. Diskless ISS/QEMU/RTL builds retain the built-in
+root and embedded user program.
 
 `fork` launches the U-mode parent/child demonstration. The child gets return
 value zero; the parent receives a child PID, blocks in `wait`, wakes when the
@@ -73,6 +80,7 @@ software component and its own build rules.
 Run the complete shell and fork/wait regression on the ISS, QEMU, and RTL:
 
 ```bash
+make -C sw/kernel check-shell
 make -C sw/kernel check-boot QEMU="$HOME/.local/bin/qemu-system-riscv32"
 ```
 

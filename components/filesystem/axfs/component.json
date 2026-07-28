@@ -4,5 +4,15 @@
   "kind": "filesystem",
   "title": "aXos AXFS v1 filesystem implementation",
   "sources": ["components/filesystem/axfs/fs.c"],
-  "capabilities": ["axfs-v1", "read", "random-access-read", "contiguous-extent-read", "single-sector-write", "builtin-root-when-diskless"]
+  "capabilities": [
+    "axfs-v1",
+    "read",
+    "random-access-read",
+    "contiguous-extent-read",
+    "single-sector-write",
+    "binary-write",
+    "remove",
+    "rename",
+    "builtin-root-when-diskless"
+  ]
 }

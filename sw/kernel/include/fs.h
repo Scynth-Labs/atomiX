@@ -41,6 +41,13 @@ int32_t fs_size(int id);
  * detects it -- or -1 on a bad id or a device error. */
 int32_t fs_read(int id, uint32_t offset, void *dst, uint32_t len);
 
-/* Create or replace `name` with the NUL-terminated `data`.  Returns 0, or a
- * negative implementation-defined code. */
+/* Create or replace `name` with the NUL-terminated `data`.  Runtime AXFS files
+ * occupy one sector.  Returns 0, or a negative implementation-defined code. */
 int fs_write(const char *name, const char *data);
+
+/* Binary-safe form of fs_write. */
+int fs_write_bytes(const char *name, const void *data, uint32_t len);
+
+/* Remove a file or rename it within the flat root. */
+int fs_remove(const char *name);
+int fs_rename(const char *old_name, const char *new_name);

@@ -2,6 +2,7 @@
 
 #include "fs.h"
 #include "hostlink.h"
+#include "kernel_info.h"
 #include "loader.h"
 #include "page.h"
 #include "platform.h"
@@ -30,6 +31,7 @@ extern void user_entry(void);
 extern void shell_run(void);
 
 static volatile uint32_t supervisor_ticks;
+static uint32_t allocator_total_pages;
 
 static struct task tasks[TASK_SLOTS];
 static uint32_t current_task = TASK_NONE;
@@ -42,6 +44,31 @@ static volatile uint32_t console_mask;
  * apply the fork demo's assertion to every program that ever runs. */
 static volatile uint32_t expect_fork_markers;
 static uint32_t scheduler_free_pages;
+
+uint32_t kernel_uptime_ticks(void) {
+  return supervisor_ticks;
+}
+
+uint32_t kernel_total_pages(void) {
+  return allocator_total_pages;
+}
+
+uint32_t kernel_free_pages(void) {
+  return page_free_count();
+}
+
+uint32_t kernel_task_snapshot(struct kernel_task_info *out, uint32_t capacity) {
+  uint32_t copied = 0;
+  if (out == 0) return 0;
+  for (uint32_t i = 0; i < TASK_SLOTS && copied < capacity; ++i) {
+    if (tasks[i].state == TASK_UNUSED) continue;
+    out[copied].pid = tasks[i].pid;
+    out[copied].parent_pid = tasks[i].parent_pid;
+    out[copied].state = tasks[i].state;
+    ++copied;
+  }
+  return copied;
+}
 
 #if !AXOS_EMBED_USER
 /* Storage personalities load the first user program from AXFS instead of
@@ -532,6 +559,7 @@ void kernel_exec_demo(void) {
 
 void kmain(void) {
   page_init();
+  allocator_total_pages = page_free_count();
   page_allocator_self_test();
 #ifdef AXOS_HOSTLINK
   /* Host-managed personality: the console byte pipe carries the host-link

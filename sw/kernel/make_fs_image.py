@@ -13,7 +13,7 @@ def main() -> None:
         raise SystemExit("usage: make_fs_image.py USER.elf OUTPUT.img")
     files = [
         ("motd", b"Welcome to aXos.\n"),
-        ("readme", b"aXos SD disk: help, ls, cat, echo, exit.\n"),
+        ("readme", b"aXos SD disk. Run `help` for commands.\n"),
         ("hello.elf", Path(sys.argv[1]).read_bytes()),
     ]
 
