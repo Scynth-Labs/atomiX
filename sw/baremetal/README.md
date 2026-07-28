@@ -66,7 +66,7 @@ The phase counters and `total` each include their own counter/control overhead,
 so the phase sum need not equal `total` exactly.
 
 Every summary ends with a checksum and projected time at the two Tang target
-clocks: `us@27MHz` for Tang Nano 20K and `us@50MHz` for Tang Primer 25K.
+clocks: `us@27MHz` for Tang Nano 20K and `us@25MHz` for Tang Primer 25K.
 These are pre-place-and-route projections from RTL cycles. The achieved clock
 and UART transcript on physical hardware are authoritative; matching checksums
 make simulation-versus-board comparison unambiguous.

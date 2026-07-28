@@ -55,7 +55,7 @@ custom component may define its own knobs without changing the common resolver.
 | `tangnano20k-tpu.json` | Nano max TPU: folded 24-MAC int8 GEMM engine |
 | `tangprimer25k.json` | Tang Primer 25K Dock/GW5A BRAM-only board target |
 | `tangprimer25k-ax2.json` | Primer max CPU: dual-issue AX2, 2 KiB I-cache, 64-entry BTB |
-| `tangprimer25k-gpu.json` | Primer max GPU: minimal host plus 8-lane SIMT engine using 24 DSPs |
+| `tangprimer25k-gpu.json` | Primer verified GPU: minimal host plus 4-lane SIMT engine using 12 DSPs |
 | `tangprimer25k-tpu.json` | Primer max TPU: folded 24-MAC int8 GEMM engine |
 | `kernel-default.json` | aXos round-robin scheduling with the reference Sv32 VM |
 | `kernel-cooperative.json` | aXos cooperative-until-blocked scheduling with the reference Sv32 VM |

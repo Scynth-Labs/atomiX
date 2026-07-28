@@ -16,18 +16,17 @@ Each capability is marked with the strongest evidence that currently backs it:
 - **BOARD** — proven on physical silicon (place-and-route + bitstream + serial
   transcript).
 
-> **No row is BOARD yet.**  Place-and-route tools are not installed on the build
-> host (`nextpnr-ecp5` for ECP5, `nextpnr-himbaechel`/`gowin_pack` for Gowin), so
-> the physical-board gate is untaken for all targets. Everything below is
-> SIM + SYNTH: real, but pre-silicon.  SYNTH fit is a synthesis-level resource
-> check; final place-and-route may differ, especially near 90%+ utilisation.
+> **Tang Primer 25K is now BOARD-verified.** CPU, GPU, and TPU were
+> place-and-routed, programmed into volatile SRAM, and checked through the Dock
+> UART on 2026-07-29. Tang Nano and ULX3S rows remain SIM + SYNTH until their
+> physical-board gates are taken.
 
 ## The targets
 
 | Board | FPGA | LUT4 | Flip-flops | Block RAM | DSP (18×18) | Clock |
 |---|---|---|---|---|---|---|
 | **Tang Nano 20K** | Gowin GW2AR-18C | 20,736 | 15,552 | ~46 × 18 Kb (828 Kb) | ~48 | 27 MHz |
-| **Tang Primer 25K Dock** | Gowin GW5A-25A | 23,040 | 23,040 | 56 × 18 Kb (1,008 Kb) | 28 | 50 MHz |
+| **Tang Primer 25K Dock** | Gowin GW5A-25A | 23,040 | 23,040 | 56 × 18 Kb (1,008 Kb) | 28 | 25 MHz |
 | **ULX3S-85F** | Lattice ECP5 LFE5U-85F | ~83,640 | ~83,640 | 208 × 18 Kb (3.7 Mb) | 156 | 25 MHz |
 
 The boards differ in main-memory strategy, which the board component fixes:
@@ -58,23 +57,23 @@ Other GPU lane counts are a config away. Deep analysis:
 
 ## Tang Primer 25K Dock (Gowin GW5A-25A)
 
-Keep `tangprimer25k` as the small first-UART profile. The three performance
-profiles are independently peaked for the device; they are alternatives, not
-one combined image:
+Keep `tangprimer25k` as the first-UART profile. Each accelerator is an
+alternative bitstream because the SoC has one role window:
 
-| Capability | Profile | Configuration | LUT1–LUT4 | FF | Main/role RAM | DSP | Simulation result |
-|---|---|---|---:|---:|---|---:|---|
-| **CPU** | `tangprimer25k-ax2` | 2-wide AX2, 2 KiB I$, 64-entry BTB | 20,893 (90.7%) | 4,618 | 32 DPB + 6 SDPX9B | 0 | 25,729 measured cycles, 1.67× over pipeline5 |
-| **GPU** | `tangprimer25k-gpu` | minimal host + 8-lane SIMT | 22,623 (98.2%) | 3,473 | 32 DPB + 4 SDPX9B | 24 MULTALU27X18 | 359 SAXPY engine cycles |
-| **TPU** | `tangprimer25k-tpu` | 8 columns × 3 folded K MACs | 14,555 (63.2%) | 3,698 | 32 DPB + 8 DPX9B + 4 SDPX9B | 24 MULT12X12 | 179 cycles vs 35,132 CPU, 196× |
+| Capability | Profile | Configuration | LUT4 | FF | BSRAM | DSP | Strongest evidence |
+|---|---|---|---:|---:|---:|---:|---|
+| **CPU** | `tangprimer25k` | 5-stage RV32IM/Sv32 | 12,179 (52.9%) | 2,699 | 36 | 0 | ✅ **BOARD**: hello UART; 32.23 MHz |
+| **CPU-max** | `tangprimer25k-ax2` | 2-wide AX2, 2 KiB I$, 64-entry BTB | 20,893 (90.7%) | 4,618 | 38 | 0 | **SYNTH** + **SIM**: 25,729 workload cycles |
+| **GPU** | `tangprimer25k-gpu` | minimal host + 4-lane SIMT | 18,280 (79.3%) | 2,446 | 40 | 12 MULTALU27X18 | ✅ **BOARD**: two kernels × four sizes PASS; 38.47 MHz |
+| **TPU** | `tangprimer25k-tpu` | 8 columns × 3 folded K MACs | 17,345 (75.3%) | 3,696 | 48 | 24 MULT12X12 | ✅ **BOARD**: GEMM/reference PASS; 32.65 MHz |
 
-All three mapped with zero Yosys design-check errors. The GPU is intentionally
-as tight as the Tang Nano max profile: a 32-bit low-word multiply is decomposed
-into three unsigned 16-bit partial products and mapped explicitly to GW5A
-`MULTALU27X18` cells. Eight lanes consume 24 of the 28 DSPs; a ninth lane would
-need 27 DSPs but cannot fit the remaining 417 LUTs and has little benefit behind
-the engine's single memory port. The generic RTL path is unchanged for
-simulation and other FPGA families.
+The verified GPU uses four lanes. A 32-bit low-word multiply is decomposed into
+three unsigned 16-bit partial products and maps each lane to three GW5A
+`MULTALU27X18` cells. Hardware bring-up also established the actual capacity
+boundary: the former 8-lane profile packed to 25,325 LUT4 (109%), while six
+lanes packed to 22,136 LUT4 (96%) but could not be legally placed. Four lanes
+place, route, meet timing, and pass the physical workload with useful margin.
+The generic RTL path is unchanged for simulation and other FPGA families.
 
 The TPU was folded from 64 simultaneous multipliers to 24 physical int8 MACs.
 It evaluates K=8 in three phases (3+3+2), while the C buffer now uses one
@@ -85,26 +84,28 @@ The larger AX2 experiments establish the CPU boundary: 2 KiB/64 fits, while
 2 KiB/128 jumps to 34,701 LUT primitives and 8 KiB/128 reaches 46,871. The
 64-entry and 32-entry profiles are identical on the current workload-only
 metric; this working set does not justify the extra predictor entries on
-performance alone. Exact packed utilisation, routing, and the 50 MHz verdict
-remain nextpnr/physical-board gates, especially for the 98.2%-LUT GPU.
+performance alone. The AX2 profile still needs its own physical-board run; the
+baseline CPU and accelerator profiles have completed that gate.
 
 ### Tang Nano versus Primer in readable time
 
-`python3 tools/bench.py tang` runs the exact independently-maximized profile for
-each board with a correctly sized 16/32 KiB payload, checks the result, and
-converts RTL cycles using each target clock:
+`python3 tools/bench.py tang` reproduces the RTL comparison with correctly
+sized 16/32 KiB payloads. The table below uses those RTL figures for Tang Nano
+and AX2, and the stronger physical UART measurements for the Primer
+accelerators:
 
 | Workload | Tang Nano 20K | Tang Primer 25K | Primer wall-time speedup |
 |---|---:|---:|---:|
-| CPU workload windows | 42,978 cycles / 1,591.8 us | 25,729 cycles / 514.6 us | 3.09× |
-| GPU SAXPY N=256, complete | 23,097 cycles / 855.4 us | 22,809 cycles / 456.2 us | 1.88× |
-| GPU polynomial N=256, complete | 23,520 cycles / 871.1 us | 23,133 cycles / 462.7 us | 1.88× |
-| TPU 12x8x8 GEMM, complete | 5,257 cycles / 194.7 us | 5,257 cycles / 105.1 us | 1.85× |
+| CPU workload windows | 42,978 cycles / 1,591.8 us | 25,729 cycles / 1,029.2 us | 1.55× |
+| GPU SAXPY N=256, complete | 23,097 cycles / 855.4 us | 29,887 cycles / 1,195.5 us | 0.72× |
+| GPU polynomial N=256, complete | 23,520 cycles / 871.1 us | 30,513 cycles / 1,220.5 us | 0.71× |
+| TPU 12x8x8 GEMM, complete | 5,257 cycles / 194.7 us | 6,893 cycles / 275.7 us | 0.71× |
 
 “Complete” includes upload, doorbell-to-done execution, checked readback, and
-checksum generation. This makes host/MMIO cost visible: the Primer GPU computes
-faster with 8 instead of 6 lanes, but transfer and verification dominate the
-full operation. The time column remains a pre-P&R projection.
+checksum generation. The Primer accelerator figures are the physical UART
+measurements; the Nano and Primer AX2 figures remain RTL measurements. The
+verified Primer GPU uses four lanes rather than the Nano profile's six, and
+transfer plus checked readback dominate the full offload boundary.
 
 ## ULX3S-85F (Lattice ECP5) — the large part
 

@@ -17,6 +17,6 @@
   },
   "settings": {"ram_bytes": 16384, "caches": false, "reset_pc": "0x80000000"},
   "parameters": {
-    "role": {"lanes": 8}
+    "role": {"lanes": 4}
   }
 }

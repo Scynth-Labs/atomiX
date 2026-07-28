@@ -1,7 +1,7 @@
 // Physical 8-N-1 UART PHY for a board top. The SoC UART keeps its 16550-like
 // MMIO contract; this module converts its byte-valid interface to serial pins.
 module axuart_phy #(
-  parameter integer CLOCK_HZ = 50_000_000,
+  parameter integer CLOCK_HZ = 25_000_000,
   parameter integer BAUD = 115_200
 ) (
   input  logic clk,

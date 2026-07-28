@@ -199,7 +199,7 @@ asserting that several near-identical components differ.
 
 The CPU sweep uses the workload-only `cpu_perf measured` cycle count, excluding
 setup and UART overhead. The board payloads also print stable checksums and
-time projections for 27 MHz Tang Nano and 50 MHz Tang Primer. GPU/TPU payloads
+time projections for 27 MHz Tang Nano and 25 MHz Tang Primer. GPU/TPU payloads
 separate upload, doorbell-to-done compute, and readback-plus-verification from
 the complete offload total. Those projected microseconds are pre-P&R; use the
 achieved hardware clock as the final frequency.
@@ -308,7 +308,7 @@ make -C rtl/fpga config COMPONENT_CONFIG=$PWD/configs/tangnano20k.json  # print 
 ```
 The P&R tool (`nextpnr-ecp5` / `nextpnr-himbaechel`) prints utilisation and
 timing at the end; the board clock target (25 MHz ULX3S, 27 MHz Tang Nano,
-50 MHz Tang Primer) must pass. Do not program a bitstream from a failed or
+25 MHz Tang Primer) must pass. Do not program a bitstream from a failed or
 unconstrained P&R run.
 
 ### 4.4 Program the board

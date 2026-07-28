@@ -9,6 +9,7 @@ NEXTPNR_HIMBAECHEL ?= nextpnr-himbaechel
 GOWIN_PACK ?= gowin_pack
 OPENFPGALOADER ?= openFPGALoader
 .DEFAULT_GOAL := all
+.DELETE_ON_ERROR:
 
 BUILD := build
 COMPONENT_CONFIG ?= ../../configs/ulx3s-85f.json
@@ -91,6 +92,7 @@ SYNTH_FAMILY := $(or $(COMPONENT_FPGA_SYNTH_FAMILY),gw1n)
 CST ?= $(COMPONENT_FPGA_CST)
 PROG_BOARD := $(COMPONENT_FPGA_PROG_BOARD)
 PNR_JSON := $(CONFIG_BUILD)/$(TOP)_pnr.json
+PNR_REPORT := $(CONFIG_BUILD)/$(TOP)_timing.json
 BIT := $(CONFIG_BUILD)/$(TOP).fs
 
 # BRAM-only Tang bring-up bakes the selected bare-metal program into on-chip
@@ -115,7 +117,7 @@ $(JSON): $(SYNTH_SV) $(PROGRAM_HEX) Makefile | $(CONFIG_BUILD)
 	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) $(PROGRAM_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
 
 $(PNR_JSON): $(JSON) $(CST) | check-tools
-	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@
+	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@ --report $(PNR_REPORT) --detailed-timing-report
 
 $(BIT): $(PNR_JSON)
 	$(GOWIN_PACK) $(COMPONENT_GOWIN_PACK_ARGS) -d $(FAMILY) -o $@ $(PNR_JSON)

@@ -10,7 +10,7 @@
  * authority for the frequency a board can actually run. */
 enum {
   AX_BENCH_NANO_MHZ = 27u,
-  AX_BENCH_PRIMER_MHZ = 50u,
+  AX_BENCH_PRIMER_MHZ = 25u,
 };
 
 static inline uint32_t ax_bench_rdcycle(void) {
@@ -50,7 +50,7 @@ static inline void ax_bench_report_projected_time(uint32_t cycles) {
   uart_puts(" us@27MHz=");
   ax_bench_put_tenths(
       (cycles * 10u + AX_BENCH_NANO_MHZ / 2u) / AX_BENCH_NANO_MHZ);
-  uart_puts(" us@50MHz=");
+  uart_puts(" us@25MHz=");
   ax_bench_put_tenths(
       (cycles * 10u + AX_BENCH_PRIMER_MHZ / 2u) / AX_BENCH_PRIMER_MHZ);
 }

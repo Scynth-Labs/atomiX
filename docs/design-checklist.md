@@ -300,21 +300,24 @@ component work above.  It is the final platform-evidence gate.
   CONFIG=configs/sim-bram.json SYNC_READ=1` (hello prints, one wait state per
   access).  Fit on the GW2A-18C: 32 DPB, ~2.7k FF, ~11k LUT4.  P&R and
   bitstream await the apicula tools (`nextpnr-himbaechel`, `gowin_pack`).
-- [~] Tang Primer 25K Dock (Gowin GW5A-25A) board component, official
+- [x] Tang Primer 25K Dock (Gowin GW5A-25A) board component, official
   clock/UART/S1 pins, GW5A open-flow flags, and a BRAM-only profile exist.
   Evidence: `make -C rtl/fpga synth
   COMPONENT_CONFIG=$PWD/configs/tangprimer25k.json BUILD=build-primer25k`
-  completes with zero design-check errors; its 32 KB main memory maps to 32
-  `DPB` cells. P&R, timing, programming, and the UART transcript await the
-  physical board and matched apicula tools.
-- [~] Tang Primer performance profiles are measured. `tangprimer25k-ax2`
+  completes with zero design-check errors; its 32 KB main memory maps to block
+  RAM. On 2026-07-29 the baseline routed at 32.23 MHz, programmed into SRAM,
+  printed its UART hello transcript, and restarted from S1.
+- [x] Tang Primer GPU and TPU profiles are measured on hardware.
+  `tangprimer25k-ax2`
   is peaked at 2-wide/2 KiB I$/64-entry BTB: 20,893 LUTs and 25,729 measured
   workload cycles. `tangprimer25k-gpu` explicitly maps three GW5A DSPs per
-  multiplier
-  and reaches 8 lanes: 22,623 LUTs, 24 DSPs, and 359 SAXPY engine cycles.
+  multiplier. The verified 4-lane GPU routes at 18,280 LUT4 and 38.47 MHz with
+  12 DSPs; its UART run checked two kernels at four thread counts and ended in
+  `gpu-perf: PASS`. The attempted 8-lane profile overflowed and six lanes
+  could not be legally placed, establishing four as the shipped board width.
   `tangprimer25k-tpu` folds K=8 over 24 MACs and makes its C buffer infer
-  BSRAM: 14,555 LUTs, 24 DSPs, and 179 cycles versus 35,132 on CPU. All have
-  zero synthesis design-check errors; P&R/timing and board tests remain open.
+  BSRAM: 17,345 LUT4, 24 DSPs, and 189 compute cycles versus 42,995 on CPU.
+  It routes at 32.65 MHz and ended in `role tpu-lite: PASS` on the board.
 - [~] Attach an accelerator role on the Tang Nano.  The parameterized SIMT
   engine (gpu_engine.sv, `NLANES`) fits: the shipped `configs/tangnano20k-gpu.json`
   (minimal host + 6-lane) synthesises to ~20.2k LUT4, 32 DPB, 6 DSP — inside the
@@ -324,10 +327,11 @@ component work above.  It is the final platform-evidence gate.
   kernel ~12.9× vs on-core).  Per-hardware fit:
   [hardware-capabilities.md](hardware-capabilities.md); still-open TPU/all-three
   cases: [tangnano-capacity.md](tangnano-capacity.md).
-- [ ] Run ECP5 / Gowin place-and-route, generate the bitstream, and record
-  timing and resource reports.
-- [ ] Program SRAM only for the first board test; confirm serial output and
-  reset/reload behavior.
+- [~] Run ECP5 / Gowin place-and-route, generate the bitstream, and record
+  timing and resource reports. Completed for Tang Primer CPU/GPU/TPU; Tang
+  Nano and ULX3S remain.
+- [x] Program Tang Primer SRAM only for the first board test; confirm serial
+  output and S1 reset behavior.
 - [ ] Validate external SDRAM and SD read/write persistence on the physical
   board.
 - [ ] Decide separately, and only after the SRAM path is proven, whether a

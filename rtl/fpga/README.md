@@ -7,8 +7,9 @@ their `board` component manifest; this directory does not own a board design.
 
 ## Tang Primer 25K Dock target
 
-`configs/tangprimer25k.json` selects a BRAM-only GW5A-25A shell with a 50 MHz
-system clock, the Dock debugger's 115200 8-N-1 UART, and S1 as active-high
+`configs/tangprimer25k.json` selects a BRAM-only GW5A-25A shell. A dedicated
+`CLKDIV` converts the Dock's 50 MHz oscillator to a timing-closed 25 MHz system
+clock; the Dock debugger supplies a 115200 8-N-1 UART, and S1 is the active-high
 reset. Build it with:
 
 ```bash

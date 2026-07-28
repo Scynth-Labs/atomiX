@@ -8,7 +8,7 @@
 | RV32IM, five stages, M/S/U + Sv32 | ISS · lock-step RTL · ISA tests · formal | ULX3S/Tang shells + swappable accelerator roles |
 
 **Status:** simulation-verified reference system · component-first builds ·
-physical FPGA validation is the final evidence gate.
+Tang Primer 25K CPU, GPU, and TPU verified on physical FPGA hardware.
 
 [Architecture](DESIGN.md) · [Build/test/deploy](docs/workflow.md) ·
 [Dependencies](docs/dependencies.md) ·
@@ -24,11 +24,19 @@ platform.  The reference build includes a five-stage CPU, SoC, bare-metal
 runtime, and the aXos kernel.  The longer-term platform keeps that computer as
 the management shell while accelerator roles attach at a defined boundary —
 the role window is live today (`role.loopback` proves it), with TPU-lite and
-GPU-compute engines as the next roles.
+GPU-compute engines implemented and verified as selectable roles.
 
 It is designed to be modified.  A user can substitute the CPU, memory,
 interconnect, peripherals, board, simulation harness, or aXos service policy
 without forking the rest of the project.
+
+## Hardware achievement
+
+On 2026-07-29, a Sipeed Tang Primer 25K Dock completed the first physical
+atomiX bring-up. The RV32IM CPU booted from on-chip BSRAM and printed over the
+Dock UART; separate volatile-SRAM images then passed the self-checking 4-lane
+GPU-compute and folded 24-MAC TPU-lite workloads. See the
+[captured evidence and reproduction commands](docs/tangprimer25k-bringup.md#verified-hardware-result).
 
 ```text
   RISC-V core ── aXbus SoC ── aXos

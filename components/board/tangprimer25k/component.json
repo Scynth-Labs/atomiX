@@ -16,7 +16,7 @@
     "FPGA_SYNTH_FAMILY": "gw5a",
     "FPGA_DEFINES": ["AX_GW5A_DSP"],
     "GOWIN_SYNTH_ARGS": ["-nolutram", "-strict-gw5a-dffs", "-setundef"],
-    "NEXTPNR_ARGS": ["--freq", "50", "--vopt", "sspi_as_gpio"],
+    "NEXTPNR_ARGS": ["--freq", "25", "--vopt", "sspi_as_gpio"],
     "GOWIN_PACK_ARGS": ["--sspi_as_gpio", "--cpu_as_gpio"],
     "FPGA_PROG_BOARD": "tangprimer25k"
   },

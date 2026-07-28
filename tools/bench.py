@@ -199,7 +199,7 @@ def bench_tang(workdir):
     boards = [
         ("Tang Nano 20K", 27, "tangnano20k.json",
          "tangnano20k-gpu.json", "tangnano20k-tpu.json"),
-        ("Tang Primer 25K", 50, "tangprimer25k-ax2.json",
+        ("Tang Primer 25K", 25, "tangprimer25k-ax2.json",
          "tangprimer25k-gpu.json", "tangprimer25k-tpu.json"),
     ]
     rows = {}
