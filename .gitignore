@@ -4,6 +4,11 @@
 *.elf
 *.bin
 *.hex
+# The blank RAM image is a source input, not a build product: it is a fixed
+# one-word image meaning "memory starts empty", and the UART-loader checks, the
+# FPGA flow, and axhost all reference it by path with nothing generating it.
+# Keep the exception adjacent to the broad rule that would otherwise hide it.
+!sw/bootrom/blank.hex
 *.map
 obj_dir*/
 build/
