@@ -4,6 +4,32 @@ atomiX separates its dependency tiers so a simulator-only user does not need a
 formal toolchain or FPGA tools.  The commands below are safe to review and run
 yourself; this repository never installs system packages automatically.
 
+## Start here: `make doctor`
+
+```bash
+make doctor
+```
+
+It reports what this host has, what the build will actually use, and which
+tier each missing tool would unlock.  It never fails, so the whole report is
+readable even on a machine with nothing installed yet.
+
+The build adapts to the toolchain it finds rather than requiring a particular
+one ([`mk/toolchain.mk`](../mk/toolchain.mk)):
+
+- **Cross-compiler tuple.** Distributions disagree — `riscv64-unknown-elf-`,
+  `riscv64-linux-gnu-` and `riscv64-elf-` are all in use.  The first installed
+  candidate wins; override with `RISCV_PREFIX=<tuple>-` if yours is elsewhere.
+- **ISA string.** Zicsr is a separate extension in the ratified ISA: GCC before
+  12 folds it into the base ISA and *rejects* the explicit `_zicsr` spelling,
+  while GCC 12 and later require it for any CSR instruction.  No single string
+  works on both, so the build compiles a CSR instruction and keeps the spelling
+  that survives.  Override with `RISCV_ARCH=` / `RISCV_ARCH_I=` to pin it.
+
+Because these are probed rather than assumed, a newer or differently-named
+toolchain generally needs no configuration at all.  `make doctor` prints what
+was selected, so a surprising result is visible rather than silent.
+
 For exact installation procedures, version-specific workarounds, and commands
 for a local QEMU or upstream formal stack, use [toolchain.md](toolchain.md).
 
@@ -79,7 +105,9 @@ setup, tool verification, and safe SRAM-versus-flash distinction are in
 ## Recorded working baseline
 
 The following is a compatibility record from the verified Ubuntu 22.04.5 WSL2
-host on 2026-07-18, not a set of strict pins:
+host on 2026-07-18, not a set of strict pins — the build probes for capability
+rather than matching these versions.  `make doctor` prints the same record for
+your own host, which is the useful thing to quote in a bug report:
 
 | Tool | Recorded version | Use |
 |---|---:|---|

@@ -10,6 +10,20 @@
 # out of scope by design, not by omission.
 set -u
 cd "$(dirname "$0")"
+
+# The cross-toolchain tuple differs by distribution, so honour RISCV_PREFIX the
+# way the Makefiles do (mk/toolchain.mk exports it) and otherwise find the
+# first installed candidate rather than assuming the Debian/Ubuntu name.
+if [[ -z ${RISCV_PREFIX:-} ]]; then
+  for candidate in riscv64-unknown-elf- riscv32-unknown-elf- riscv64-elf- \
+                   riscv32-elf- riscv64-linux-gnu-; do
+    if command -v "${candidate}nm" >/dev/null 2>&1; then
+      RISCV_PREFIX=$candidate
+      break
+    fi
+  done
+  RISCV_PREFIX=${RISCV_PREFIX:-riscv64-unknown-elf-}
+fi
 sim=$1; shift
 suites=("${@:-rv32ui rv32um}")
 [[ $# -eq 0 ]] && suites=(rv32ui rv32um)
@@ -31,9 +45,9 @@ for suite in "${suites[@]}"; do
     [[ " ${exclude[*]} " == *" $name "* ]] && continue
     # Each binary reports through its own `tohost` symbol; find it rather than
     # assuming a fixed address.
-    th=$(riscv64-unknown-elf-nm "$t" 2>/dev/null | awk '$3=="tohost"{print "0x"$1}')
+    th=$("${RISCV_PREFIX}nm" "$t" 2>/dev/null | awk '$3=="tohost"{print "0x"$1}')
     [[ -z $th ]] && continue
-    riscv64-unknown-elf-objcopy -O binary "$t" "$work/$name.bin"
+    "${RISCV_PREFIX}objcopy" -O binary "$t" "$work/$name.bin"
     if "$sim" "$work/$name.bin" --tohost "$th" --ws "${WS:-0}" \
          --max 8000000 >/dev/null 2>&1; then
       pass=$((pass + 1))

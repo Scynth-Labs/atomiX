@@ -1,13 +1,12 @@
-RISCV_PREFIX ?= riscv64-unknown-elf-
-RISCV_ARCH   ?= rv32im
+include ../../mk/toolchain.mk
 BUILD_DIR    ?= build
 RAM_BYTES    ?= 131072
 CC      := $(RISCV_PREFIX)gcc
 OBJCOPY := $(RISCV_PREFIX)objcopy
 
 CPPFLAGS := -Iinclude
-# GCC 10 (Ubuntu 22.04) includes Zicsr in RV32IM but rejects the newer
-# explicit `_zicsr` spelling. Override RISCV_ARCH for a newer toolchain.
+# RISCV_ARCH is probed in mk/toolchain.mk, because the Zicsr spelling this
+# needs depends on the compiler generation rather than on anything we choose.
 CFLAGS   := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
             -msmall-data-limit=0 -ffreestanding -fno-builtin -fno-pic \
             -fno-stack-protector -Wall -Wextra -Werror -O2 -g

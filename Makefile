@@ -1,6 +1,7 @@
 # Top-level component-oriented entry points.  Existing per-directory Makefiles
 # remain useful; these commands make an explicit configuration the normal way
 # to compose a system.
+include mk/toolchain.mk
 PYTHON ?= python3
 CONFIG ?= configs/sim-bram.json
 # The absolute path makes profiles from separate DIY worktrees independent even
@@ -36,6 +37,57 @@ help:
 	@echo "  make fpga-runtime-primer # fast-switch gate, then build once"
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make component-test"
+	@echo "  make doctor              # what this host can build, and what it cannot"
+
+# Report the host's toolchain the way a build will actually see it: which
+# programs were found, what the probes selected, and which dependency tier each
+# missing tool would unlock.  Never fails -- a report that exits non-zero stops
+# being readable at the first problem, which is the opposite of the point.
+doctor:
+	@echo "atomiX toolchain report"
+	@echo ""
+	@echo "Core tier (build + simulation + component tests)"
+	@printf '  %-22s %s\n' "RISC-V prefix" "$(RISCV_PREFIX)"
+	@if command -v $(RISCV_PREFIX)gcc >/dev/null 2>&1; then \
+	  printf '  %-22s %s\n' "RISC-V GCC" \
+	    "$$($(RISCV_PREFIX)gcc --version | awk 'NR==1')"; \
+	  printf '  %-22s %s\n' "ISA (probed)" "$(RISCV_ARCH), base $(RISCV_ARCH_I)"; \
+	else \
+	  printf '  %-22s %s\n' "RISC-V GCC" "MISSING - target code cannot be built"; \
+	  echo "                         tried: $(RISCV_PREFIX_CANDIDATES)"; \
+	  echo "                         set RISCV_PREFIX=<tuple>- if yours differs"; \
+	fi
+	@if command -v $(VERILATOR) >/dev/null 2>&1; then \
+	  printf '  %-22s %s\n' "Verilator" "$(VERILATOR_VERSION)"; \
+	else \
+	  printf '  %-22s %s\n' "Verilator" "MISSING - no RTL simulation"; \
+	fi
+	@printf '  %-22s %s\n' "Python" "$$($(PYTHON) --version 2>&1)"
+	@echo ""
+	@echo "Kernel tier (aXos S/U-mode boot checks; needs QEMU >= 7)"
+	@if command -v qemu-system-riscv32 >/dev/null 2>&1; then \
+	  printf '  %-22s %s\n' "QEMU" \
+	    "$$(qemu-system-riscv32 --version | awk 'NR==1')"; \
+	else \
+	  printf '  %-22s %s\n' "QEMU" "not found - skip the three-platform checks"; \
+	fi
+	@echo ""
+	@echo "Formal tier"
+	@for tool in yosys sby; do \
+	  if command -v $$tool >/dev/null 2>&1; then \
+	    printf '  %-22s %s\n' "$$tool" "found"; \
+	  else \
+	    printf '  %-22s %s\n' "$$tool" "not found - skip make -C formal check"; \
+	  fi; \
+	done
+	@if [ -d /opt/riscv-formal ]; then \
+	  printf '  %-22s %s\n' "/opt/riscv-formal" "present"; \
+	else \
+	  printf '  %-22s %s\n' "/opt/riscv-formal" "absent - see docs/toolchain.md"; \
+	fi
+	@echo ""
+	@echo "FPGA tier: make -C rtl/fpga check-tools CONFIG=<board profile>"
+	@echo "Install guidance for every tier: docs/dependencies.md"
 
 component-list:
 	$(PYTHON) tools/configure.py list
@@ -107,4 +159,4 @@ component-test: config-check-all
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer component-test
+.PHONY: help doctor component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer component-test

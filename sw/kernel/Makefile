@@ -1,5 +1,4 @@
-RISCV_PREFIX ?= riscv64-unknown-elf-
-RISCV_ARCH   ?= rv32im
+include ../../mk/toolchain.mk
 PYTHON ?= python3
 KERNEL_CONFIG ?= ../../configs/kernel-default.json
 KERNEL_MODE ?= full

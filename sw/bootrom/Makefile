@@ -1,10 +1,10 @@
-RISCV_PREFIX ?= riscv64-unknown-elf-
+include ../../mk/toolchain.mk
 CC := $(RISCV_PREFIX)gcc
 OBJCOPY := $(RISCV_PREFIX)objcopy
 MODE ?= sd
 RAM_BYTES ?= 131072
 BUILD_DIR ?= build
-CFLAGS := -march=rv32im -mabi=ilp32 -mcmodel=medany -mno-relax -ffreestanding \
+CFLAGS := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax -ffreestanding \
   -fno-builtin -fno-pic -fno-stack-protector -Wall -Wextra -Werror -Os
 CPPFLAGS := $(if $(filter uart,$(MODE)),-DAXBOOT_UART=1,-DAXBOOT_UART=0)
 ELF := $(BUILD_DIR)/bootrom.elf

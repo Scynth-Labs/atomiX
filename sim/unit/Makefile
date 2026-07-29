@@ -1,6 +1,6 @@
 # Unit testbenches: one Verilator build+run per RTL module.
 # `make` runs them all; `make run-<module>` runs one.
-VERILATOR ?= verilator
+include ../../mk/toolchain.mk
 VFLAGS    := -Wall --cc -O2
 
 CORE_COMPONENT := ../../components/core/pipeline5
@@ -100,7 +100,6 @@ run-interrupt: $(CORE_SOURCES) tb_interrupt.cpp
 # Interrupt/commit collision regressions: a timer interrupt forced onto the
 # exact commit cycle of a serialized CSR write and of an mret. The .S
 # programs self-check mepc/mstatus/mscratch and exit via the finisher.
-RISCV_PREFIX ?= riscv64-unknown-elf-
 IRQ_TESTS := irq_csr irq_mret
 IRQ_MARKER_irq_csr  := 34011073   # csrw mscratch, x2
 IRQ_MARKER_irq_mret := 30200073   # mret
@@ -118,7 +117,7 @@ run-irq-collide: $(CORE_SOURCES) tb_irq_collide.cpp
 	  $(CORE_SOURCES) $(CURDIR)/tb_irq_collide.cpp >/dev/null
 	@mkdir -p build
 	for t in $(IRQ_TESTS); do \
-	  $(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	  $(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	    -Wl,--defsym=__ram_bytes=$(IRQ_RAM_BYTES) \
 	    -Wl,-T,../../sw/baremetal/link.ld -o build/$$t.elf \
 	    ../../tests/directed/$$t.S || exit 1; \
@@ -134,7 +133,7 @@ run-privilege: $(CORE_SOURCES) tb_axcore.cpp ../../tests/directed/privilege.S
 	  --exe --build -o tb_axcore \
 	  $(CORE_SOURCES) $(CURDIR)/tb_axcore.cpp >/dev/null
 	@mkdir -p build
-	$(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	$(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	  -Wl,--defsym=__ram_bytes=$(AXCORE_RAM_BYTES) \
 	  -Wl,-T,../../sw/baremetal/link.ld -o build/privilege.elf \
 	  ../../tests/directed/privilege.S
@@ -150,7 +149,7 @@ run-sv32: $(CORE_SOURCES) tb_axcore.cpp ../../tests/directed/sv32.S
 	  --exe --build -o tb_axcore \
 	  $(CORE_SOURCES) $(CURDIR)/tb_axcore.cpp >/dev/null
 	@mkdir -p build
-	$(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	$(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	  -Wl,--defsym=__ram_bytes=$(AXCORE_RAM_BYTES) \
 	  -Wl,-T,../../sw/baremetal/link.ld -o build/sv32.elf \
 	  ../../tests/directed/sv32.S

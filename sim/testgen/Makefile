@@ -6,7 +6,7 @@ SIM   := $(abspath $(COSIM)/obj_dir/axcosim)
 FUZZ_EVENTS ?= 10000000
 FUZZ_INSNS  ?= 1000000
 FUZZ_SEED   ?= 1
-RISCV_PREFIX ?= riscv64-unknown-elf-
+include ../../mk/toolchain.mk
 PAGING_SEEDS ?= 10
 PAGING_INSNS ?= 10000
 PAGING_WS    ?= 2
@@ -33,7 +33,7 @@ paging: $(SIM)
 	for seed in $$(seq 1 $(PAGING_SEEDS)); do \
 	  src=build/sv32_$$seed.S; elf=build/sv32_$$seed.elf; bin=build/sv32_$$seed.bin; \
 	  python3 sv32.py --seed $$seed --count $(PAGING_INSNS) --out $$src || exit 1; \
-	  $(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	  $(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	    -Wl,--defsym=__ram_bytes=$(PAGING_RAM_BYTES) \
 	    -Wl,-T,../../sw/baremetal/link.ld -o $$elf $$src || exit 1; \
 	  $(RISCV_PREFIX)objcopy -O binary $$elf $$bin || exit 1; \
