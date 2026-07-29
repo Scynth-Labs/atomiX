@@ -44,12 +44,18 @@ runs:
     # docs/dependencies.md keeps a "recorded working baseline" table. This is
     # the same record produced per run, so a failure caused by a toolchain
     # bump on the runner image shows up in the log instead of being inferred.
+    #
+    # `awk NR==1` rather than `head -1`: head exits at the first line and
+    # closes the pipe, and GNU make reports the resulting write error and
+    # exits non-zero. GitHub runs `shell: bash` with `-o pipefail`, so that
+    # would fail this step -- intermittently, since it is a race against
+    # make finishing its output first. awk consumes the whole stream.
     - name: Record the toolchain this run used
       shell: bash
       run: |
         {
           verilator --version
-          riscv64-unknown-elf-gcc --version | head -1
+          riscv64-unknown-elf-gcc --version | awk 'NR==1'
           python3 --version
-          make --version | head -1
+          make --version | awk 'NR==1'
         } | sed 's/^/[toolchain] /'
