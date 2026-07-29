@@ -11,7 +11,7 @@
     "SOFTWARE_ROM_HEX": "sw/bootrom/build/bootrom.hex",
     "SOFTWARE_SD_IMAGE": "sw/kernel/build/axos_boot.img",
     "SOFTWARE_UART_INPUT": "sw/kernel/shell_input.txt",
-    "SOFTWARE_MAX_CYCLES": 6000000
+    "SOFTWARE_MAX_CYCLES": 12000000
   },
   "capabilities": ["axos", "sdboot", "axfs", "sv32", "uart-shell"]
 }

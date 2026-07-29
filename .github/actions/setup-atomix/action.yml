@@ -1,0 +1,55 @@
+name: Set up atomiX core toolchain
+description: >-
+  Installs the "core: simulation and target software" dependency tier from
+  docs/dependencies.md, and puts ccache in front of the C++ compiler so that
+  Verilator's generated sources are not recompiled from scratch on every run.
+
+inputs:
+  cache-key:
+    description: >-
+      Separates one job's compiler cache from another's. Jobs that build
+      different Verilator models should pass different values, so a large
+      job cannot evict a small job's entries.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Install the core dependency tier
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          build-essential ccache gcc-riscv64-unknown-elf make \
+          picolibc-riscv64-unknown-elf python3 verilator
+
+    # Ubuntu's ccache package ships compiler symlinks in /usr/lib/ccache.
+    # Putting that directory first transparently caches every C++ compile,
+    # including the ones Verilator drives through its own generated Makefile.
+    - name: Put ccache ahead of the compiler
+      shell: bash
+      run: |
+        echo "/usr/lib/ccache" >> "$GITHUB_PATH"
+        echo "CCACHE_DIR=$HOME/.cache/ccache" >> "$GITHUB_ENV"
+        echo "CCACHE_MAXSIZE=1G" >> "$GITHUB_ENV"
+
+    - name: Restore the compiler cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ccache
+        key: ccache-${{ inputs.cache-key }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ inputs.cache-key }}-
+
+    # docs/dependencies.md keeps a "recorded working baseline" table. This is
+    # the same record produced per run, so a failure caused by a toolchain
+    # bump on the runner image shows up in the log instead of being inferred.
+    - name: Record the toolchain this run used
+      shell: bash
+      run: |
+        {
+          verilator --version
+          riscv64-unknown-elf-gcc --version | head -1
+          python3 --version
+          make --version | head -1
+        } | sed 's/^/[toolchain] /'

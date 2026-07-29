@@ -1,0 +1,81 @@
+# Bounded riscv-formal proofs over aXcore's RVFI trace. Separate from CI and
+# Nightly because it is the only suite that needs a current Yosys and sby:
+# docs/dependencies.md records that Ubuntu 22.04's Yosys 0.9 cannot read the
+# SystemVerilog packages this core uses.
+name: Formal
+
+on:
+  schedule:
+    - cron: '23 4 * * 0'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-rvfi:
+    name: riscv-formal bounded instruction checks
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      # OSS CAD Suite ships yosys and sby already matched to each other, which
+      # is why docs/dependencies.md prefers it over building the stack.
+      #
+      # This resolves the newest release rather than naming one, so the job
+      # does not rot. If a run ever fails on a tool bump, pin it: replace the
+      # lookup with that release's asset URL and record the version in the
+      # dependency baseline table, which is the project's stated rule for
+      # changing a toolchain assumption.
+      - name: Install OSS CAD Suite (yosys + sby)
+        run: |
+          set -euo pipefail
+          curl -fsSL -o "$RUNNER_TEMP/oss-release.json" \
+            https://api.github.com/repos/YosysHQ/oss-cad-suite-build/releases/latest
+          asset=$(python3 - "$RUNNER_TEMP/oss-release.json" <<'PY'
+          import json, sys
+
+          with open(sys.argv[1]) as handle:
+              release = json.load(handle)
+          for item in release["assets"]:
+              if "linux-x64" in item["name"] and item["name"].endswith(".tgz"):
+                  print(item["browser_download_url"])
+                  break
+          else:
+              raise SystemExit("no linux-x64 asset in the latest release")
+          PY
+          )
+          echo "[formal] using $asset"
+          curl -fsSL -o "$RUNNER_TEMP/oss-cad-suite.tgz" "$asset"
+          tar -xzf "$RUNNER_TEMP/oss-cad-suite.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/oss-cad-suite/bin" >> "$GITHUB_PATH"
+
+      # formal/run.py expects an unmodified checkout at this exact path, and
+      # formal/README.md asks that it never be vendored or edited from here.
+      - name: Provide an unmodified riscv-formal checkout
+        run: |
+          sudo git clone --depth 1 \
+            https://github.com/YosysHQ/riscv-formal.git /opt/riscv-formal
+
+      - name: Confirm the formal tools
+        run: |
+          yosys -V
+          sby --version
+          test -d /opt/riscv-formal
+
+      # The default suite uses Yosys's built-in SAT engine; `make -C formal
+      # full` runs every generated check and is deliberately not the gate.
+      - name: Bounded instruction checks
+        run: make -C formal check
+
+      - name: Preserve counterexample traces on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: formal-counterexamples
+          path: |
+            formal/build/sat/**/engine_*/**
+            formal/build/sat/**/*.vcd
+          if-no-files-found: ignore
+          retention-days: 14

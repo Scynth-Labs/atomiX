@@ -105,6 +105,13 @@ IRQ_TESTS := irq_csr irq_mret
 IRQ_MARKER_irq_csr  := 34011073   # csrw mscratch, x2
 IRQ_MARKER_irq_mret := 30200073   # mret
 
+# The bare-metal link script takes its RAM region length from __ram_bytes, so
+# each directed program is linked against the RAM its testbench actually
+# models. Keeping the two in step is what makes the link-time overflow check
+# mean something here.
+IRQ_RAM_BYTES     := 16384     # tb_irq_collide.cpp
+AXCORE_RAM_BYTES  := 4194304   # tb_axcore.cpp
+
 run-irq-collide: $(CORE_SOURCES) tb_irq_collide.cpp
 	$(VERILATOR) $(VFLAGS) --top-module axcore --Mdir obj_dir_irq_collide \
 	  --exe --build -o tb_irq_collide \
@@ -112,6 +119,7 @@ run-irq-collide: $(CORE_SOURCES) tb_irq_collide.cpp
 	@mkdir -p build
 	for t in $(IRQ_TESTS); do \
 	  $(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	    -Wl,--defsym=__ram_bytes=$(IRQ_RAM_BYTES) \
 	    -Wl,-T,../../sw/baremetal/link.ld -o build/$$t.elf \
 	    ../../tests/directed/$$t.S || exit 1; \
 	  $(RISCV_PREFIX)objcopy -O binary build/$$t.elf build/$$t.bin || exit 1; \
@@ -127,6 +135,7 @@ run-privilege: $(CORE_SOURCES) tb_axcore.cpp ../../tests/directed/privilege.S
 	  $(CORE_SOURCES) $(CURDIR)/tb_axcore.cpp >/dev/null
 	@mkdir -p build
 	$(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	  -Wl,--defsym=__ram_bytes=$(AXCORE_RAM_BYTES) \
 	  -Wl,-T,../../sw/baremetal/link.ld -o build/privilege.elf \
 	  ../../tests/directed/privilege.S
 	$(RISCV_PREFIX)objcopy -O binary build/privilege.elf build/privilege.bin
@@ -142,6 +151,7 @@ run-sv32: $(CORE_SOURCES) tb_axcore.cpp ../../tests/directed/sv32.S
 	  $(CORE_SOURCES) $(CURDIR)/tb_axcore.cpp >/dev/null
 	@mkdir -p build
 	$(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	  -Wl,--defsym=__ram_bytes=$(AXCORE_RAM_BYTES) \
 	  -Wl,-T,../../sw/baremetal/link.ld -o build/sv32.elf \
 	  ../../tests/directed/sv32.S
 	$(RISCV_PREFIX)objcopy -O binary build/sv32.elf build/sv32.bin

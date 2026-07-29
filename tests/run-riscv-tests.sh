@@ -3,8 +3,14 @@
 # Usage: run-riscv-tests.sh [suite-glob ...]   (default: rv32ui rv32mi)
 # SIM=<path> overrides the simulator (default: aXsim).
 set -u
+# Resolve SIM before changing directory: a relative path the caller gave is
+# relative to where they ran this, not to tests/. Without this, running the
+# documented `SIM=sim/cosim/obj_dir/axcosim tests/run-riscv-tests.sh` from the
+# repository root reports every test as failed rather than as not-found.
+sim=${SIM:-}
+[[ -n $sim && $sim != /* ]] && sim="$PWD/$sim"
 cd "$(dirname "$0")"
-sim=${SIM:-../sim/axsim/axsim}
+sim=${sim:-../sim/axsim/axsim}
 globs=("${@:-rv32ui rv32mi}")
 [[ $# -eq 0 ]] && globs=(rv32ui rv32mi)
 

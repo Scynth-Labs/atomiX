@@ -4,10 +4,23 @@
   industry-standard correctness baseline: rv32ui (base ISA), rv32mi (M-mode
   traps), rv32um (M extension), and rv32si (S-mode). Run against **both**
   aXsim and the RTL.
-  - Build: `make -C riscv-tests/isa XLEN=32 RISCV_PREFIX=riscv64-unknown-elf-`
-    builds the `-p` (physical) variants. The `-v` (Sv32 demand-paging)
-    variants additionally need libc headers the Ubuntu cross package hides in
-    picolibc's directory — build them per-target with
+  - Build: the suite's default target builds every variant, including the
+    `-v` and `rv32uc` ones, so it fails on a stock Ubuntu cross toolchain.
+    Name the `-p` (physical) targets you want instead — the pattern is
+    `<suite>-p-<test>`, one per `.S` source:
+
+    ```bash
+    targets=$(for suite in rv32ui rv32mi rv32um; do
+      for src in riscv-tests/isa/$suite/*.S; do
+        echo "$suite-p-$(basename "$src" .S)"
+      done
+    done)
+    make -C riscv-tests/isa XLEN=32 RISCV_PREFIX=riscv64-unknown-elf- $targets
+    ```
+
+    The `-v` (Sv32 demand-paging) variants additionally need libc headers the
+    Ubuntu cross package hides in picolibc's directory — build them
+    per-target with
     `RISCV_GCC_OPTS="-static -mcmodel=medany -fvisibility=hidden -nostdlib
     -nostartfiles -isystem /usr/lib/picolibc/riscv64-unknown-elf/include"`
     (docs/toolchain.md has the full story).

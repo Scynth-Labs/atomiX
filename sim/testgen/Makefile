@@ -10,6 +10,10 @@ RISCV_PREFIX ?= riscv64-unknown-elf-
 PAGING_SEEDS ?= 10
 PAGING_INSNS ?= 10000
 PAGING_WS    ?= 2
+# The bare-metal link script takes its RAM region length from __ram_bytes;
+# match the RAM the cosim harness models so the link-time overflow check
+# reflects the memory the generated program will actually run in.
+PAGING_RAM_BYTES ?= 33554432   # tb_cosim.cpp
 
 quick: $(SIM)
 	@mkdir -p build
@@ -30,6 +34,7 @@ paging: $(SIM)
 	  src=build/sv32_$$seed.S; elf=build/sv32_$$seed.elf; bin=build/sv32_$$seed.bin; \
 	  python3 sv32.py --seed $$seed --count $(PAGING_INSNS) --out $$src || exit 1; \
 	  $(RISCV_PREFIX)gcc -march=rv32i -mabi=ilp32 -nostdlib -nostartfiles \
+	    -Wl,--defsym=__ram_bytes=$(PAGING_RAM_BYTES) \
 	    -Wl,-T,../../sw/baremetal/link.ld -o $$elf $$src || exit 1; \
 	  $(RISCV_PREFIX)objcopy -O binary $$elf $$bin || exit 1; \
 	  $(SIM) --bin $$bin --ws $(PAGING_WS) || exit 1; \

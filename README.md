@@ -1,5 +1,9 @@
 # atomiX
 
+[![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml)
+[![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml)
+[![Formal](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml)
+
 > **A DIY RISC-V computer, operating system, and FPGA platform.**
 > Build the reference machine — or replace the parts that matter to you.
 

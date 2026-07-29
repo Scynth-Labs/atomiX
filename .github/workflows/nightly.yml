@@ -1,0 +1,122 @@
+# Deep suites: too slow for a per-change gate, and the QEMU-dependent ones
+# need a toolchain the runner image does not ship. These cover the evidence
+# claims in docs/design-checklist.md that CI cannot afford to run per push.
+name: Nightly
+
+on:
+  schedule:
+    # Off the hour, where the runner queue is shorter.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  randomized:
+    name: Randomized generation and fuzzing
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atomix
+        with:
+          cache-key: randomized
+
+      - name: Randomized M-mode instruction fuzzing
+        run: make -C sim/testgen fuzz
+
+      - name: Randomized Sv32 user-mode paging
+        run: make -C sim/testgen paging
+
+  isa-suite:
+    name: Official RISC-V ISA suite
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # tests/riscv-tests is a submodule and is not needed by any other job.
+          submodules: recursive
+
+      - uses: ./.github/actions/setup-atomix
+        with:
+          cache-key: isa-suite
+
+      # Build the -p (physical) variants by name, the way sim/cosim/Makefile
+      # already does for its M tests. The suite's own default target also
+      # builds the -v (Sv32 demand-paging) and rv32uc variants, which need
+      # libc headers the Ubuntu cross package hides inside picolibc, so it
+      # cannot be used here -- see tests/README.md.
+      - name: Build the suite binaries
+        run: |
+          set -euo pipefail
+          targets=""
+          for suite in rv32ui rv32mi rv32um; do
+            for src in tests/riscv-tests/isa/"$suite"/*.S; do
+              targets="$targets $suite-p-$(basename "$src" .S)"
+            done
+          done
+          echo "[isa] building $(echo "$targets" | wc -w) test binaries"
+          make -C tests/riscv-tests/isa \
+            XLEN=32 RISCV_PREFIX=riscv64-unknown-elf- $targets
+
+      - name: Against the golden ISS
+        run: |
+          make -C sim/axsim axsim
+          ./tests/run-riscv-tests.sh rv32ui rv32mi rv32um
+
+      - name: Against the RTL in lock-step
+        run: |
+          make -C sim/cosim axcosim
+          SIM="$PWD/sim/cosim/obj_dir/axcosim" \
+            ./tests/run-riscv-tests.sh rv32ui rv32mi rv32um
+
+  three-platform:
+    name: ISS / QEMU / RTL agreement
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atomix
+        with:
+          cache-key: three-platform
+
+      # docs/toolchain.md: Ubuntu 22.04 ships QEMU 6.2, whose RISC-V model
+      # traps on `mret` into S/U when no PMP entries are configured. aXcore
+      # does not implement optional PMP, so the aXos checks need QEMU >= 7.
+      # This builds the same RISC-V-only 8.2.10 that the dependency baseline
+      # records, and caches the result so it is a one-off cost.
+      - name: Cache the local QEMU build
+        id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local
+          key: qemu-riscv32-8.2.10-ubuntu-22.04
+
+      - name: Build QEMU 8.2.10 (riscv32-softmmu only)
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            git meson ninja-build pkg-config python3-venv \
+            libglib2.0-dev libpixman-1-dev zlib1g-dev libfdt-dev
+          git clone --depth 1 --branch v8.2.10 \
+            https://github.com/qemu/qemu.git "$RUNNER_TEMP/qemu"
+          cd "$RUNNER_TEMP/qemu"
+          ./configure --target-list=riscv32-softmmu --prefix="$HOME/.local"
+          ninja -C build install
+
+      - name: Put the local QEMU first on PATH
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Confirm the QEMU version
+        run: qemu-system-riscv32 --version
+
+      - name: Bare-metal image agrees on ISS, QEMU, and RTL
+        run: make -C sw/baremetal check-hello check-timer check-preempt check-fencei
+
+      # Both scheduler policies must preserve the same shell/fork semantics.
+      - name: aXos boots under both scheduler components
+        run: |
+          make -C sw/kernel kernel-component-test \
+            QEMU="$HOME/.local/bin/qemu-system-riscv32"

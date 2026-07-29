@@ -13,6 +13,29 @@ is *what to run*, not *why*.
 
 All commands are run from the repository root unless a `-C <dir>` says otherwise.
 
+## Continuous integration
+
+Every command in this file is meant to be reproducible by hand.  CI runs the
+ones that need no hardware, so a stale claim surfaces as a red build rather
+than as a surprise months later.  The workflows live in
+[`.github/workflows/`](../.github/workflows) and are split by cost, not by
+subject:
+
+| Workflow | Trigger | Covers | Tier needed |
+|---|---|---|---|
+| `ci.yml` | push, PR | ISS, profile resolution, cosim, unit testbenches, `component-test`, QEMU-free aXos checks | Core |
+| `nightly.yml` | 03:17 UTC daily | randomized fuzzing and paging, official ISA suite on ISS + RTL, three-platform and aXos checks | Core + Kernel |
+| `formal.yml` | Sundays 04:23 UTC | bounded riscv-formal instruction proofs | Formal |
+
+The split follows the tier table above: `ci.yml` needs only the Core tier, so
+it runs on every change.  Anything needing QEMU ≥ 7 or the formal stack builds
+that tool itself and therefore runs on a schedule instead.
+
+FPGA synthesis, place-and-route, and physical-board results are deliberately
+**not** in CI.  Keeping physical claims separate from simulation claims is a
+project rule ([design-checklist.md](design-checklist.md)); a green build never
+implies a working bitstream.
+
 ---
 
 ## 0. Prerequisites (tiers)
