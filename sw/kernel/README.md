@@ -3,6 +3,17 @@
 `aXos` is the small monolithic reference kernel. It runs unchanged on aXsim,
 QEMU `virt`, and the RTL SoC.
 
+## Deployment invariant
+
+Every aXos configuration is emitted as a runtime `.bin` payload. FPGA kernel
+profiles reset into the immutable `sw/bootrom` UART loader with blank RAM;
+`axhost --upload-kernel` transfers the selected binary using the bounded,
+CRC-checked `AXK1` envelope. Kernel source or policy changes therefore never
+require synthesis, place-and-route, or a new bitstream.
+
+`make -C sw/kernel check-uartboot` enforces the invariant against the full
+kernel, including corrupt-CRC and oversized-image rejection.
+
 It provides Sv32 paging, M/S/U trap transitions, a physical-page allocator,
 CLINT-driven preemptive scheduling, and a minimal U-mode process model.
 `clone` duplicates the Sv32 root, page table, user stack, trap context, and

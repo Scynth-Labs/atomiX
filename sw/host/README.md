@@ -7,28 +7,35 @@ service on the shell — never role internals.
 
 ## What exists (base)
 
-- [`axhost.py`](axhost.py) — the host driver: the host-link frame codec plus a
-  **virtual-pipe backend** that talks to a Verilator simulation of the shell
-  over the console byte pipe (request bytes in through the harness UART input,
-  response bytes out on the model's stdout).  It runs PING, INFO, and a
-  ROLE_RUN job against `role.loopback` and checks every response.  Evidence:
-  `make -C sw/kernel check-hostlink`.
+- [`axhost.py`](axhost.py) — the host driver: immutable-ROM kernel upload,
+  host-link frame codec, a Verilator virtual pipe, and a physical USB-serial
+  backend. It runs PING/INFO/jobs, and can load and execute two different GPU
+  programs without rebuilding the FPGA. Evidence:
+  `make -C sw/kernel check-hostlink check-uartboot check-primer-runtime`.
 
 The aXos side is the host-link personality built with `HOSTLINK=1`
 ([sw/kernel/hostlink.c](../kernel/hostlink.c)), which dispatches frames to the
 in-kernel role driver ([sw/kernel/role.c](../kernel/role.c)).
 
+Upload and start a kernel on an attached runtime image:
+
+```bash
+python3 sw/host/axhost.py \
+  --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin \
+  --serial /dev/ttyUSB1 --baud 921600
+```
+
+Add `--fast-switch` to immediately run the two-program GPU regression.
+
 ## What layers on next
 
 - Per-role client libraries (e.g. `libaxtpu`: a matmul API that marshals
   tensors into a TPU-lite descriptor) above the frame codec.
-- A **USB-serial backend** for real hardware, replacing `SimPipe` with the same
-  codec, once the dedicated host-link channel exists (separate from the console;
-  it needs a second byte-pipe peripheral and board pins, so it lands with
-  ULX3S bring-up).
 - New opcodes on the existing frame format: per-role job submission, buffer
-  read/write and streaming, asynchronous completion, and bitstream upload for
-  mode switching.
+  read/write and streaming, asynchronous completion, and cached-bitstream
+  selection for physical-datapath switching.
+- A dedicated second byte pipe so the interactive console and host protocol can
+  operate concurrently instead of selecting one aXos UART personality.
 
 Design rule: `axhost` knows the **shell protocol only** — never role internals.
 Role knowledge lives in aXos and in the per-role libraries.  Userspace only

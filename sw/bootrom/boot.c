@@ -1,7 +1,17 @@
 #include <stdint.h>
 
-enum { SPI = 0x10010000u, GO = 1u, CS_N = 2u, BUSY = 1u };
+enum {
+  UART = 0x10000000u,
+  UART_LSR = 0x10000005u,
+  SPI = 0x10010000u,
+  GO = 1u,
+  CS_N = 2u,
+  BUSY = 1u,
+};
+
+#if !AXBOOT_UART
 static uint8_t sector[512];
+#endif
 
 static inline void write32(uint32_t address, uint32_t value) {
   *(volatile uint32_t *)(uintptr_t)address = value;
@@ -9,10 +19,102 @@ static inline void write32(uint32_t address, uint32_t value) {
 static inline uint32_t read32(uint32_t address) {
   return *(volatile const uint32_t *)(uintptr_t)address;
 }
-static void boot_banner(void) {
-  static const char text[] = "aXboot\n";
-  for (uint32_t i = 0; text[i]; ++i) write32(0x10000000u, text[i]);
+static void uart_put(uint8_t byte) {
+  while (!(*(volatile const uint8_t *)(uintptr_t)UART_LSR & 0x20u)) {}
+  *(volatile uint8_t *)(uintptr_t)UART = byte;
 }
+#if AXBOOT_UART
+static uint8_t uart_get(void) {
+  while (!(*(volatile const uint8_t *)(uintptr_t)UART_LSR & 0x01u)) {}
+  return *(volatile const uint8_t *)(uintptr_t)UART;
+}
+#endif
+static void uart_text(const char *text) {
+  while (*text) uart_put((uint8_t)*text++);
+}
+#if AXBOOT_UART
+static void boot_banner(const char *mode) {
+  uart_text("aXboot ");
+  uart_text(mode);
+  uart_put('\n');
+}
+
+extern uint32_t AXBOOT_RAM_BYTES;
+
+static uint32_t get_u32(void) {
+  uint32_t value = uart_get();
+  value |= (uint32_t)uart_get() << 8;
+  value |= (uint32_t)uart_get() << 16;
+  value |= (uint32_t)uart_get() << 24;
+  return value;
+}
+
+static void put_u32(uint32_t value) {
+  uart_put((uint8_t)value);
+  uart_put((uint8_t)(value >> 8));
+  uart_put((uint8_t)(value >> 16));
+  uart_put((uint8_t)(value >> 24));
+}
+
+static uint32_t crc32_byte(uint32_t crc, uint8_t byte) {
+  crc ^= byte;
+  for (uint32_t bit = 0; bit < 8u; ++bit)
+    crc = (crc >> 1) ^ (0xedb88320u & (0u - (crc & 1u)));
+  return crc;
+}
+
+static void response(const char tag[4], uint32_t value) {
+  for (uint32_t i = 0; i < 4u; ++i) uart_put((uint8_t)tag[i]);
+  put_u32(value);
+}
+
+static void find_magic(void) {
+  static const uint8_t magic[4] = {'A', 'X', 'K', '1'};
+  uint32_t matched = 0;
+  for (;;) {
+    const uint8_t byte = uart_get();
+    if (byte == magic[matched]) {
+      if (++matched == 4u) return;
+    } else {
+      matched = byte == magic[0] ? 1u : 0u;
+    }
+  }
+}
+
+static __attribute__((noreturn)) void uart_boot(void) {
+  boot_banner("uart1");
+  for (;;) {
+    find_magic();
+    const uint32_t length = get_u32();
+    const uint32_t expected_crc = get_u32();
+    const uint32_t ram_bytes = (uint32_t)(uintptr_t)&AXBOOT_RAM_BYTES;
+    if (length == 0u || length > ram_bytes - 4096u) {
+      response("AXER", 1u);
+      continue;
+    }
+
+    volatile uint8_t *const ram =
+        (volatile uint8_t *)(uintptr_t)0x80000000u;
+    uint32_t crc = 0xffffffffu;
+    for (uint32_t i = 0; i < length; ++i) {
+      const uint8_t byte = uart_get();
+      ram[i] = byte;
+      crc = crc32_byte(crc, byte);
+    }
+    crc = ~crc;
+    if (crc != expected_crc) {
+      response("AXER", 2u);
+      continue;
+    }
+    response("AXOK", length);
+    __asm__ volatile("fence.i" ::: "memory");
+    ((void (*)(void))(uintptr_t)0x80000000u)();
+    response("AXER", 3u);
+  }
+}
+
+#else
+
 static void select_card(int selected) { write32(SPI + 4u, selected ? 0 : CS_N); }
 static uint8_t transfer(uint8_t value) {
   write32(SPI, value); write32(SPI + 4u, GO);
@@ -66,7 +168,8 @@ __attribute__((noreturn)) static void fail(uint32_t code) {
   for (;;) __asm__ volatile("wfi");
 }
 int main(void) {
-  boot_banner();
+  /* Preserve the original SD-ROM banner consumed by existing tooling. */
+  uart_text("aXboot\n");
   if (sd_init()) fail(1);
   if (read_block(0)) fail(2);
   if (sector[0] != 'A' || sector[1] != 'X' || sector[2] != 'B' ||
@@ -85,3 +188,11 @@ int main(void) {
   ((void (*)(void))(uintptr_t)0x80000000u)();
   fail(6);
 }
+
+#endif
+
+#if AXBOOT_UART
+int main(void) {
+  uart_boot();
+}
+#endif

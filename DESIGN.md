@@ -51,9 +51,10 @@ we build.
 | Irregular instructions | **Serialize** CSR writes, `mret`, `fence.i` (later `div`): flush younger, complete alone, refetch | A few cycles on rare instructions buys away a whole class of in-flight side-effect hazards |
 | Build order | **ISS first, then RTL** | RTL debugging starts with a trusted golden model and cosim from day one |
 | Kernel | **Monolithic, xv6-inspired scope**, our own code | Achievable scope with a known-good reference for when we're stuck |
-| Platform model | **Shell + role** (AWS F1 / Catapult style): aXcore + aXos fixed in every bitstream, role region swapped per mode | Kernel is genuinely common across modes; host driver never sees role internals, only the shell protocol |
+| Platform model | **Shell + role** (AWS F1 / Catapult style): aXcore + loader fixed in the FPGA image, aXos uploaded as the common management payload, role selected or programmed per mode | Kernel and FPGA lifecycles are independent; the host driver never sees role internals, only the shell protocol |
 | Component composition | **Manifest-selected implementations with lenient stock seams** | Users may substitute CPU, SoC fabric, memory, peripherals, board/harness, software/kernel code, or aXos service policies; manifests compose sources but do not prescribe microarchitecture or verification claims |
-| Mode switching | **Full bitstream swap** (host uploads new bitstream, FPGA reboots) | Partial reconfiguration is effectively unsupported in the open Yosys/nextpnr flow; full swap is simple and reliable |
+| Mode switching | **Runtime-programmable role first**; cached full-bitstream swap only for a different physical datapath; live partial reconfiguration remains research | Normal kernel/benchmark iteration never runs synthesis or P&R; the resident shell loads accelerator programs in milliseconds |
+| Kernel deployment | **Kernel is always a runtime payload** loaded by an immutable ROM; never a fabric-synthesis input in kernel profiles | aXos changes take a serial upload, not a new netlist, placement, route, or bitstream |
 | Host link | **USB** — FTDI USB-serial first (~1–3 MB/s), soft USB device core later | Zero extra hardware on ULX3S-class boards; models as a virtual pipe in simulation |
 | Role interface | **aXbus MMIO device with doorbell + descriptor ring** | Same idiom as real NVMe/GPU hardware; one driver model for every role |
 | First role | **TPU-lite: int8 systolic GEMM array** on ECP5 DSP blocks | Most tractable "real" accelerator; clearly benchmarkable against host matmul |
@@ -153,15 +154,24 @@ The endgame architecture. The FPGA design is split into two parts:
   selectable `role` components; `role.none` (the default) makes discovery
   read zero, and `role.loopback` is the executable contract proof.
 - **Mode switch** = three tiers.  (1) In simulation and at build time, a
-  profile selects a different role component.  (2) On a live system, a
-  role's *function* changes by loading new programs/descriptors through its
-  window — the way real GPUs and TPUs change behavior; a full SRAM
-  bitstream reload (~1 s on ECP5, no flash wear) remains the fallback and
-  restarts the FPGA side. (3) Rewriting only the role region of a running
+  profile selects the fixed shell and role hardware once.  (2) In normal live
+  use, a role's *function* changes by loading new programs/descriptors through
+  its window — the way real GPUs and TPUs change behavior. `GPU_LOAD`, for
+  example, replaces a nine-instruction program in about 0.46 ms on the Primer
+  runtime profile's 921600-baud link while aXos stays alive. A prebuilt full SRAM bitstream reload
+  remains the fallback for a genuinely different physical datapath and
+  restarts the FPGA side; synthesis/P&R is never in the runtime loop.
+  (3) Rewriting only the role region of a running
   bitstream — shell and aXos never stopping — is the
   partial-reconfiguration research track in
   [docs/partial-reconfig.md](docs/partial-reconfig.md). "Shell is fixed"
   means fixed at the source level — the same shell RTL in every build.
+- **Kernel loading** is below the role protocol and applies to every aXos
+  personality. The fixed FPGA image resets into a small ROM loader, which
+  accepts a length-bounded, CRC-32-checked `AXK1` binary, writes it to blank
+  RAM, executes `fence.i`, and jumps to `0x8000_0000`. Kernel source/config
+  changes therefore never cause FPGA synthesis or P&R. SD boot remains a
+  separate persistent-storage mode, not the kernel-development fast path.
 - **Host driver (`axhost`)** = userspace tool/daemon on the host PC speaking a
   small framed protocol over USB: bitstream upload, buffer read/write, work
   submission, completion events. It knows the shell protocol, never the role
@@ -212,6 +222,10 @@ The endgame architecture. The FPGA design is split into two parts:
 Simulation story is unchanged: the host link models as a virtual pipe, so the
 full stack — axhost on the real host, aXos on the simulated shell, role RTL —
 runs end-to-end under Verilator before any hardware exists.
+The exact fast-switch gate is `make -C sw/kernel check-primer-runtime`: one
+resident 32 KiB aXos image loads and runs SAXPY, replaces the GPU microcode with
+a polynomial kernel, runs again, and verifies both host-side references without
+restarting the model.
 
 ## 4. CPU: `aXcore`
 

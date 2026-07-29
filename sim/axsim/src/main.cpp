@@ -18,6 +18,7 @@ static void usage(const char* argv0) {
           "  --base ADDR  flat-binary load address (default 0x80000000)\n"
           "  --pc ADDR    reset PC (default: ELF entry / --base)\n"
           "  --ram MB     RAM size in MiB     (default 32)\n"
+          "  --ram-bytes N  exact RAM size in bytes (overrides --ram)\n"
           "  --max N      stop after N instructions (default: unlimited)\n"
           "  --uart-input TEXT  bytes available through the 16550 RX register\n"
           "  --uart-input-file FILE  bytes available through the 16550 RX register\n"
@@ -33,6 +34,7 @@ int main(int argc, char** argv) {
   uint32_t reset_pc = 0;
   bool have_pc = false;
   size_t ram_mib = 32;
+  size_t ram_bytes = 0;
   uint64_t max_insns = 0;
   bool trace = false;
   const char* uart_input = nullptr;
@@ -48,6 +50,7 @@ int main(int argc, char** argv) {
     else if (const char* v = arg_val("--base")) base = parse_u32(v);
     else if (const char* v = arg_val("--pc")) { reset_pc = parse_u32(v); have_pc = true; }
     else if (const char* v = arg_val("--ram")) ram_mib = parse_u32(v);
+    else if (const char* v = arg_val("--ram-bytes")) ram_bytes = parse_u32(v);
     else if (const char* v = arg_val("--max")) max_insns = strtoull(v, nullptr, 0);
     else if (const char* v = arg_val("--uart-input")) uart_input = v;
     else if (const char* v = arg_val("--uart-input-file")) uart_input_file = v;
@@ -57,7 +60,7 @@ int main(int argc, char** argv) {
   if (!bin_path) { usage(argv[0]); return 1; }
   if (!have_pc) reset_pc = base;
 
-  Bus bus(ram_mib << 20);
+  Bus bus(ram_bytes ? ram_bytes : ram_mib << 20);
   if (uart_input) bus.set_uart_input(uart_input);
   if (uart_input_file) {
     std::ifstream stream(uart_input_file, std::ios::binary);

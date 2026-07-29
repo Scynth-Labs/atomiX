@@ -1,5 +1,15 @@
 VERILATOR ?= verilator
-VFLAGS    := -Wall --cc -O2
+# Shared component packages declare operation constants that some selected
+# implementations do not consume. Verilator 5.051 reports those package-level
+# constants as UNUSEDPARAM and makes warnings fatal under -Wall; they are
+# intentional component API, not dead elaborated hardware. Older Verilator
+# releases do not recognize the warning name, so apply it only on 5+.
+VERILATOR_VERSION := $(word 2,$(shell $(VERILATOR) --version 2>/dev/null))
+VERILATOR_MAJOR := $(firstword $(subst ., ,$(VERILATOR_VERSION)))
+VFLAGS := -Wall --cc -O2
+ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
+VFLAGS += -Wno-UNUSEDPARAM
+endif
 .DEFAULT_GOAL := run
 
 COMPONENT_CONFIG ?= ../../configs/sim-bram.json
@@ -58,7 +68,8 @@ UART_INPUT_FILE ?=
 # an external manifest) without reusing a generated Makefile that names the
 # old C++ harness path.
 SOURCE_LAYOUT_TAG := $(shell printf '%s' '$(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)' | cksum | awk '{print $$1}')
-BUILD_TAG := $(COMPONENT_CONFIG_NAME)-$(notdir $(RAM_INIT_FILE))-$(notdir $(ROM_INIT_FILE))-ram$(RAM_BYTES)-dram$(EXTERNAL_MEMORY)-cache$(CACHES)x$(CACHE_LINES)x$(CACHE_WORDS_PER_LINE)-sync$(SYNC_READ)-src$(SOURCE_LAYOUT_TAG)-def$(shell echo '$(DEFINES)' | cksum | cut -d' ' -f1)-$(BUILD_ID)
+VERILATOR_LAYOUT_TAG := $(shell printf '%s' '$(VERILATOR_VERSION) $(VFLAGS)' | cksum | awk '{print $$1}')
+BUILD_TAG := $(COMPONENT_CONFIG_NAME)-$(notdir $(RAM_INIT_FILE))-$(notdir $(ROM_INIT_FILE))-ram$(RAM_BYTES)-dram$(EXTERNAL_MEMORY)-cache$(CACHES)x$(CACHE_LINES)x$(CACHE_WORDS_PER_LINE)-sync$(SYNC_READ)-src$(SOURCE_LAYOUT_TAG)-vl$(VERILATOR_LAYOUT_TAG)-def$(shell echo '$(DEFINES)' | cksum | cut -d' ' -f1)-$(BUILD_ID)
 MDIR := obj_dir_$(BUILD_TAG)
 
 config: $(COMPONENT_MK)

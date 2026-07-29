@@ -30,13 +30,31 @@ COMPONENT_FPGA_FLOW ?= ecp5
 TOP ?= $(COMPONENT_FPGA_TOP)
 PROGRAM ?= hello
 RAM_BYTES ?= $(COMPONENT_RAM_BYTES)
+RAM_INIT_FILE ?=
+ROM_INIT_FILE ?=
+RESET_PC_VALUE := $(if $(COMPONENT_RESET_PC),$(shell python3 -c 'print(int("$(COMPONENT_RESET_PC)", 0))'))
+RUNTIME_KERNEL_PROFILE := $(if $(and $(filter gowin,$(COMPONENT_FPGA_FLOW)),$(filter 4096,$(RESET_PC_VALUE))),1,)
+# A Gowin profile that resets into ROM is a runtime-software profile by
+# construction. Unless explicitly overridden (for example by an SD loader),
+# synthesize the immutable UART loader and blank kernel RAM.
+ifeq ($(RUNTIME_KERNEL_PROFILE),1)
+ifeq ($(strip $(RAM_INIT_FILE)),)
+RAM_INIT_FILE := ../../sw/bootrom/blank.hex
+endif
+ifeq ($(strip $(ROM_INIT_FILE)),)
+ROM_INIT_FILE := ../../sw/bootrom/build/uart-ram$(RAM_BYTES)/bootrom.hex
+AUTO_UART_ROM := 1
+endif
+endif
 PROGRAM_BUILD_DIR := build/ram$(RAM_BYTES)
-PROGRAM_HEX := ../../sw/baremetal/$(PROGRAM_BUILD_DIR)/$(PROGRAM).hex
+PROGRAM_HEX := $(if $(RAM_INIT_FILE),$(abspath $(RAM_INIT_FILE)),../../sw/baremetal/$(PROGRAM_BUILD_DIR)/$(PROGRAM).hex)
 PROGRAM_KEY := $(subst /,_,$(basename $(abspath $(PROGRAM_HEX))))
+ROM_INIT_DEP := $(if $(ROM_INIT_FILE),$(abspath $(ROM_INIT_FILE)),)
+ROM_KEY := $(if $(ROM_INIT_FILE),/rom$(subst /,_,$(basename $(abspath $(ROM_INIT_FILE)))),)
 # Gowin BRAM-only images bake software into the netlist, so the payload is part
 # of the artifact identity. ECP5 boots from a separate ROM image and therefore
 # remains keyed by configuration alone.
-CONFIG_BUILD := $(BUILD)/$(COMPONENT_CONFIG_KEY)$(if $(filter gowin,$(COMPONENT_FPGA_FLOW)),/$(PROGRAM_KEY),)
+CONFIG_BUILD := $(BUILD)/$(COMPONENT_CONFIG_KEY)$(if $(filter gowin,$(COMPONENT_FPGA_FLOW)),/$(PROGRAM_KEY)$(ROM_KEY),)
 BOOT_HEX := ../../sw/bootrom/build/bootrom.hex
 JSON := $(CONFIG_BUILD)/$(TOP).json
 SYNTH_SV := $(CONFIG_BUILD)/atomiX_synth.sv
@@ -70,10 +88,16 @@ config: $(COMPONENT_MK)
 	@echo "  memory: $(COMPONENT_MEMORY_ID)"
 	@echo "  role:   $(COMPONENT_ROLE_ID)"
 	@echo "  board:  $(COMPONENT_BOARD_ID)"
-	@if [ "$(COMPONENT_FPGA_FLOW)" = "gowin" ]; then echo "  program: $(PROGRAM) ($(PROGRAM_HEX))"; fi
+	@if [ "$(COMPONENT_FPGA_FLOW)" = "gowin" ]; then echo "  payload: $(PROGRAM_HEX)"; fi
 
 $(BOOT_HEX):
 	$(MAKE) -C ../../sw/bootrom images
+
+ifeq ($(AUTO_UART_ROM),1)
+$(ROM_INIT_DEP):
+	$(MAKE) -C ../../sw/bootrom images MODE=uart RAM_BYTES=$(RAM_BYTES) \
+	  BUILD_DIR=build/uart-ram$(RAM_BYTES)
+endif
 
 $(SYNTH_SV): prepare_synth.py $(COMPONENT_MK) $(SOURCES) | $(CONFIG_BUILD)
 	python3 prepare_synth.py $@ $(SOURCES)
@@ -98,14 +122,18 @@ BIT := $(CONFIG_BUILD)/$(TOP).fs
 # BRAM-only Tang bring-up bakes the selected bare-metal program into on-chip
 # block RAM at synthesis time. Build that exact payload first and specialize
 # the board top's string parameter so $readmemh cannot fall back to hello.hex.
+ifeq ($(RAM_INIT_FILE),)
 $(PROGRAM_HEX):
 	$(MAKE) -C ../../sw/baremetal BUILD_DIR=$(PROGRAM_BUILD_DIR) \
 	  RAM_BYTES=$(RAM_BYTES) $(PROGRAM_BUILD_DIR)/$(PROGRAM).hex
+endif
 
 # The board top's RAM_BYTES follows the selected profile so a role-heavy
 # profile can trade main memory for the block RAM its accelerator needs.
 RAM_BYTES_CHPARAM := $(if $(RAM_BYTES),chparam -set RAM_BYTES $(RAM_BYTES) $(TOP);,)
 PROGRAM_CHPARAM := chparam -set RAM_INIT_FILE "$(abspath $(PROGRAM_HEX))" $(TOP);
+ROM_CHPARAM := $(if $(ROM_INIT_FILE),chparam -set ROM_INIT_FILE "$(abspath $(ROM_INIT_FILE))" $(TOP);,)
+RESET_PC_CHPARAM := $(if $(RESET_PC_VALUE),chparam -set RESET_PC $(RESET_PC_VALUE) $(TOP);,)
 
 # Yosys 0.67's final Gowin `autoname` pass scales pathologically on the larger
 # CPU/GPU/TPU netlists. Cell names are not part of nextpnr's input contract, so
@@ -113,8 +141,8 @@ PROGRAM_CHPARAM := chparam -set RAM_INIT_FILE "$(abspath $(PROGRAM_HEX))" $(TOP)
 # and omit only autoname. This yields the same checked JSON netlist in seconds
 # instead of hanging for minutes.
 GOWIN_SETUNDEF_CMD := $(if $(filter -setundef,$(COMPONENT_GOWIN_SYNTH_ARGS)),setundef -undriven -params -zero;,)
-$(JSON): $(SYNTH_SV) $(PROGRAM_HEX) Makefile | $(CONFIG_BUILD)
-	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) $(PROGRAM_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
+$(JSON): $(SYNTH_SV) $(PROGRAM_HEX) $(ROM_INIT_DEP) Makefile | $(CONFIG_BUILD)
+	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) $(PROGRAM_CHPARAM) $(ROM_CHPARAM) $(RESET_PC_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
 
 $(PNR_JSON): $(JSON) $(CST) | check-tools
 	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@ --report $(PNR_REPORT) --detailed-timing-report

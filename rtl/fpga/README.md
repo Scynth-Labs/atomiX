@@ -17,8 +17,9 @@ make fpga CONFIG=configs/tangprimer25k.json
 make -C rtl/fpga program COMPONENT_CONFIG=$PWD/configs/tangprimer25k.json
 ```
 
-Tang targets bake one bare-metal payload into block RAM. Select it explicitly
-with `PROGRAM`; the default is `hello`:
+The older board-diagnostic targets bake one bare-metal payload into block RAM.
+They are useful for isolated CPU/GPU/TPU bring-up, not for kernel deployment.
+Select one explicitly with `PROGRAM`; the default is `hello`:
 
 ```bash
 make fpga CONFIG=configs/tangprimer25k-ax2.json PROGRAM=cpu_perf
@@ -26,15 +27,27 @@ make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf
 make fpga CONFIG=configs/tangprimer25k-tpu.json PROGRAM=tpu
 ```
 
-Generated artifacts are keyed by both configuration and payload. Switching
+An arbitrary word-per-line RAM image can be selected with `RAM_INIT_FILE`.
+Kernel profiles do not use that path: their RAM starts blank, reset enters the
+immutable UART ROM, and `axhost` uploads the kernel binary at runtime. The
+top-level target runs the exact-memory loader/kernel/accelerator RTL test before
+building the loader-only bitstream:
+
+```bash
+make fpga-kernel-primer
+```
+
+This builds only; it does not access or program a physical board.
+
+Generated diagnostic artifacts are keyed by both configuration and payload. Switching
 from `PROGRAM=hello` to `PROGRAM=cpu_perf` therefore cannot reuse a netlist or
 bitstream containing the previous block-RAM image. The payload itself is linked
 for the profile's actual RAM size and stored under
 `sw/baremetal/build/ram<RAM_BYTES>/`; its stack therefore cannot point beyond
 the 16 or 32 KiB memory synthesized for the board.
 
-The profile uses 32 KB of on-chip BSRAM and starts the baked-in bare-metal
-image at `0x80000000`. See
+The runtime profile uses 32 KB of on-chip BSRAM, resets at ROM address
+`0x00001000`, and places the uploaded kernel at `0x80000000`. See
 [docs/tangprimer25k-bringup.md](../../docs/tangprimer25k-bringup.md) before
 programming or flashing hardware.
 

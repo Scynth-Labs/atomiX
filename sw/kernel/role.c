@@ -6,12 +6,14 @@
  * live for role swapping without risking a fault from inside a syscall. */
 volatile uint32_t role_probe_active;
 static int role_window_present;
+static uint32_t gpu_loaded_ninsn;
 
 extern int role_probe_read32(uint32_t addr, uint32_t *value);
 
 void role_init(void) {
   uint32_t ignored;
   role_window_present = role_probe_read32(AX_ROLE_ID, &ignored);
+  gpu_loaded_ninsn = 0;
 }
 
 /* Generic role-header operations, shared by every role. */
@@ -120,20 +122,32 @@ int role_tpu_gemm(const int8_t *w, const int8_t *a, uint32_t m,
 
 /* Run one GPU-compute job: upload the kernel and the flat data buffer, launch
  * NTHREADS lanes over the program, and read the data buffer back. */
-int role_gpu_run(const uint32_t *prog, uint32_t ninsn,
-                 const uint32_t *data_in, uint32_t ndata,
-                 uint32_t nthreads, uint32_t *data_out) {
+int role_gpu_load(const uint32_t *prog, uint32_t ninsn) {
   for (uint32_t i = 0; i < ninsn; ++i)
     mmio_write32(AX_ROLE_GPU_PROG + 4u * i, prog[i]);
+  mmio_write32(AX_ROLE_GPU_NINSN, ninsn);
+  gpu_loaded_ninsn = ninsn;
+  return 0;
+}
+
+int role_gpu_exec(const uint32_t *data_in, uint32_t ndata,
+                  uint32_t nthreads, uint32_t *data_out) {
+  if (gpu_loaded_ninsn == 0u) return -1;
   for (uint32_t i = 0; i < ndata; ++i)
     mmio_write32(AX_ROLE_GPU_DATA + 4u * i, data_in[i]);
   mmio_write32(AX_ROLE_GPU_NTHREADS, nthreads);
-  mmio_write32(AX_ROLE_GPU_NINSN, ninsn);
   role_ring_doorbell();
   if (role_wait_done() != 0) return -1;
   for (uint32_t i = 0; i < ndata; ++i)
     data_out[i] = mmio_read32(AX_ROLE_GPU_DATA + 4u * i);
   return 0;
+}
+
+int role_gpu_run(const uint32_t *prog, uint32_t ninsn,
+                 const uint32_t *data_in, uint32_t ndata,
+                 uint32_t nthreads, uint32_t *data_out) {
+  if (role_gpu_load(prog, ninsn) != 0) return -1;
+  return role_gpu_exec(data_in, ndata, nthreads, data_out);
 }
 
 static uint16_t get_u16(const uint8_t *p) {
@@ -150,6 +164,10 @@ static void put_u32(uint8_t *p, uint32_t value) {
   p[1] = (uint8_t)(value >> 8);
   p[2] = (uint8_t)(value >> 16);
   p[3] = (uint8_t)(value >> 24);
+}
+
+static uint32_t cycle_now(void) {
+  return mmio_read32(AX_CLINT_BASE + 0xbff8u);
 }
 
 /* The single checked dispatch shared by U-mode and the host-link service.
@@ -224,6 +242,50 @@ int role_execute(uint32_t op, const uint8_t *request, uint32_t request_len,
     for (uint32_t i = 0; i < ndata; ++i)
       put_u32(&response[4u * i], out[i]);
     *response_len = out_len;
+    return AX_ROLE_EXEC_OK;
+  }
+
+  if (op == AX_ROLE_OP_GPU_LOAD) {
+    if (role_discover() != AX_ROLE_ID_GPU) return AX_ROLE_EXEC_NO_ROLE;
+    if (request_len < 2u) return AX_ROLE_EXEC_BAD_LEN;
+    const uint32_t ninsn = get_u16(request);
+    if (ninsn == 0u || ninsn > AX_ROLE_GPU_MAX_INSN ||
+        request_len != 2u + 4u * ninsn)
+      return AX_ROLE_EXEC_BAD_LEN;
+    if (response_cap < 4u) return AX_ROLE_EXEC_NO_SPACE;
+
+    uint32_t prog[AX_ROLE_GPU_MAX_INSN];
+    for (uint32_t i = 0; i < ninsn; ++i)
+      prog[i] = get_u32(&request[2u + 4u * i]);
+    const uint32_t start = cycle_now();
+    if (role_gpu_load(prog, ninsn) != 0) return AX_ROLE_EXEC_TIMEOUT;
+    put_u32(response, cycle_now() - start);
+    *response_len = 4u;
+    return AX_ROLE_EXEC_OK;
+  }
+
+  if (op == AX_ROLE_OP_GPU_EXEC) {
+    if (role_discover() != AX_ROLE_ID_GPU) return AX_ROLE_EXEC_NO_ROLE;
+    if (request_len < 4u) return AX_ROLE_EXEC_BAD_LEN;
+    const uint32_t nthreads = get_u16(&request[0]);
+    const uint32_t ndata = get_u16(&request[2]);
+    const uint32_t data_len = 4u * ndata;
+    if (ndata > AX_ROLE_GPU_MAX_DATA ||
+        request_len != 4u + data_len)
+      return AX_ROLE_EXEC_BAD_LEN;
+    if (4u + data_len > response_cap) return AX_ROLE_EXEC_NO_SPACE;
+
+    uint32_t data[AX_ROLE_GPU_MAX_DATA];
+    uint32_t out[AX_ROLE_GPU_MAX_DATA];
+    for (uint32_t i = 0; i < ndata; ++i)
+      data[i] = get_u32(&request[4u + 4u * i]);
+    const uint32_t start = cycle_now();
+    if (role_gpu_exec(data, ndata, nthreads, out) != 0)
+      return AX_ROLE_EXEC_TIMEOUT;
+    put_u32(response, cycle_now() - start);
+    for (uint32_t i = 0; i < ndata; ++i)
+      put_u32(&response[4u + 4u * i], out[i]);
+    *response_len = 4u + data_len;
     return AX_ROLE_EXEC_OK;
   }
 

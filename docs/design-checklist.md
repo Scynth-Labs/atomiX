@@ -268,16 +268,29 @@ Use this for a substantive implementation or interface change:
   all three real accelerators over the link, each checked against a host-side
   reference.  Evidence: `make -C sw/kernel check-hostlink` (loopback, TPU-lite,
   and GPU-compute profiles).
+- [x] Fast runtime accelerator switching: `GPU_LOAD` replaces resident
+  microcode independently of `GPU_EXEC`, so synthesis, P&R, bitstream loading,
+  and aXos reboot are outside the normal module/benchmark loop. Evidence:
+  `make -C sw/kernel check-primer-runtime` loads and verifies SAXPY and
+  polynomial kernels in one 32 KiB aXos/RTL session; the nine-instruction
+  switch frame is 42 UART bytes (about 0.46 ms in the 921600-baud runtime
+  profile).
+- [x] Kernel-as-runtime-payload invariant: immutable UART ROM accepts a
+  length-bounded CRC-32 `AXK1` frame into blank RAM and starts any compatible
+  aXos personality. Evidence: `make -C sw/kernel check-uartboot` rejects
+  corrupt/oversized uploads and boots the full kernel; `make runtime-primer`
+  uploads the compact host-link kernel before its two-program accelerator test.
+  The loader-only Primer image routes at 32.75 MHz for a 25 MHz constraint
+  (16,532 LUT4, 44 BSRAM, 3 DSP); physical upload evidence is still pending.
 - [x] Kernel-mediated userspace role ABI: `role_info`, token-returning
   `role_submit`, and retry-safe `role_wait`, using the same checked job
   encodings as the host link. The physical role window remains supervisor-only
   through a dedicated Sv32 alias, and device polling is bounded. Evidence:
   `make -C sw/kernel check-role-driver` (resident shell plus U-mode loopback
   job) and `make -C sw/kernel check-boot` (safe role absence on ISS/QEMU).
-- [ ] Remaining host-link enhancements: a dedicated USB-serial channel (a
-  second byte-pipe peripheral, so console and host-link coexist — lands with the
-  board gate); buffer/stream and asynchronous-completion ops; and bitstream-
-  upload mode switching.
+- [ ] Remaining host-link enhancements: a dedicated second byte pipe so console
+  and host-link coexist; buffer/stream and asynchronous-completion ops; cached
+  prebuilt-bitstream selection for physical datapath changes.
 - [ ] Add PLIC/role interrupt integration when a second interrupt source
   exists.
 - [ ] Evaluate A or C ISA extensions only when their enabling need is explicit;

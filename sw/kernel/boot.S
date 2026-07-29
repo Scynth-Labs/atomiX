@@ -28,7 +28,10 @@ s_entry:
   .option norelax
   la sp, __stack_top
   la t0, supervisor_trap_entry
-  la t1, __stack_top
+  /* Keep the bootstrap S-mode call stack and its asynchronous trap frame
+   * disjoint. Both live in the reserved final RAM page, while the allocator
+   * stops below __stack_bottom. */
+  la t1, __trap_stack_top
   .option pop
   csrw stvec, t0
   csrw sscratch, t1

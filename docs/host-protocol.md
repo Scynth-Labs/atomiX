@@ -14,14 +14,21 @@ The protocol is a byte stream; it does not care what carries it.
 - **Base (today):** the shell's console byte pipe.  In simulation this is the
   Verilator harness UART — `axhost` writes request bytes to `UART_INPUT_FILE`
   and reads response bytes from the model's stdout (the "virtual pipe" backend).
-- **Enhancement (hardware):** a dedicated USB-serial channel, separate from the
-  console, so a human console and the host daemon coexist.  That needs a second
-  byte-pipe peripheral (an interconnect-mux port and board pins), so it lands
-  with ULX3S bring-up.  Only the transport changes; the frames below do not.
+- **Hardware:** `axhost --serial /dev/ttyUSBx` opens the board's existing
+  USB-UART directly (including a WSL-attached device). The host-link personality
+  owns that UART, so it replaces the human console in this image. A future
+  second byte pipe can make the two concurrent without changing the frames.
 
 In the base, aXos runs a **host-link personality** (built with `HOSTLINK=1`)
 that speaks this protocol instead of the interactive shell.  The two are
 unified into one concurrent image once the dedicated channel exists.
+
+Before this protocol starts, kernel profiles reset into the immutable UART ROM.
+The host sends `"AXK1" · length(u32) · crc32(u32) · kernel[length]`; the ROM
+answers `"AXOK" · length(u32)`, executes `fence.i`, and starts aXos. `"AXER" ·
+code(u32)` reports a bad bound or CRC and leaves the ROM ready for another
+upload. This boot envelope is transport-level and independent of the aXos
+request frames below.
 
 ## Frames
 
@@ -48,6 +55,8 @@ Response  5A | status(1) | len(2) | payload(len)
 | 0x10 | `ROLE_RUN` | `words`(u16) · `words`×u32 input                  | `words`×u32 result              |
 | 0x11 | `TPU_GEMM` | `m`(u8) · `ctrl`(u8) · `W`[64 i8] · `A`[8·m i8]   | `C`[m·8 i32]                    |
 | 0x12 | `GPU_RUN`  | `nthreads`(u16) · `ninsn`(u16) · `ndata`(u16) · `prog`[ninsn u32] · `data`[ndata u32] | `data`[ndata u32] |
+| 0x13 | `GPU_LOAD` | `ninsn`(u16) · `prog`[ninsn u32]                  | `load_cycles`(u32)              |
+| 0x14 | `GPU_EXEC` | `nthreads`(u16) · `ndata`(u16) · `data`[ndata u32] | `exec_cycles`(u32) · `data`[ndata u32] |
 | 0x7F | `BYE`      | none                                              | none (then the session ends)    |
 
 - `PING` proves the transport and framing round-trip.
@@ -63,6 +72,11 @@ Response  5A | status(1) | len(2) | payload(len)
 - `GPU_RUN` targets `role.gpu-compute`: aXos uploads a straight-line kernel and
   a flat data buffer, launches `nthreads` SIMT lanes over the program, and
   returns the data buffer read back.
+- `GPU_LOAD`/`GPU_EXEC` split that operation at the reconfiguration boundary.
+  `GPU_LOAD` replaces only the engine's microcode while the FPGA image and aXos
+  remain resident. Repeated `GPU_EXEC` calls reuse it. The reported cycle counts
+  cover kernel-side MMIO work, accelerator execution, and checked readback as
+  applicable; UART transfer time is measured by the host.
 - Each role op returns `NO_ROLE` if the shell does not currently hold that role.
 - `BYE` lets the host end the session cleanly; aXos acknowledges, then halts.
 
@@ -88,3 +102,5 @@ implement this document; keep both in step with it.  Evidence:
 with `role.loopback` and checks every response. Role job parsing and MMIO
 marshaling live in the same checked kernel dispatcher used by the userspace
 `role_submit` ABI, so the local and remote encodings cannot drift apart.
+`make -C sw/kernel check-primer-runtime` additionally loads and executes two
+different GPU programs in one resident 32 KiB aXos/RTL session.

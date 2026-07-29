@@ -6,9 +6,16 @@
 // divides the Dock's 50 MHz crystal to a conservative 25 MHz first-hardware
 // clock, and the onboard debugger supplies the 115200 8-N-1 UART. S1 is an
 // active-high manual reset in addition to power-on reset.
+`ifndef AX_TANG_PRIMER_UART_BAUD
+`define AX_TANG_PRIMER_UART_BAUD 115200
+`endif
+
 module tangprimer25k_top #(
   parameter RAM_INIT_FILE = "../../sw/baremetal/build/hello.hex",
-  parameter int unsigned RAM_BYTES = 32 * 1024
+  parameter ROM_INIT_FILE = "",
+  parameter logic [31:0] RESET_PC = 32'h8000_0000,
+  parameter int unsigned RAM_BYTES = 32 * 1024,
+  parameter int unsigned UART_BAUD = `AX_TANG_PRIMER_UART_BAUD
 ) (
   input  logic clk_50mhz,
   input  logic button_s1,
@@ -39,7 +46,7 @@ module tangprimer25k_top #(
   end
   assign rst = !&reset_count || button_s1;
 
-  axuart_phy #(.CLOCK_HZ(25_000_000), .BAUD(115_200)) u_uart_phy (
+  axuart_phy #(.CLOCK_HZ(25_000_000), .BAUD(UART_BAUD)) u_uart_phy (
     .clk(clk_25mhz), .rst(rst),
     .tx_valid(uart_tx_valid), .tx_data(uart_tx_data), .tx_ready(uart_tx_ready),
     .tx(uart_tx), .rx(uart_rx),
@@ -47,14 +54,14 @@ module tangprimer25k_top #(
   );
 
   soc_top #(
-    .RESET_PC(32'h8000_0000),
+    .RESET_PC(RESET_PC),
     .RAM_BYTES(RAM_BYTES),
     .USE_DRAM_MODEL(0),
     .USE_SDRAM(0),
     .USE_CACHES(0),
     .SYNC_READ(1),
     .RAM_INIT_FILE(RAM_INIT_FILE),
-    .ROM_INIT_FILE("")
+    .ROM_INIT_FILE(ROM_INIT_FILE)
   ) u_soc (
     .clk(clk_25mhz), .rst(rst), .irq_external(1'b0),
     .uart_tx_valid(uart_tx_valid), .uart_tx_data(uart_tx_data), .uart_tx_ready(uart_tx_ready),

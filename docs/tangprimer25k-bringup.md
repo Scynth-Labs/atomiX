@@ -1,10 +1,11 @@
 # Tang Primer 25K Dock bring-up
 
 This is the first-hardware procedure for the Sipeed Tang Primer 25K core board
-on its 25K Dock. The checked-in target is intentionally small: 32 KB on-chip
-BSRAM, a bare-metal image baked into the bitstream, the Dock debugger UART, and
-S1 reset. The optional 40-pin SDRAM module, USB host, and PMODs are not part of
-this first target.
+on its 25K Dock. The kernel target is intentionally small: 32 KB on-chip
+BSRAM, an immutable UART loader, blank kernel RAM, the Dock debugger UART, and
+S1 reset. Older bare-metal CPU/GPU/TPU images remain useful as isolated hardware
+diagnostics, but kernels are never baked into the bitstream. The optional
+40-pin SDRAM module, USB host, and PMODs are not part of this first target.
 
 Hardware facts and pin assignments come from Sipeed's
 [board documentation](https://wiki.sipeed.com/hardware/en/tang/tang-primer-25k/primer-25k.html)
@@ -41,6 +42,48 @@ per-profile directory prevents CPU, GPU, and TPU netlists from overwriting or
 silently reusing one another. The synthesis report beside it should contain 32
 `DPB` cells for main memory; a large flip-flop array means BRAM inference has
 regressed.
+
+### Compact aXos kernel image
+
+The full aXos userspace/filesystem profile needs more than the Primer target's
+32 KiB BSRAM. `kernel-primer-monitor` is the board-sized S-mode profile: Sv32,
+delegated timer traps, the physical-page allocator, safe role discovery, and a
+resident UART management shell. It deliberately excludes user processes, ELF
+loading, syscalls, and AXFS; those remain available in the full 128 KiB and
+external-memory profiles.
+
+Run the compact-kernel smoke test, then the required runtime-upload gate and
+build the loader-only bitstream with:
+
+```bash
+make kernel-primer
+make fpga-kernel-primer
+```
+
+The first command executes the same image in an ISS with exactly 32,768 bytes
+of RAM and in RTL with a 32,768-byte synchronous-BRAM model. The second is a
+compatibility name for `fpga-runtime-primer`: it boots from ROM into blank RAM,
+uploads aXos, exercises two accelerator programs, and only then performs
+synthesis/place-and-route. Neither command programs the board. Only after both
+simulations report `PASS` should the reversible SRAM image be loaded:
+
+```bash
+make -C rtl/fpga program \
+  COMPONENT_CONFIG=$PWD/configs/tangprimer25k-runtime-gpu.json \
+  RAM_INIT_FILE=$PWD/sw/bootrom/blank.hex \
+  ROM_INIT_FILE=$PWD/sw/bootrom/build/uart-ram32768/bootrom.hex
+```
+
+At 921600 8-N-1, upload the kernel and run the automated fast-switch check:
+
+```bash
+python3 sw/host/axhost.py --fast-switch \
+  --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin \
+  --serial /dev/ttyUSB1 --baud 921600
+```
+
+Expect `AXOK` for the kernel upload followed by `FAST SWITCH PASS`. This kernel
+profile remains simulation-verified until that physical transcript is captured.
 
 ## 3. Find the UART and program SRAM
 
@@ -163,3 +206,35 @@ The GPU transcript covers SAXPY and polynomial kernels at 32, 64, 128, and 256
 threads, checking every result against the on-core reference. The TPU
 transcript checks the folded int8 GEMM against its CPU reference. CPU, GPU, and
 TPU are separate profile bitstreams rather than simultaneous accelerators.
+
+## Resident-kernel runtime switching
+
+The next Primer image keeps the compact 32 KiB aXos management kernel and a
+small programmable GPU overlay resident together. Synthesis/P&R occurs once:
+
+```bash
+make runtime-primer
+make fpga-runtime-primer
+```
+
+After attaching the board, configure SRAM with the already-built image:
+
+```bash
+make -C rtl/fpga program \
+  COMPONENT_CONFIG="$PWD/configs/tangprimer25k-runtime-gpu.json" \
+  RAM_INIT_FILE="$PWD/sw/bootrom/blank.hex" \
+  ROM_INIT_FILE="$PWD/sw/bootrom/build/uart-ram32768/bootrom.hex"
+```
+
+The runtime profile owns the UART at 921600 baud. Load, execute, replace, and
+re-execute accelerator programs without another synthesis, bitstream load, or
+aXos reboot:
+
+```bash
+python3 sw/host/axhost.py --fast-switch \
+  --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin \
+  --serial /dev/ttyUSB1 --baud 921600
+```
+
+This path is simulation-verified by `make runtime-primer`; do not add it to the
+physical evidence table until the command above passes on the board.

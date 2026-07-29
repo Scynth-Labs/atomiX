@@ -24,6 +24,11 @@
       "default": 8,
       "define": "GPU_COMPUTE_LANES",
       "doc": "SIMT lanes, 1..256. Memory is single-ported, so lanes past ~8 give diminishing returns; role.gpu1 banks its memory and scales further."
+    },
+    "data_words": {
+      "default": 4096,
+      "define": "GPU_COMPUTE_DATA_WORDS",
+      "doc": "Power-of-two global-memory words, 256..4096. Compact resident-kernel profiles use 256; accelerator benchmark profiles retain 4096."
     }
   }
 }

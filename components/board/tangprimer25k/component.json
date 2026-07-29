@@ -20,5 +20,12 @@
     "GOWIN_PACK_ARGS": ["--sspi_as_gpio", "--cpu_as_gpio"],
     "FPGA_PROG_BOARD": "tangprimer25k"
   },
-  "capabilities": ["gowin", "gw5a-25a", "open-flow", "bram-only", "usb-uart"]
+  "capabilities": ["gowin", "gw5a-25a", "open-flow", "bram-only", "usb-uart"],
+  "parameters": {
+    "uart_baud": {
+      "default": 115200,
+      "define": "AX_TANG_PRIMER_UART_BAUD",
+      "doc": "Physical USB-UART baud. Runtime host-link profiles may raise this independently of console/bring-up profiles."
+    }
+  }
 }

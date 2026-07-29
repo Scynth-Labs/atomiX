@@ -25,6 +25,12 @@ runtime, and the aXos kernel.  The longer-term platform keeps that computer as
 the management shell while accelerator roles attach at a defined boundary —
 the role window is live today (`role.loopback` proves it), with TPU-lite and
 GPU-compute engines implemented and verified as selectable roles.
+The normal reconfiguration path is now program loading, not synthesis:
+`make runtime-primer` uploads one 32 KiB aXos payload into a stable RTL image,
+then loads, runs, replaces, and re-runs GPU microcode in milliseconds.
+Kernel builds follow the same rule: the fixed image boots an immutable UART
+loader and `axhost --upload-kernel` installs aXos into blank RAM with CRC-32
+verification, so kernel changes never invoke FPGA tools.
 
 It is designed to be modified.  A user can substitute the CPU, memory,
 interconnect, peripherals, board, simulation harness, or aXos service policy

@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "id": "shell.monitor",
+  "kind": "shell",
+  "title": "Compact aXos UART management shell",
+  "sources": ["components/shell/monitor/shell.c"],
+  "capabilities": [
+    "uart",
+    "kernel-observability",
+    "role-discovery",
+    "32k-ram-profile"
+  ]
+}

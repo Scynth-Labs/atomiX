@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "name": "sim-primer-runtime-gpu",
+  "components": {
+    "core": "core.pipeline5",
+    "soc": "soc.reference",
+    "memory": "memory.bram",
+    "role": "role.gpu-compute",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.sim",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test",
+    "harness": "harness.verilator-soc"
+  },
+  "settings": {
+    "ram_bytes": 32768,
+    "caches": false,
+    "reset_pc": "0x00001000"
+  },
+  "parameters": {
+    "role": {
+      "data_words": 256,
+      "lanes": 1
+    }
+  }
+}

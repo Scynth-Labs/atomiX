@@ -71,7 +71,9 @@ void host_service(void) {
       }
       case HOSTLINK_OP_ROLE_RUN:
       case HOSTLINK_OP_TPU_GEMM:
-      case HOSTLINK_OP_GPU_RUN: {
+      case HOSTLINK_OP_GPU_RUN:
+      case HOSTLINK_OP_GPU_LOAD:
+      case HOSTLINK_OP_GPU_EXEC: {
         uint32_t out_len = 0;
         const int rc = role_execute(op, payload, len, payload,
                                     sizeof(payload), &out_len);

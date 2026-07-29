@@ -18,7 +18,8 @@
 // (role.gpu-compute/axrole.sv) and in DESIGN.md §3.3.
 module gpu_engine #(
   parameter logic [31:0] BASE = 32'h4000_0000,
-  parameter int unsigned NLANES = 8
+  parameter int unsigned NLANES = 8,
+  parameter int unsigned DATA_WORDS = 4096
 ) (
   input  logic        clk,
   input  logic        rst,
@@ -53,8 +54,8 @@ module gpu_engine #(
   localparam logic [15:0] PROG_BASE    = 16'h0100;
   localparam logic [15:0] DATA_BASE    = 16'h1000;
   localparam int unsigned PROG_WORDS   = 64;
-  localparam int unsigned DATA_WORDS   = 4096;
   localparam int unsigned MAX_THREADS  = NLANES * DATA_WORDS;
+  localparam int unsigned DATA_ADDR_BITS = $clog2(DATA_WORDS);
 
   // Instruction opcodes.
   localparam logic [5:0] OP_HALT = 6'd0,  OP_TID = 6'd1,  OP_LI  = 6'd2,
@@ -138,7 +139,8 @@ module gpu_engine #(
   // not aligned to its own size, so slicing address bits — the trick the 4 KiB
   // loopback buffer can use — would misindex it.
   wire [5:0]  d_prog_idx  = 6'(((d_off - PROG_BASE) >> 2));
-  wire [11:0] d_data_idx  = 12'(((d_off - DATA_BASE) >> 2));
+  wire [DATA_ADDR_BITS-1:0] d_data_idx =
+      DATA_ADDR_BITS'(((d_off - DATA_BASE) >> 2));
 
   always_comb begin
     i_ready = i_valid;
@@ -235,7 +237,8 @@ module gpu_engine #(
   // The engine buffer address: the LDX pipeline lane while loading, else the
   // store lane.
   wire [LANE_BITS-1:0] acc_lane = (state_q == E_LDX) ? ldx_present : mem_lane_q;
-  wire [11:0] mem_addr = regs[acc_lane][ra][11:0];
+  wire [DATA_ADDR_BITS-1:0] mem_addr =
+      regs[acc_lane][ra][DATA_ADDR_BITS-1:0];
 
   // Program memory: port A data-port MMIO, port B engine fetch.
   always_ff @(posedge clk) begin
@@ -257,6 +260,10 @@ module gpu_engine #(
     else             data_eng_rdata_q <= gmem[mem_addr];
   end
 
+  // The 5.051 linter treats nonblocking assignments inside a task as a separate
+  // process even though this task is called only from the single sequential
+  // block below. Synthesis and IEEE scheduling both see one writer.
+  /* verilator lint_off MULTIDRIVEN */
   task automatic apply_reg_write(input logic [15:0] off,
                                  input logic [31:0] wdata,
                                  input logic [3:0] strb);
@@ -375,4 +382,5 @@ module gpu_engine #(
       end
     end
   end
+  /* verilator lint_on MULTIDRIVEN */
 endmodule

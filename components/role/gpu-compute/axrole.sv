@@ -4,6 +4,9 @@
 `ifndef GPU_COMPUTE_LANES
   `define GPU_COMPUTE_LANES 8
 `endif
+`ifndef GPU_COMPUTE_DATA_WORDS
+  `define GPU_COMPUTE_DATA_WORDS 4096
+`endif
 // GPU-compute role: an 8-lane SIMT data-parallel vector engine.
 //
 // The second real accelerator behind the shell role window (DESIGN.md §3.3).
@@ -101,5 +104,9 @@ module axrole #(
   output logic [31:0] d_rdata,
   output logic        d_err
 );
-  gpu_engine #(.BASE(BASE), .NLANES(`GPU_COMPUTE_LANES)) u_engine (.*);
+  gpu_engine #(
+    .BASE(BASE),
+    .NLANES(`GPU_COMPUTE_LANES),
+    .DATA_WORDS(`GPU_COMPUTE_DATA_WORDS)
+  ) u_engine (.*);
 endmodule

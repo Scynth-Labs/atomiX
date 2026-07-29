@@ -1,0 +1,8 @@
+help
+uname -a
+uptime
+free
+ps
+role
+echo simulation ok
+exit

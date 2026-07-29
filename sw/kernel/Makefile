@@ -2,10 +2,12 @@ RISCV_PREFIX ?= riscv64-unknown-elf-
 RISCV_ARCH   ?= rv32im
 PYTHON ?= python3
 KERNEL_CONFIG ?= ../../configs/kernel-default.json
+KERNEL_MODE ?= full
+BUILD_DIR ?= build
 # A profile may be outside this worktree; use its absolute location in the
 # generated filename so equal basenames cannot collide.
 KERNEL_CONFIG_KEY := $(subst /,_,$(basename $(abspath $(KERNEL_CONFIG))))
-KERNEL_COMPONENT_MK := build/component$(KERNEL_CONFIG_KEY).mk
+KERNEL_COMPONENT_MK := $(BUILD_DIR)/component$(KERNEL_CONFIG_KEY).mk
 KERNEL_COMPONENT_MANIFESTS := $(wildcard ../../components/*/*/component.json)
 
 $(KERNEL_COMPONENT_MK): $(KERNEL_CONFIG) ../../tools/configure.py $(KERNEL_COMPONENT_MANIFESTS)
@@ -21,7 +23,7 @@ CC      := $(RISCV_PREFIX)gcc
 OBJCOPY := $(RISCV_PREFIX)objcopy
 QEMU    ?= qemu-system-riscv32
 export QEMU
-RAM_BYTES ?= 131072
+RAM_BYTES ?= $(if $(COMPONENT_RAM_BYTES),$(COMPONENT_RAM_BYTES),131072)
 EXTERNAL_MEMORY ?= 0
 CACHES ?= 0
 MAX_CYCLES ?= 100000
@@ -31,13 +33,17 @@ FS_BLOCK ?= 0
 BOOT_FS_BLOCK ?= 128
 
 HOSTLINK ?= 0
-CPPFLAGS := -Iinclude -Ibuild -DAXOS_SD=$(STORAGE) -DAXFS_BLOCK=$(FS_BLOCK)
+CPPFLAGS := -Iinclude -I$(BUILD_DIR) -DAXOS_SD=$(STORAGE) -DAXFS_BLOCK=$(FS_BLOCK)
+ifeq ($(KERNEL_MODE),monitor)
+CPPFLAGS += -DAXOS_MONITOR=1 -DAXOS_EMBED_USER=0
+else
 ifeq ($(STORAGE),1)
 CPPFLAGS += -DAXOS_EMBED_USER=0
 KERNEL_USER_DEP = $(USER_ELF)
 else
 CPPFLAGS += -DAXOS_EMBED_USER=1
 KERNEL_USER_DEP = $(USER_IMAGE)
+endif
 endif
 # Host-managed personality: the console byte pipe carries the host-link
 # protocol (docs/host-protocol.md) instead of the interactive shell.
@@ -50,10 +56,14 @@ endif
 CFLAGS := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
           -msmall-data-limit=0 -ffreestanding -fno-builtin -fno-pic \
           -fno-stack-protector -Wall -Wextra -Werror -O2 -g
-LDFLAGS = -nostdlib -Wl,-T,link.ld -Wl,--gc-sections -Wl,-Map,$(@:.elf=.map)
+ifeq ($(KERNEL_MODE),monitor)
+CFLAGS += -Os -ffunction-sections -fdata-sections
+endif
+LDFLAGS = -nostdlib -Wl,-T,link.ld -Wl,--defsym=AXOS_RAM_BYTES=$(RAM_BYTES) \
+          -Wl,--gc-sections -Wl,-Map,$(@:.elf=.map)
 
-USER_ELF := build/userprog/hello.elf
-USER_IMAGE := build/userprog_image.h
+USER_ELF := $(BUILD_DIR)/userprog/hello.elf
+USER_IMAGE := $(BUILD_DIR)/userprog_image.h
 # User programs are built against the selected libc component, and with libgcc
 # linked so 64-bit arithmetic resolves (-lgcc after the objects, since it only
 # needs to satisfy references they leave behind).
@@ -72,14 +82,19 @@ $(USER_IMAGE): $(USER_ELF) embed_image.py
 	mkdir -p $(@D)
 	$(PYTHON) embed_image.py $(USER_ELF) $@ axos_user_image
 
-ELF := build/axos_boot.elf
+ELF := $(BUILD_DIR)/axos_boot.elf
 BIN := $(ELF:.elf=.bin)
 HEX := $(ELF:.elf=.hex)
+ifeq ($(KERNEL_MODE),monitor)
+SOURCES := boot.S trap.S monitor.c role.c \
+           $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES)
+else
 SOURCES := boot.S trap.S user.S kernel.c role.c $(COMPONENT_SYSCALL_SOURCES) \
            $(COMPONENT_LOADER_SOURCES) \
            $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES) \
            $(COMPONENT_FILESYSTEM_SOURCES) $(COMPONENT_BLOCK_SOURCES) \
            $(COMPONENT_SCHEDULER_SOURCES) $(COMPONENT_VM_SOURCES)
+endif
 ifeq ($(HOSTLINK),1)
 SOURCES += hostlink.c
 endif
@@ -87,7 +102,7 @@ endif
 all: $(ELF)
 images: $(BIN) $(HEX)
 
-$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h include/kernel_info.h include/process.h | build
+$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h include/kernel_info.h include/process.h | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
 
 $(BIN): $(ELF)
@@ -96,7 +111,7 @@ $(BIN): $(ELF)
 $(HEX): $(BIN) ../../tests/directed/bin2hex.py
 	python3 ../../tests/directed/bin2hex.py $< $@
 
-build:
+$(BUILD_DIR):
 	mkdir -p $@
 
 run-iss: $(ELF) ../../sim/axsim/axsim
@@ -120,6 +135,39 @@ check-shell:
 	$(MAKE) -B $(ELF) STORAGE=0 HOSTLINK=0
 	$(MAKE) -C ../../sim/axsim axsim
 	$(PYTHON) check_shell.py
+
+primer-images:
+	$(MAKE) images KERNEL_MODE=monitor \
+	  KERNEL_CONFIG=$(abspath ../../configs/kernel-primer-monitor.json) \
+	  BUILD_DIR=build/primer RAM_BYTES=32768 STORAGE=0 HOSTLINK=0
+
+check-primer: primer-images
+	$(MAKE) -C ../../sim/axsim axsim
+	$(PYTHON) check_primer.py
+
+primer-runtime-images:
+	$(MAKE) images KERNEL_MODE=monitor HOSTLINK=1 \
+	  KERNEL_CONFIG=$(abspath ../../configs/kernel-primer-monitor.json) \
+	  BUILD_DIR=build/primer-runtime RAM_BYTES=32768 STORAGE=0
+
+primer-uartboot:
+	$(MAKE) -C ../bootrom images MODE=uart RAM_BYTES=32768 \
+	  BUILD_DIR=build/uart-ram32768
+
+uartboot-images:
+	$(MAKE) -B images HOSTLINK=0 STORAGE=0
+	$(MAKE) -C ../bootrom images MODE=uart RAM_BYTES=131072 \
+	  BUILD_DIR=build/uart-ram131072
+
+check-uartboot: uartboot-images
+	$(PYTHON) check_uartboot.py
+
+check-primer-runtime: primer-runtime-images primer-uartboot
+	python3 ../host/axhost.py --fast-switch \
+	  --boot-rom $(abspath ../bootrom/build/uart-ram32768/bootrom.hex) \
+	  --upload-kernel $(abspath build/primer-runtime/axos_boot.bin) \
+	  --config $(abspath ../../configs/sim-primer-runtime-gpu.json) \
+	  --baud 921600 --max-cycles 2000000
 
 # RTL-only: aXos's in-kernel role driver discovers and drives the accelerator
 # through the shell control plane.  Selects role.loopback so the shell's `role`
@@ -198,4 +246,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images run-iss run-qemu run-rtl check-boot check-shell check-role-driver check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean

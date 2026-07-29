@@ -229,6 +229,7 @@ make -C sw/kernel check-memory          # 32 MiB cached external-memory RTL
 make -C sw/kernel check-storage         # AXFS mount over SPI-SD (RTL)
 make -C sw/kernel check-storage-write   # AXFS write/readback (RTL)
 make -C sw/kernel check-sdboot          # boot ROM + SD boot through physical-SDRAM RTL
+make -C sw/kernel check-uartboot        # immutable ROM + blank RAM + runtime kernel upload
 ```
 
 ### 3.6 Shell control plane + host-link (RTL-only)
@@ -257,7 +258,7 @@ make -C sw/baremetal images
 make -C sw/baremetal check-hello check-timer check-preempt check-fencei check-role check-tpu check-gpu
 make component-test
 make -C sw/kernel kernel-component-test QEMU=/path/to/qemu-system-riscv32
-make -C sw/kernel check-role-driver check-hostlink
+make -C sw/kernel check-role-driver check-hostlink check-uartboot
 make -C formal check          # after core/RVFI changes
 ```
 

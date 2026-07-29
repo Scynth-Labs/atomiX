@@ -29,6 +29,11 @@ help:
 	@echo "  make fpga CONFIG=configs/tangprimer25k.json"
 	@echo "  make fpga CONFIG=configs/tangprimer25k-ax2.json PROGRAM=cpu_perf"
 	@echo "  make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf"
+	@echo "  make kernel-primer       # exact 32 KiB ISS + RTL gate"
+	@echo "  make runtime-primer      # two live GPU programs, no resynthesis"
+	@echo "  make -C sw/kernel check-uartboot # upload full aXos into blank RAM"
+	@echo "  make fpga-kernel-primer  # compatibility alias for loader-only image"
+	@echo "  make fpga-runtime-primer # fast-switch gate, then build once"
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make component-test"
 
@@ -53,6 +58,24 @@ sim:
 
 fpga:
 	$(MAKE) -C rtl/fpga all COMPONENT_CONFIG="$(abspath $(CONFIG))"
+
+# Kernel binaries are simulation artifacts and runtime payloads.  They are
+# deliberately never passed to the FPGA flow as RAM initialisation.
+kernel-primer:
+	$(MAKE) -C sw/kernel check-primer
+
+runtime-primer:
+	$(MAKE) -C sw/kernel check-primer-runtime
+
+fpga-runtime-primer: runtime-primer
+	$(MAKE) -C rtl/fpga all \
+	  COMPONENT_CONFIG="$(abspath configs/tangprimer25k-runtime-gpu.json)" \
+	  RAM_INIT_FILE="$(abspath sw/bootrom/blank.hex)" \
+	  ROM_INIT_FILE="$(abspath sw/bootrom/build/uart-ram32768/bootrom.hex)"
+
+# Kept for scripts that used the old name.  This now produces the same
+# loader-only image; no aXos kernel is synthesized into FPGA memory.
+fpga-kernel-primer: fpga-runtime-primer
 
 # Build and run the software component selected by a profile.  The component
 # owns its own Makefile and image format; this target merely passes the result
@@ -84,4 +107,4 @@ component-test: config-check-all
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help component-list component-show config-check config-check-all sim software fpga component-test
+.PHONY: help component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer component-test

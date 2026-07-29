@@ -29,6 +29,8 @@
 #define AX_ROLE_OP_LOOPBACK 0x10u
 #define AX_ROLE_OP_TPU_GEMM 0x11u
 #define AX_ROLE_OP_GPU_RUN  0x12u
+#define AX_ROLE_OP_GPU_LOAD 0x13u
+#define AX_ROLE_OP_GPU_EXEC 0x14u
 
 /* role_info capability bits.  A role advertises the job encoding it accepts,
  * not raw MMIO access: U-mode never maps the role window. */
@@ -97,6 +99,9 @@ int role_tpu_gemm(const int8_t *w, const int8_t *a, uint32_t m,
 int role_gpu_run(const uint32_t *prog, uint32_t ninsn,
                  const uint32_t *data_in, uint32_t ndata,
                  uint32_t nthreads, uint32_t *data_out);
+int role_gpu_load(const uint32_t *prog, uint32_t ninsn);
+int role_gpu_exec(const uint32_t *data_in, uint32_t ndata,
+                  uint32_t nthreads, uint32_t *data_out);
 
 /* Validate and execute one encoded role job.  `request` and `response` may be
  * the same buffer; all inputs are consumed before results are written. */

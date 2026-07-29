@@ -12,6 +12,8 @@
 #define HOSTLINK_OP_ROLE_RUN 0x10u  /* loopback copy */
 #define HOSTLINK_OP_TPU_GEMM 0x11u  /* tpu-lite GEMM */
 #define HOSTLINK_OP_GPU_RUN  0x12u  /* gpu-compute kernel */
+#define HOSTLINK_OP_GPU_LOAD 0x13u  /* replace resident GPU microcode */
+#define HOSTLINK_OP_GPU_EXEC 0x14u  /* run resident GPU microcode */
 #define HOSTLINK_OP_BYE      0x7fu
 
 #define HOSTLINK_ST_OK      0x00u

@@ -56,6 +56,7 @@ custom component may define its own knobs without changing the common resolver.
 | `tangprimer25k.json` | Tang Primer 25K Dock/GW5A BRAM-only board target |
 | `tangprimer25k-ax2.json` | Primer max CPU: dual-issue AX2, 2 KiB I-cache, 64-entry BTB |
 | `tangprimer25k-gpu.json` | Primer verified GPU: minimal host plus 4-lane SIMT engine using 12 DSPs |
+| `tangprimer25k-runtime-gpu.json` | Primer kernel platform: ROM reset, blank RAM, runtime-uploaded aXos, and programmable 1-lane GPU |
 | `tangprimer25k-tpu.json` | Primer max TPU: folded 24-MAC int8 GEMM engine |
 | `kernel-default.json` | aXos round-robin scheduling with the reference Sv32 VM |
 | `kernel-cooperative.json` | aXos cooperative-until-blocked scheduling with the reference Sv32 VM |
@@ -69,3 +70,8 @@ make software CONFIG=configs/sim-hello.json
 make software CONFIG=configs/sim-axos.json
 make -C sw/kernel kernel-config KERNEL_CONFIG=../../configs/kernel-cooperative.json
 ```
+
+For Gowin profiles, `reset_pc: "0x00001000"` declares runtime software:
+the FPGA flow automatically selects blank RAM plus the immutable UART loader
+sized to `ram_bytes`. Kernel binaries are runtime payloads, never synthesis
+inputs.
