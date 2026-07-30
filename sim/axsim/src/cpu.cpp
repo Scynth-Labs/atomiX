@@ -86,7 +86,7 @@ Stop Cpu::enter_trap(uint32_t cause, uint32_t tval, uint32_t trap_pc,
     prv = 3;
     tvec = csr.mtvec;
   }
-  pc = tvec & ~3u;  // direct mode; vectored interrupt dispatch not modeled
+  pc = tvec & ~3u;  // MODE is WARL-pinned to direct on write, so this is it
   if (tvec == 0) {
     fprintf(stderr,
             "[axsim] trap (cause=%u tval=%08x) at pc=%08x with %ctvec unset — "
@@ -109,6 +109,24 @@ Stop Cpu::trap(uint32_t cause, uint32_t tval) {
 
 Stop Cpu::interrupt(uint32_t cause, uint32_t resume_pc) {
   return enter_trap(cause, 0, resume_pc, true);
+}
+
+// mcycle and minstret both count retired instructions in an ISS, but each
+// keeps its own write offset so that writing one does not disturb the other.
+uint64_t Cpu::counter(uint32_t addr) const {
+  return ninsn + ((addr & 2) ? instret_off : cycle_off);
+}
+
+// A counter write suppresses the increment contributed by the writing
+// instruction itself, so the next instruction reads back exactly what was
+// written (riscv-tests instret_overflow checks this, including the RV32
+// "write to minstreth is a write to minstret" case). ninsn has not yet been
+// incremented for the in-flight instruction here, hence the +1.
+void Cpu::write_counter(uint32_t addr, bool high, uint32_t val) {
+  const uint64_t cur = counter(addr);
+  const uint64_t nv = high ? ((uint64_t)val << 32) | (uint32_t)cur
+                           : (cur & 0xFFFFFFFF00000000ull) | val;
+  ((addr & 2) ? instret_off : cycle_off) = nv - (ninsn + 1);
 }
 
 // Counter visibility from S/U: gated by mcounteren (and scounteren for U).
@@ -194,15 +212,20 @@ bool Cpu::csr_read(uint32_t addr, uint32_t& val) {
     case 0xF11: case 0xF12: case 0xF13: case 0xF14:  // mvendorid..mhartid
       val = 0; return true;
     case 0xB00: case 0xB02:  // mcycle/minstret
-      val = (uint32_t)ninsn; return true;
+      val = (uint32_t)counter(addr); return true;
     case 0xB80: case 0xB82:
-      val = (uint32_t)(ninsn >> 32); return true;
+      val = (uint32_t)(counter(addr) >> 32); return true;
     case 0xC00: case 0xC02:  // cycle/instret user aliases
       if (!ctr_ok(addr == 0xC00 ? 0 : 2)) return false;
-      val = (uint32_t)ninsn; return true;
+      val = (uint32_t)counter(addr); return true;
     case 0xC80: case 0xC82:
       if (!ctr_ok(addr == 0xC80 ? 0 : 2)) return false;
-      val = (uint32_t)(ninsn >> 32); return true;
+      val = (uint32_t)(counter(addr) >> 32); return true;
+    case 0x7A0: case 0x7A1: case 0x7A2: case 0x7A3: case 0x7A4: case 0x7A5:
+      // Sdtrig with no triggers implemented. The architectural way to say so
+      // is tselect hardwired to 0 with tdata1.type == 0 ("no trigger here"),
+      // which is what riscv-tests breakpoint probes before skipping itself.
+      val = 0; return true;
     default:
       break;
   }
@@ -241,7 +264,11 @@ bool Cpu::csr_write(uint32_t addr, uint32_t val) {
       return true;
     case 0x301: return true;                     // misa: writes ignored
     case 0x304: csr.mie = val; return true;
-    case 0x305: csr.mtvec = val & ~2u; return true;  // mode: direct/vectored
+    // mtvec/stvec MODE is WARL and only direct (0) is implemented, so the
+    // mode field reads back 0. Reporting a vectored mode we do not dispatch
+    // would strand software in the wrong handler (riscv-tests illegal probes
+    // exactly this before deciding to test vectored entry).
+    case 0x305: csr.mtvec = val & ~3u; return true;
     case 0x340: csr.mscratch = val; return true;
     case 0x341: csr.mepc = val & ~3u; return true;   // IALIGN=32
     case 0x342: csr.mcause = val; return true;
@@ -249,8 +276,12 @@ bool Cpu::csr_write(uint32_t addr, uint32_t val) {
     case 0x344:  // mip: hardware bits read-only; S-level bits software-set
       if (ext_su) soft_ip = val & 0x222;  // legacy: no-op, mirroring RTL
       return true;
-    case 0xB00: case 0xB02: case 0xB80: case 0xB82:
-      return true;  // counter writes ignored (served from retired count)
+    case 0xB00: case 0xB02:  // mcycle/minstret
+      write_counter(addr, false, val); return true;
+    case 0xB80: case 0xB82:  // mcycleh/minstreth
+      write_counter(addr, true, val); return true;
+    case 0x7A0: case 0x7A1: case 0x7A2: case 0x7A3: case 0x7A4: case 0x7A5:
+      return true;  // trigger CSRs are WARL-hardwired to 0; see csr_read
     default:
       break;
   }
@@ -263,7 +294,7 @@ bool Cpu::csr_write(uint32_t addr, uint32_t val) {
     case 0x104:
       csr.mie = (csr.mie & ~csr.mideleg) | (val & csr.mideleg);
       return true;
-    case 0x105: csr.stvec = val & ~2u; return true;
+    case 0x105: csr.stvec = val & ~3u; return true;  // direct mode only
     case 0x106: csr.scounteren = val; return true;
     case 0x140: csr.sscratch = val; return true;
     case 0x141: csr.sepc = val & ~3u; return true;

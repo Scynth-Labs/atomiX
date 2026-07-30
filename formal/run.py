@@ -30,6 +30,12 @@ CORES = {
         "checks-ax2.cfg",
         "components/core/ax2/ax2_rvfi_wrapper.sv",
     ),
+    # Shares the reference core's wrapper file name; the worktrees are per-core
+    # directories, so the two never collide.
+    "minimal": (
+        "checks-minimal.cfg",
+        "components/core/minimal/axcore_rvfi_wrapper.sv",
+    ),
 }
 
 

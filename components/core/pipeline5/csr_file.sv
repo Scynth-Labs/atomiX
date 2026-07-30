@@ -152,6 +152,10 @@ module csr_file (
         acc_rdata = instret_q[63:32];
         known = ctr_ok(prv_q, 5'd2);
       end
+      // Sdtrig with no triggers implemented: tselect hardwired to 0 and
+      // tdata1.type == 0 ("no trigger here") is the architectural way to
+      // report that, and is what riscv-tests breakpoint probes for.
+      12'h7A0, 12'h7A1, 12'h7A2, 12'h7A3, 12'h7A4, 12'h7A5: acc_rdata = 32'b0;
       default: known = 1'b0;
     endcase
   end
@@ -260,7 +264,7 @@ module csr_file (
           end
           12'h104: mie_reg_q <= (mie_reg_q & ~mideleg_q) |
                                 (wval & mideleg_q);
-          12'h105: stvec_q <= wval & ~32'h2;
+          12'h105: stvec_q <= wval & ~32'h3;      // MODE: direct only
           12'h106: scounteren_q <= wval;
           12'h140: sscratch_q <= wval;
           12'h141: sepc_q <= wval & ~32'h3;
@@ -281,14 +285,26 @@ module csr_file (
           12'h302: medeleg_q <= wval & 32'hF7FF; // ecall-from-M not delegable
           12'h303: mideleg_q <= wval & 32'h222;  // S-level interrupts only
           12'h304: mie_reg_q <= wval;
-          12'h305: mtvec_q <= wval & ~32'h2;     // direct/vectored only
+          // MODE is WARL and only direct is implemented, so it reads back 0.
+          // Reporting a vectored mode we do not dispatch would strand
+          // software in the wrong handler.
+          12'h305: mtvec_q <= wval & ~32'h3;
           12'h306: mcounteren_q <= wval;
           12'h340: mscratch_q <= wval;
           12'h341: mepc_q <= wval & ~32'h3;      // IALIGN=32
           12'h342: mcause_q <= wval;
           12'h343: mtval_q <= wval;
           12'h344: soft_ip_q <= wval & 32'h222;  // hardware bits read-only
-          12'hB00, 12'hB02, 12'hB80, 12'hB82: ;  // counters: ignored
+          // Counters are M-mode writable. These are full-width assignments so
+          // they override this cycle's increment above, which is exactly the
+          // architectural rule that a write suppresses the increment from the
+          // writing instruction itself.
+          12'hB00: cycle_q   <= {cycle_q[63:32], wval};
+          12'hB80: cycle_q   <= {wval, cycle_q[31:0]};
+          12'hB02: instret_q <= {instret_q[63:32], wval};
+          12'hB82: instret_q <= {wval, instret_q[31:0]};
+          12'h7A0, 12'h7A1, 12'h7A2,             // trigger CSRs are WARL-
+          12'h7A3, 12'h7A4, 12'h7A5: ;           // hardwired to 0; see above
           default: ;
         endcase
       end

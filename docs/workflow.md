@@ -25,7 +25,7 @@ subject:
 |---|---|---|---|
 | `ci.yml` | push, PR | ISS, profile resolution, cosim, unit testbenches, `component-test`, QEMU-free aXos checks | Core |
 | `nightly.yml` | 03:17 UTC daily | randomized fuzzing and paging, official ISA suite on ISS + RTL, three-platform and aXos checks | Core + Kernel |
-| `formal.yml` | Sundays 04:23 UTC | bounded riscv-formal instruction proofs | Formal |
+| `formal.yml` | Sundays 04:23 UTC | bounded riscv-formal instruction proofs, both cores | Formal |
 
 The split follows the tier table above: `ci.yml` needs only the Core tier, so
 it runs on every change.  Anything needing QEMU ≥ 7 or the formal stack builds
@@ -46,7 +46,7 @@ Install only the tier you need; details in [dependencies.md](dependencies.md).
 |---|---|---|
 | Core | `riscv64-unknown-elf-gcc` (rv32 multilib), Verilator, Python 3, GNU make | build + simulation + component tests |
 | Kernel | `qemu-system-riscv32` **≥ 7** | aXos S/U-mode boot checks |
-| Formal | current Yosys, SymbiYosys, riscv-formal | `make -C formal check` |
+| Formal | current Yosys, SymbiYosys, riscv-formal | `make -C formal check`, `check-ax2` |
 | FPGA | OSS CAD Suite (Yosys, board flow tools, openFPGALoader) | synthesis + board deploy |
 
 The board component selects the flow: ULX3S uses ECP5 (`nextpnr-ecp5`, `ecppack`),
@@ -269,8 +269,16 @@ errors, and the kernel-only MMIO alias.
 ```bash
 make -C sim/testgen fuzz           # long randomized instruction lock-step
 make -C sim/testgen paging         # randomized Sv32 paging
-make -C formal check               # riscv-formal bounded proofs (needs the formal tier)
+make -C formal check               # riscv-formal bounded proofs, reference core
+make -C formal check-minimal       # same properties on core.minimal
+make -C formal check-ax2           # same properties on ax2's two retire channels
+make -C formal check-all           # all three cores
 ```
+
+`check-ax2` uses the same solver as the reference suite but needs more memory
+(its block-RAM instruction cache dominates model construction, not the bounded
+depth), so it does not finish on a small machine; see
+[formal/README.md](../formal/README.md).  `formal.yml` runs both cores.
 
 ### 3.8 Recommended full regression
 ```bash

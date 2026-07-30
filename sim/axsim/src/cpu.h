@@ -9,8 +9,8 @@
 enum class Stop { None, Fault };
 
 // Privileged CSR state (phase 4: M + S + U). mcycle/minstret are served from
-// the retired-instruction counter (cycle == instret in an ISS; cosim masks
-// counter CSRs until the model difference is resolved).
+// the retired-instruction counter (cycle == instret in an ISS) plus a
+// per-counter write offset; see Cpu::counter.
 struct Csrs {
   uint32_t mstatus = 0x1800;  // MPP=M; everything else clear at reset
   uint32_t mtvec = 0;
@@ -77,6 +77,11 @@ class Cpu {
   bool csr_read(uint32_t addr, uint32_t& val);
   bool csr_write(uint32_t addr, uint32_t val);
   bool ctr_ok(unsigned bit) const;
+  // mcycle/minstret (and their high halves) are M-mode writable. The retired
+  // count is the free-running source; a write records the offset that maps it
+  // onto the architectural value. addr bit 1 selects instret over cycle.
+  uint64_t counter(uint32_t addr) const;
+  void write_counter(uint32_t addr, bool high, uint32_t val);
   // Sv32 translation for acc 0=fetch/1=load/2=store. On success returns
   // true with the physical address in pa; on failure returns false with the
   // page/access-fault cause in cause (tval is the caller's virtual address).
@@ -84,5 +89,7 @@ class Cpu {
 
   Bus& bus;
   uint64_t ninsn = 0;
+  uint64_t cycle_off = 0;    // architectural counter value minus ninsn
+  uint64_t instret_off = 0;
   uint32_t soft_ip = 0;      // software-writable mip bits (SSIP/STIP/SEIP)
 };

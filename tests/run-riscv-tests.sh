@@ -14,11 +14,10 @@ sim=${sim:-../sim/axsim/axsim}
 globs=("${@:-rv32ui rv32mi}")
 [[ $# -eq 0 ]] && globs=(rv32ui rv32mi)
 
-# Policy exclusions, not failures:
-#   rv32ui-p-ma_data expects HARDWARE misaligned data access support; atomiX
-#   (like Spike without --misaligned) traps on misaligned accesses instead —
-#   the complementary rv32mi-p-ma_addr test verifies those traps and must pass.
-exclude=(rv32ui-p-ma_data rv32ui-v-ma_data)
+# Policy exclusions live in one file shared with sim/unit/run_ax2_isa.sh, so
+# the ISS/cosim runs and the RTL core suites cannot disagree about what is
+# deliberately not implemented. Each entry is justified there.
+mapfile -t exclude < <(sed 's/#.*//' isa-exclusions.txt | tr -d ' \t' | grep .)
 
 pass=0 fail=0
 failed=()
@@ -27,6 +26,7 @@ for suite in "${globs[@]}"; do
   # binaries; a plain suite name selects the physical "-p" ones.
   pat="$suite-p-*"
   [[ $suite == *-v ]] && pat="${suite%-v}-v-*"
+  before=$((pass + fail))
   for t in riscv-tests/isa/$pat; do
     [[ $t == *.dump || ! -f $t ]] && continue
     [[ " ${exclude[*]} " == *" $(basename "$t") "* ]] && continue
@@ -37,6 +37,14 @@ for suite in "${globs[@]}"; do
       failed+=("$(basename "$t")")
     fi
   done
+  # An unbuilt or renamed suite must not look like a clean run. Without this a
+  # glob that matches nothing reports "0 passed, 0 failed" and exits 0, so the
+  # whole job goes green having verified nothing.
+  if (( pass + fail == before )); then
+    echo "riscv-tests: suite '$suite' matched no binaries under riscv-tests/isa/" >&2
+    echo "  build them first (see the isa-suite job in .github/workflows/nightly.yml)" >&2
+    exit 1
+  fi
 done
 
 echo "riscv-tests: $pass passed, $fail failed"

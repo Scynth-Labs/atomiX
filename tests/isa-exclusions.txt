@@ -1,0 +1,24 @@
+# Policy exclusions for the riscv-tests ISA suites.
+#
+# Every name here describes hardware atomiX deliberately does not implement.
+# These are decisions, not failures: each entry says what is missing and what
+# would have to change to delete the line again.
+#
+# Both tests/run-riscv-tests.sh (ISS + cosim) and sim/unit/run_ax2_isa.sh (RTL
+# core suites) read this file, so the policy cannot drift between them -- it
+# already had, which is how rv32mi-p-pmpaddr passed silently on one runner and
+# failed on the other.  Blank lines and #-comments are ignored.
+
+# ma_data expects HARDWARE misaligned data access support.  atomiX, like Spike
+# without --misaligned, traps on misaligned accesses instead.  The
+# complementary rv32mi-p-ma_addr and rv32mi-p-ma_fetch tests verify those traps
+# and must pass.  Delete these if a core ever gains a misalignment unit.
+rv32ui-p-ma_data
+rv32ui-v-ma_data
+
+# pmpaddr "assumes PMP is available" (its own header) and derives the
+# granularity G by writing all-ones to pmpaddr0 and reading it back, so it
+# fails rather than skips when PMP is absent -- hardwiring the CSRs to zero
+# does not help.  aXcore does not implement the optional PMP; see
+# docs/toolchain.md.  Delete this the day PMP lands, no other change needed.
+rv32mi-p-pmpaddr

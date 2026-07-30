@@ -16,6 +16,7 @@ INTERCONNECT_REFERENCE := $(COMPONENTS)/interconnect/axbus-reference
 CACHE_REFERENCE := $(COMPONENTS)/cache/direct-mapped
 ROM_REFERENCE := $(COMPONENTS)/rom/axrom
 CLINT_REFERENCE := $(COMPONENTS)/clint/qemu_virt
+PLIC_REFERENCE := $(COMPONENTS)/plic/qemu_virt
 UART_REFERENCE := $(COMPONENTS)/uart/mmio16550
 SPI_REFERENCE := $(COMPONENTS)/spi/polling_mode0
 FINISHER_REFERENCE := $(COMPONENTS)/finisher/sifive-test
@@ -39,18 +40,25 @@ CORE_SOURCES := $(CORE_COMPONENT)/axcore_pkg.sv $(UNIT_SV_regfile) \
   $(UNIT_SV_alu) $(UNIT_SV_immdec) $(UNIT_SV_decoder) $(UNIT_SV_branch_cmp) \
   $(UNIT_SV_muldiv) $(CORE_COMPONENT)/csr_file.sv $(MMU_REFERENCE)/sv32_mmu.sv \
   $(CORE_COMPONENT)/axcore.sv
+# core.minimal shares the reference core's decoder, immdec and branch comparator
+# but has its own inline CSR block and single always_ff machine, so it needs its
+# own ISA run -- passing rv32ui says nothing about its trap and CSR surface.
+MINIMAL_SOURCES := $(CORE_COMPONENT)/axcore_pkg.sv $(UNIT_SV_regfile) \
+  $(UNIT_SV_alu) $(UNIT_SV_immdec) $(UNIT_SV_decoder) $(UNIT_SV_branch_cmp) \
+  $(UNIT_SV_muldiv) $(COMPONENTS)/core/minimal/axcore.sv
 MEMORY_SOURCES := $(MEMORY_REFERENCE)/axram.sv $(MEMORY_REFERENCE)/axdram_model.sv \
   $(MEMORY_REFERENCE)/axsdram.sv $(MEMORY_REFERENCE)/axmem_reference.sv \
   $(MEMORY_REFERENCE)/axmem.sv
 SOC_SVS := $(CORE_SOURCES) \
   $(INTERCONNECT_REFERENCE)/axbus_mux.sv $(CACHE_REFERENCE)/axcache.sv \
   $(MEMORY_SOURCES) $(ROM_REFERENCE)/axrom.sv \
-  $(CLINT_REFERENCE)/clint.sv $(UART_REFERENCE)/uart.sv \
+  $(CLINT_REFERENCE)/clint.sv $(PLIC_REFERENCE)/plic.sv \
+  $(UART_REFERENCE)/uart.sv \
   $(SPI_REFERENCE)/axspi.sv $(FINISHER_REFERENCE)/test_finisher.sv \
   $(ROLE_REFERENCE)/axrole.sv \
   $(SOC_REFERENCE)/soc_top.sv
 
-test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
+test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
 
 # The alternate muldiv component passes the identical latency-agnostic
 # testbench; a swapped unit earns the same evidence as the reference.
@@ -73,6 +81,20 @@ run-%: tb_%.cpp
 	$(VERILATOR) $(VFLAGS) --top-module $* --Mdir obj_dir_$* --exe --build \
 	  -o tb_$* $(CORE_COMPONENT)/axcore_pkg.sv $(UNIT_SV_$*) $(CURDIR)/tb_$*.cpp >/dev/null
 	./obj_dir_$*/tb_$*
+
+# core.minimal against the official ISA suites.  It had no simulation coverage
+# at all before this -- only the formal flow -- so rv32mi trap/CSR bugs could
+# sit in it indefinitely.  Wait states are swept for the same reason as ax2.
+MINIMAL_WS := 0 1 3
+
+run-minimal-isa: tb_ax2_isa.cpp $(MINIMAL_SOURCES)
+	$(VERILATOR) $(VFLAGS) --top-module axcore --Mdir obj_dir_minimal_isa \
+	  --exe --build -o tb_minimal_isa $(MINIMAL_SOURCES) \
+	  $(CURDIR)/tb_ax2_isa.cpp >/dev/null
+	@for ws in $(MINIMAL_WS); do \
+	  WS=$$ws LABEL=minimal ./run_core_isa.sh \
+	    $(CURDIR)/obj_dir_minimal_isa/tb_minimal_isa || exit 1; \
+	done
 
 # Core-level: run the directed test binaries on the RTL, with and without
 # bus wait states (exercises the stall/hold paths).
@@ -287,9 +309,10 @@ run-suite-ax2: tb_ax2_isa.cpp tb_axcore.cpp $(AX2_SOURCES)
 	    $$defs --exe --build -o tb_ax2_isa $(AX2_SOURCES) \
 	    $(CURDIR)/tb_ax2_isa.cpp >/dev/null || exit 1; \
 	  for ws in $(AX2_WS); do \
-	    WS=$$ws ./run_ax2_isa.sh $(CURDIR)/obj_dir_ax2isa_$$tag/tb_ax2_isa || exit 1; \
+	    WS=$$ws LABEL=ax2 ./run_core_isa.sh \
+	      $(CURDIR)/obj_dir_ax2isa_$$tag/tb_ax2_isa || exit 1; \
 	  done; \
 	done
 	@echo "suite/ax2: PASS"
 
-.PHONY: run-suite-gpu1 run-suite-ax2
+.PHONY: run-suite-gpu1 run-suite-ax2 run-minimal-isa

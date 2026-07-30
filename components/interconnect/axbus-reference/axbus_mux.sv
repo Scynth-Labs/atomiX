@@ -7,6 +7,11 @@ module axbus_mux #(
   parameter logic [31:0] TEST_SIZE  = 32'h0000_1000,
   parameter logic [31:0] CLINT_BASE = 32'h0200_0000,
   parameter logic [31:0] CLINT_SIZE = 32'h0001_0000,
+  // The PLIC's claim/complete register lives at offset 0x20_0004, so its
+  // window is larger than the other devices'.  Base and layout follow the
+  // qemu-virt convention, as the CLINT's do.
+  parameter logic [31:0] PLIC_BASE  = 32'h0c00_0000,
+  parameter logic [31:0] PLIC_SIZE  = 32'h0040_0000,
   parameter logic [31:0] UART_BASE  = 32'h1000_0000,
   parameter logic [31:0] UART_SIZE  = 32'h0000_1000,
   parameter logic [31:0] SPI_BASE   = 32'h1001_0000,
@@ -38,6 +43,10 @@ module axbus_mux #(
   input  logic        clint_ready,
   input  logic [31:0] clint_rdata,
   input  logic        clint_err,
+  output logic        plic_valid,
+  input  logic        plic_ready,
+  input  logic [31:0] plic_rdata,
+  input  logic        plic_err,
   output logic        uart_valid,
   input  logic        uart_ready,
   input  logic [31:0] uart_rdata,
@@ -55,6 +64,7 @@ module axbus_mux #(
   wire hit_ram   = m_addr >= RAM_BASE   && m_addr - RAM_BASE   < RAM_SIZE;
   wire hit_test  = m_addr >= TEST_BASE  && m_addr - TEST_BASE  < TEST_SIZE;
   wire hit_clint = m_addr >= CLINT_BASE && m_addr - CLINT_BASE < CLINT_SIZE;
+  wire hit_plic  = m_addr >= PLIC_BASE  && m_addr - PLIC_BASE  < PLIC_SIZE;
   wire hit_uart  = m_addr >= UART_BASE  && m_addr - UART_BASE  < UART_SIZE;
   wire hit_spi   = m_addr >= SPI_BASE   && m_addr - SPI_BASE   < SPI_SIZE;
   wire hit_role  = m_addr >= ROLE_BASE  && m_addr - ROLE_BASE  < ROLE_SIZE;
@@ -64,6 +74,7 @@ module axbus_mux #(
     ram_valid   = m_valid && hit_ram;
     test_valid  = m_valid && hit_test;
     clint_valid = m_valid && hit_clint;
+    plic_valid  = m_valid && hit_plic;
     uart_valid  = m_valid && hit_uart;
     spi_valid   = m_valid && hit_spi;
     role_valid  = m_valid && hit_role;
@@ -79,6 +90,8 @@ module axbus_mux #(
         m_ready = test_ready; m_rdata = test_rdata; m_err = test_err;
       end else if (hit_clint) begin
         m_ready = clint_ready; m_rdata = clint_rdata; m_err = clint_err;
+      end else if (hit_plic) begin
+        m_ready = plic_ready; m_rdata = plic_rdata; m_err = plic_err;
       end else if (hit_uart) begin
         m_ready = uart_ready; m_rdata = uart_rdata; m_err = uart_err;
       end else if (hit_spi) begin

@@ -33,9 +33,10 @@
 //     and every CSR side effect precise without a second commit path
 //
 // Scope: machine mode only, physical addressing, RV32IM + Zicsr, precise traps.
-// The Sv32 MMU and S/U modes of core.pipeline5 are not implemented here, and
-// neither is the RVFI surface, so ax2 does not carry the reference core's
-// cosim or riscv-formal evidence.  See docs/design-checklist.md.
+// The Sv32 MMU and S/U modes of core.pipeline5 are not implemented here, so ax2
+// does not carry the reference core's lock-step cosim evidence.  It does carry
+// its own bounded riscv-formal evidence through the two-channel RVFI trace
+// below (`make -C formal check-ax2`).  See docs/design-checklist.md.
 module ax2_core #(
   parameter logic [31:0] RESET_PC    = 32'h8000_0000,
   parameter bit          ENABLE_M    = 1'b1,
@@ -351,6 +352,40 @@ module ax2_core #(
                     !((x_d0_q.csr_op == CSR_RS || x_d0_q.csr_op == CSR_RC) &&
                       x_rs1_0_q == 5'd0);
 
+  // ---- Branch resolution -------------------------------------------------------
+  // Resolved here, ahead of the trap logic, because a taken transfer to a
+  // misaligned target is itself a trap (IALIGN=32, no C extension).
+  wire br_slot   = (x_v0_q && x_d0_q.br_sel != BR_NONE) ? 1'b0 : 1'b1;
+  wire has_br    = (x_v0_q && x_d0_q.br_sel != BR_NONE) ||
+                   (x_v1_q && x_d1_q.br_sel != BR_NONE);
+  br_sel_e br_kind;
+  assign br_kind = br_slot ? x_d1_q.br_sel : x_d0_q.br_sel;
+  wire [31:0] br_pc  = br_slot ? x_pc1_q : x_pc0_q;
+  wire [31:0] br_imm = br_slot ? x_imm1_q : x_imm0_q;
+  wire [31:0] br_a   = br_slot ? x_a1_q : x_a0_q;
+  wire        br_cmp = br_slot ? br_taken1 : br_taken0;
+
+  logic        br_actual_taken;
+  logic [31:0] br_actual_target;
+  always_comb begin
+    br_actual_taken  = 1'b0;
+    br_actual_target = br_pc + 32'd4;
+    unique case (br_kind)
+      BR_JAL:  begin br_actual_taken = 1'b1; br_actual_target = br_pc + br_imm; end
+      BR_JALR: begin br_actual_taken = 1'b1;
+                     br_actual_target = (br_a + br_imm) & ~32'd1; end
+      BR_COND: begin br_actual_taken = br_cmp;
+                     if (br_cmp) br_actual_target = br_pc + br_imm; end
+      default: ;
+    endcase
+  end
+
+  // Instruction-address-misaligned: the transfer traps on the branch itself,
+  // so rd is not written and mepc names the branch rather than the target
+  // (riscv-tests ma_fetch checks exactly this).  Only bit 1 can ever be set:
+  // JALR already masks bit 0 and the JAL/branch immediates have it clear.
+  wire br_ma = has_br && br_actual_taken && br_actual_target[1:0] != 2'b00;
+
   // ---- Traps ------------------------------------------------------------------
   wire mem_fault_now = has_mem && !mem_misaligned && dbus_valid && dbus_ready && dbus_err;
   wire mem_fault     = mem_err_q || mem_fault_now;
@@ -365,6 +400,9 @@ module ax2_core #(
       else if (x_d0_q.illegal) begin trap0 = 1'b1; cause0 = 32'd2;  tval0 = x_insn0_q; end
       else if (x_d0_q.sys == SYS_ECALL)  begin trap0 = 1'b1; cause0 = 32'd11; end
       else if (x_d0_q.sys == SYS_EBREAK) begin trap0 = 1'b1; cause0 = 32'd3; tval0 = x_pc0_q; end
+      else if (br_ma && br_slot == 1'b0) begin
+        trap0 = 1'b1; cause0 = 32'd0; tval0 = br_actual_target;
+      end
       else if (x_d0_q.mem_op != MEM_NONE && mem_slot == 1'b0) begin
         if (mem_misaligned) begin
           trap0 = 1'b1; tval0 = mem_base;
@@ -375,7 +413,9 @@ module ax2_core #(
         end
       end
     end
-    if (x_v1_q && x_d1_q.mem_op != MEM_NONE && mem_slot == 1'b1) begin
+    if (x_v1_q && br_ma && br_slot == 1'b1) begin
+      trap1 = 1'b1; cause1 = 32'd0; tval1 = br_actual_target;
+    end else if (x_v1_q && x_d1_q.mem_op != MEM_NONE && mem_slot == 1'b1) begin
       if (mem_misaligned) begin
         trap1 = 1'b1; tval1 = mem_base;
         cause1 = (x_d1_q.mem_op == MEM_STORE) ? 32'd6 : 32'd4;
@@ -426,32 +466,6 @@ module ax2_core #(
   assign wb_we1   = commit1 && x_d1_q.rd_we;
   assign wb_rd1   = x_rd1_q;
   assign wb_data1 = wb_value(x_d1_q, alu_y1, x_pc1_q, md_slot == 1'b1);
-
-  // ---- Branch resolution -------------------------------------------------------
-  wire br_slot   = (x_v0_q && x_d0_q.br_sel != BR_NONE) ? 1'b0 : 1'b1;
-  wire has_br    = (x_v0_q && x_d0_q.br_sel != BR_NONE) ||
-                   (x_v1_q && x_d1_q.br_sel != BR_NONE);
-  br_sel_e br_kind;
-  assign br_kind = br_slot ? x_d1_q.br_sel : x_d0_q.br_sel;
-  wire [31:0] br_pc  = br_slot ? x_pc1_q : x_pc0_q;
-  wire [31:0] br_imm = br_slot ? x_imm1_q : x_imm0_q;
-  wire [31:0] br_a   = br_slot ? x_a1_q : x_a0_q;
-  wire        br_cmp = br_slot ? br_taken1 : br_taken0;
-
-  logic        br_actual_taken;
-  logic [31:0] br_actual_target;
-  always_comb begin
-    br_actual_taken  = 1'b0;
-    br_actual_target = br_pc + 32'd4;
-    unique case (br_kind)
-      BR_JAL:  begin br_actual_taken = 1'b1; br_actual_target = br_pc + br_imm; end
-      BR_JALR: begin br_actual_taken = 1'b1;
-                     br_actual_target = (br_a + br_imm) & ~32'd1; end
-      BR_COND: begin br_actual_taken = br_cmp;
-                     if (br_cmp) br_actual_target = br_pc + br_imm; end
-      default: ;
-    endcase
-  end
 
   // The sequential address after everything this bundle delivered.
   wire [31:0] bundle_next_pc = (x_v1_q ? x_pc1_q : x_pc0_q) + 32'd4;
@@ -592,11 +606,21 @@ module ax2_core #(
     unique case (a)
       12'h300: mstatus_q  <= (v & 32'h0000_0088) | 32'h0000_1800;
       12'h304: mie_q      <= v;
-      12'h305: mtvec_q    <= v;
+      // Both MODE fields are WARL and only direct is implemented, so mtvec
+      // reads back mode 0 -- reporting vectored would strand software in the
+      // wrong handler, and the raw value is what redirect_pc loads.
+      12'h305: mtvec_q    <= v & ~32'd3;
       12'h340: mscratch_q <= v;
-      12'h341: mepc_q     <= v & ~32'd1;
+      12'h341: mepc_q     <= v & ~32'd3;     // IALIGN=32: no C extension
       12'h342: mcause_q   <= v;
       12'h343: mtval_q    <= v;
+      // Counters are M-mode writable.  Full-width assignments, so they
+      // override this bundle's increment above -- which is exactly the rule
+      // that a write suppresses the increment from the writing instruction.
+      12'hb00: mcycle_q   <= {mcycle_q[63:32], v};
+      12'hb80: mcycle_q   <= {v, mcycle_q[31:0]};
+      12'hb02: minstret_q <= {minstret_q[63:32], v};
+      12'hb82: minstret_q <= {v, minstret_q[31:0]};
       default: ;
     endcase
   endtask

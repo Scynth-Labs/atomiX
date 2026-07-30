@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "id": "plic.qemu-virt",
+  "kind": "plic",
+  "title": "QEMU-virt compatible PLIC (level sources, one target)",
+  "sources": ["components/plic/qemu_virt/plic.sv"],
+  "stock_soc_module": "plic",
+  "capabilities": ["priority", "threshold", "claim-complete", "level-sources"]
+}

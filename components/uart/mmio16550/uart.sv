@@ -24,7 +24,11 @@ module uart #(
   input  logic        tx_ready,
   input  logic        rx_valid,
   input  logic [7:0]  rx_data,
-  output logic        rx_ready
+  output logic        rx_ready,
+  // Level-sensitive "a received byte is waiting", for an interrupt controller.
+  // It follows the same bit the LSR data-ready flag reports, so a handler that
+  // drains RBR clears it by the act of reading -- no separate acknowledge.
+  output logic        irq_rx
 );
   logic rx_full;
   logic [7:0] rx_byte;
@@ -56,6 +60,7 @@ module uart #(
                (d_valid && d_off == 3'd0 && d_wstrb[0]);
     tx_data = (d_valid && d_off == 3'd0 && d_wstrb[0]) ? d_wdata[7:0] : i_wdata[7:0];
     rx_ready = !rx_full;
+    irq_rx   = rx_full;
   end
   always_ff @(posedge clk) begin
     if (rst) begin

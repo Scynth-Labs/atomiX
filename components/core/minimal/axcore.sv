@@ -14,9 +14,11 @@
 // set (mstatus, mie, mtvec, mscratch, mepc, mcause, mtval, mip, mcycle,
 // minstret, and the read-only id CSRs), with precise traps for illegal
 // instructions, ECALL/EBREAK, misaligned/bus-error access, and the three
-// machine interrupts.  Only the ports the stock SoC wires are provided; the
-// RVFI/full-trace surface of the reference core (for riscv-formal and cosim)
-// is intentionally absent.
+// machine interrupts.  It drives a one-retire RVFI trace, so it carries its own
+// bounded riscv-formal evidence (`make -C formal check-minimal`).  The wider
+// architectural-state trace the reference core exports for lock-step cosim is
+// still absent: without Sv32 and S/U there is nothing to compare against the
+// golden ISS's privileged state.
 module axcore #(
   parameter logic [31:0] RESET_PC = 32'h8000_0000,
   parameter bit ENABLE_M = 1'b1
@@ -46,7 +48,32 @@ module axcore #(
 
   output logic        trace_valid,
   output logic        trace_trap,
-  output logic [31:0] trace_insn
+  output logic [31:0] trace_insn,
+
+  // One-retire RVFI trace.  Same shape as the reference core's, because both
+  // retire at most one instruction per cycle -- which is what lets this core
+  // reuse that core's formal environment rather than needing its own.
+  output logic        rvfi_valid,
+  output logic [63:0] rvfi_order,
+  output logic [31:0] rvfi_insn,
+  output logic        rvfi_trap,
+  output logic        rvfi_halt,
+  output logic        rvfi_intr,
+  output logic [1:0]  rvfi_mode,
+  output logic [1:0]  rvfi_ixl,
+  output logic [4:0]  rvfi_rs1_addr,
+  output logic [4:0]  rvfi_rs2_addr,
+  output logic [31:0] rvfi_rs1_rdata,
+  output logic [31:0] rvfi_rs2_rdata,
+  output logic [4:0]  rvfi_rd_addr,
+  output logic [31:0] rvfi_rd_wdata,
+  output logic [31:0] rvfi_pc_rdata,
+  output logic [31:0] rvfi_pc_wdata,
+  output logic [31:0] rvfi_mem_addr,
+  output logic [3:0]  rvfi_mem_rmask,
+  output logic [3:0]  rvfi_mem_wmask,
+  output logic [31:0] rvfi_mem_rdata,
+  output logic [31:0] rvfi_mem_wdata
 );
   import axcore_pkg::*;
 
@@ -98,9 +125,6 @@ module axcore #(
   wire [31:0] alu_b = (dec_opb == OPB_IMM)  ? imm : rs2_val;
   logic [31:0] alu_y;
 
-  // verilator lint_off UNUSED
-  wire _unused = &{1'b0, dec_uses_rs1, dec_uses_rs2, md_busy};
-  // verilator lint_on UNUSED
   alu u_alu (.a(alu_a), .b(alu_b), .op(dec_alu_op), .y(alu_y));
 
   logic br_taken;
@@ -115,6 +139,13 @@ module axcore #(
   end else begin : g_no_md
     assign md_busy = 1'b0; assign md_done = 1'b1; assign md_result = 32'b0;
   end endgenerate
+
+  // Deliberately unread signals, tied off after everything they name exists: a
+  // strict 1800-2017 frontend (Slang, which the formal flow uses) rejects a
+  // reference that appears above its declaration, even inside a lint pragma.
+  // verilator lint_off UNUSED
+  wire _unused = &{1'b0, dec_uses_rs1, dec_uses_rs2, md_busy};
+  // verilator lint_on UNUSED
 
   // ---- Memory access sizing --------------------------------------------------
   wire [31:0] mem_addr = alu_y;               // rs1 + imm (decoder forces ADD)
@@ -213,6 +244,13 @@ module axcore #(
     endcase
   end
 
+  // Instruction-address-misaligned: a taken transfer to a misaligned target
+  // traps on the transfer itself (IALIGN=32, no C extension), so rd is not
+  // written and mepc names the branch rather than the target -- riscv-tests
+  // ma_fetch checks exactly this.  Only bit 1 can ever be set: JALR already
+  // masks bit 0 and the JAL/branch immediates have it clear.
+  wire fetch_misaligned = dec_br != BR_NONE && seq_next_pc[1:0] != 2'b00;
+
   // Bus drives are level signals qualified by the state.
   assign ibus_valid = (state_q == S_FETCH) && !int_pending;
   assign ibus_addr  = pc_q;
@@ -241,6 +279,8 @@ module axcore #(
       S_EXEC: begin
         if (illegal) begin
           take_trap = 1'b1; trap_cause = 32'd2; trap_tval = ir_q;
+        end else if (fetch_misaligned) begin
+          take_trap = 1'b1; trap_cause = 32'd0; trap_tval = seq_next_pc;
         end else if (dec_sys == SYS_ECALL) begin
           take_trap = 1'b1; trap_cause = 32'd11;
         end else if (dec_sys == SYS_EBREAK) begin
@@ -370,17 +410,89 @@ module axcore #(
     end
   end
 
-  // CSR write side effects, kept in one place.  mcycle/minstret free-run and
-  // ignore writes here (test code does not write them).
+  // ---- RVFI --------------------------------------------------------------------
+  // `trace_valid` is already exactly one architectural event -- a retirement or
+  // a precise trap -- so it is the commit point RVFI needs.  Every field below
+  // is read at that instant, when `ir_q`, the register reads, and the bus
+  // response are all stable for the instruction being retired.
+  //
+  // The S_TRAP path (a fetch bus error) does not raise `trace_valid` and so does
+  // not appear here; the formal environment ties `ibus_err` low, matching the
+  // reference core's wrapper, so that path is outside the proof either way.
+  wire rvfi_mem_done = (state_q == S_MEM) && dbus_ready && !dbus_err;
+
+  // The first instruction to retire after any trap-vector redirect is the
+  // handler's entry, which is what rvfi_intr marks.
+  wire rvfi_take_int = (state_q == S_FETCH) && int_pending;
+  logic rvfi_intr_q;
+  always_ff @(posedge clk) begin
+    if (rst)                              rvfi_intr_q <= 1'b0;
+    else if (take_trap || rvfi_take_int)  rvfi_intr_q <= 1'b1;
+    else if (trace_valid)                 rvfi_intr_q <= 1'b0;
+  end
+
+  logic [63:0] rvfi_order_q;
+  always_ff @(posedge clk) begin
+    if (rst)               rvfi_order_q <= 64'b0;
+    else if (trace_valid)  rvfi_order_q <= rvfi_order_q + 64'd1;
+  end
+
+  always_comb begin
+    rvfi_valid = trace_valid;
+    rvfi_order = rvfi_order_q;
+    rvfi_insn  = ir_q;
+    rvfi_trap  = trace_trap;
+    rvfi_halt  = 1'b0;
+    rvfi_intr  = rvfi_intr_q;
+    rvfi_mode  = 2'b11;                   // machine mode only
+    rvfi_ixl   = 2'b01;                   // RV32
+
+    rvfi_rs1_addr = rs1;
+    rvfi_rs2_addr = rs2;
+    // Reading x0 must report zero; the register file already returns zero, but
+    // stating it here keeps the trace correct independently of that.
+    rvfi_rs1_rdata = rs1 == 5'd0 ? 32'b0 : rs1_val;
+    rvfi_rs2_rdata = rs2 == 5'd0 ? 32'b0 : rs2_val;
+
+    // rd is written only when the register file actually accepts it, which is
+    // also the condition under which RVFI may name a destination.
+    rvfi_rd_addr  = (rf_we && rd != 5'd0) ? rd : 5'd0;
+    rvfi_rd_wdata = (rf_we && rd != 5'd0) ? rf_wdata : 32'b0;
+
+    rvfi_pc_rdata = pc_q;
+    rvfi_pc_wdata = take_trap             ? mtvec_q
+                  : (dec_sys == SYS_MRET) ? mepc_q
+                                          : seq_next_pc;
+
+    // Only a data access that reached the bus and completed without a fault is
+    // an architectural memory event.
+    rvfi_mem_addr  = rvfi_mem_done ? dbus_addr : 32'b0;
+    rvfi_mem_rmask = (rvfi_mem_done && dec_mem == MEM_LOAD)  ? st_wstrb : 4'b0;
+    rvfi_mem_wmask = (rvfi_mem_done && dec_mem == MEM_STORE) ? st_wstrb : 4'b0;
+    rvfi_mem_rdata = rvfi_mem_done ? dbus_rdata : 32'b0;
+    rvfi_mem_wdata = rvfi_mem_done ? st_wdata   : 32'b0;
+  end
+
+  // CSR write side effects, kept in one place.
   task automatic csr_write(input logic [11:0] a, input logic [31:0] v);
     unique case (a)
       12'h300: mstatus_q  <= (v & 32'h0000_0088) | 32'h0000_1800; // MIE|MPIE, MPP=11
       12'h304: mie_q      <= v;
-      12'h305: mtvec_q    <= v;
+      // Both MODE fields are WARL and only direct is implemented, so mtvec
+      // reads back mode 0 -- reporting vectored would strand software in the
+      // wrong handler, and the raw value is what the trap paths load into pc.
+      12'h305: mtvec_q    <= v & ~32'd3;
       12'h340: mscratch_q <= v;
-      12'h341: mepc_q     <= v & ~32'd1;
+      12'h341: mepc_q     <= v & ~32'd3;     // IALIGN=32: no C extension
       12'h342: mcause_q   <= v;
       12'h343: mtval_q    <= v;
+      // Counters are M-mode writable.  Full-width assignments, so they
+      // override this cycle's increment above -- which is exactly the rule
+      // that a write suppresses the increment from the writing instruction.
+      12'hb00: mcycle_q   <= {mcycle_q[63:32], v};
+      12'hb80: mcycle_q   <= {v, mcycle_q[31:0]};
+      12'hb02: minstret_q <= {minstret_q[63:32], v};
+      12'hb82: minstret_q <= {v, minstret_q[31:0]};
       default: ;
     endcase
   endtask

@@ -60,17 +60,34 @@ contracts and selections are in [components/](../components/).
   `make -C sw/baremetal check-suite-ax2` (SoC integration: interrupts, fence.i,
   IPC, and the gpu1 role).  Measured 2.53× core.minimal and 1.60× core.pipeline5
   on the mixed workload; see [hardware-capabilities.md](hardware-capabilities.md).
-  It implements machine mode with physical addressing only — no Sv32/S/U — and
-  has no RVFI surface, so it does not carry the reference core's cosim or
-  riscv-formal evidence.
+  It implements machine mode with physical addressing only — no Sv32/S/U — so it
+  does not carry the reference core's lock-step cosim evidence.
+- [x] The dual-issue core carries its own bounded formal evidence, on both
+  retire channels: `ax2_core` drives a two-channel RVFI trace (`nret 2`), and
+  `make -C formal check-ax2` proves `insn_add`, `insn_beq`, `insn_lw`, and
+  `insn_sw` against it — the memory instructions and `add` on channel 0 *and*
+  channel 1, which is where dual issue can go wrong.  Scope is deliberately
+  stated rather than implied: 7 of the 84 generated checks, in the RV32I
+  configuration (`ENABLE_M=0`) with the predictor disabled (`BTB_ENTRIES=0`),
+  so branch prediction and RV32M carry only the ISA-suite and directed
+  evidence above, exactly as they do for the reference core.  It uses the same
+  built-in SAT engine and needs no extra solver, but it does need more memory
+  than a 3 GB development box — ax2's block-RAM instruction cache dominates
+  model construction — so this runs in the `formal.yml` workflow rather than as
+  a local default.  `make -C formal full-ax2` runs all 84.
 - [x] A whole-CPU swap demonstrates the same seam at core granularity:
   `core.minimal` is a compact multi-cycle RV32IM machine-mode core (no MMU/S/U,
   reusing the reference decoder/ALU/mul-div/regfile) built as an accelerator
   host.  Evidence: `make -C sw/baremetal check-suite-minimal` — one suite that
   runs `core.minimal` driving the CPU (hello), the GPU role, and the TPU role.
   It ships in the `tangnano20k-gpu` and `ulx3s-85f-gpu` profiles (minimal host +
-  GPU).  It does not yet carry the reference core's cosim/riscv-formal evidence,
-  so architectural equivalence at ISA granularity is still open.
+  GPU).  It now also carries its own bounded formal evidence: `core.minimal`
+  drives a one-retire RVFI trace and `make -C formal check-minimal` proves
+  `insn_add`, `insn_beq`, `insn_lw`, and `insn_sw` against it — the same four
+  the reference core gates on, in the same RV32I configuration, and unlike the
+  ax2 suite this one completes on a 3 GB development box.  Lock-step cosim
+  remains out of scope: without Sv32 and S/U there is no privileged
+  architectural state to compare against the golden ISS.
 
 - [x] Memory-system components sized and shaped for real workloads:
   `cache.writeback` (direct-mapped, write-back, write-allocate, drain-on-flush)

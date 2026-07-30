@@ -64,7 +64,12 @@ module soc_top #(
   logic [3:0] d_bus_wstrb;
 
   logic i_rom_valid, i_ram_valid, i_test_valid, i_clint_valid, i_uart_valid, i_spi_valid;
+  logic i_plic_valid, i_plic_ready, i_plic_err;
+  logic [31:0] i_plic_rdata;
   logic d_rom_valid, d_ram_valid, d_test_valid, d_clint_valid, d_uart_valid, d_spi_valid;
+  logic d_plic_valid, d_plic_ready, d_plic_err;
+  logic [31:0] d_plic_rdata;
+  logic plic_irq, uart_irq_rx;
   logic i_role_valid, d_role_valid;
   logic i_rom_ready, i_rom_err, i_ram_ready, i_ram_err, i_test_ready, i_test_err;
   logic i_clint_ready, i_clint_err, i_uart_ready, i_uart_err;
@@ -94,7 +99,9 @@ module soc_top #(
     .dbus_wstrb(dbus_wstrb), .dbus_ready(dbus_ready), .dbus_rdata(dbus_rdata),
     .dbus_err(dbus_err),
     .irq_software(irq_software), .irq_timer(irq_timer),
-    .irq_external(irq_external), .trace_valid(core_trace_valid),
+    // The board/testbench line and the on-chip controller are both sources of
+    // the same machine-external interrupt; the core sees their union.
+    .irq_external(irq_external || plic_irq), .trace_valid(core_trace_valid),
     .trace_trap(core_trace_trap), .trace_insn(core_trace_insn)
   );
   // verilator lint_on PINMISSING
@@ -185,6 +192,7 @@ module soc_top #(
     .ram_valid(i_ram_valid), .ram_ready(i_ram_ready), .ram_rdata(i_ram_rdata), .ram_err(i_ram_err),
     .test_valid(i_test_valid), .test_ready(i_test_ready), .test_rdata(i_test_rdata), .test_err(i_test_err),
     .clint_valid(i_clint_valid), .clint_ready(i_clint_ready), .clint_rdata(i_clint_rdata), .clint_err(i_clint_err),
+    .plic_valid(i_plic_valid), .plic_ready(i_plic_ready), .plic_rdata(i_plic_rdata), .plic_err(i_plic_err),
     .uart_valid(i_uart_valid), .uart_ready(i_uart_ready), .uart_rdata(i_uart_rdata), .uart_err(i_uart_err),
     .spi_valid(i_spi_valid), .spi_ready(i_spi_ready), .spi_rdata(i_spi_rdata), .spi_err(i_spi_err),
     .role_valid(i_role_valid), .role_ready(i_role_ready), .role_rdata(i_role_rdata), .role_err(i_role_err)
@@ -197,6 +205,7 @@ module soc_top #(
     .ram_valid(d_ram_valid), .ram_ready(d_ram_ready), .ram_rdata(d_ram_rdata), .ram_err(d_ram_err),
     .test_valid(d_test_valid), .test_ready(d_test_ready), .test_rdata(d_test_rdata), .test_err(d_test_err),
     .clint_valid(d_clint_valid), .clint_ready(d_clint_ready), .clint_rdata(d_clint_rdata), .clint_err(d_clint_err),
+    .plic_valid(d_plic_valid), .plic_ready(d_plic_ready), .plic_rdata(d_plic_rdata), .plic_err(d_plic_err),
     .uart_valid(d_uart_valid), .uart_ready(d_uart_ready), .uart_rdata(d_uart_rdata), .uart_err(d_uart_err),
     .spi_valid(d_spi_valid), .spi_ready(d_spi_ready), .spi_rdata(d_spi_rdata), .spi_err(d_spi_err),
     .role_valid(d_role_valid), .role_ready(d_role_ready), .role_rdata(d_role_rdata), .role_err(d_role_err)
@@ -251,7 +260,8 @@ module soc_top #(
     .d_valid(d_uart_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata), .d_wstrb(d_bus_wstrb),
     .d_ready(d_uart_ready), .d_rdata(d_uart_rdata), .d_err(d_uart_err),
     .tx_valid(uart_tx_valid), .tx_data(uart_tx_data), .tx_ready(uart_tx_ready),
-    .rx_valid(uart_rx_valid), .rx_data(uart_rx_data), .rx_ready(uart_rx_ready)
+    .rx_valid(uart_rx_valid), .rx_data(uart_rx_data), .rx_ready(uart_rx_ready),
+    .irq_rx(uart_irq_rx)
   );
 
   // The selected role component fills the fixed 0x4000_0000 window.  The
@@ -262,6 +272,21 @@ module soc_top #(
     .i_wstrb(i_bus_wstrb), .i_ready(i_role_ready), .i_rdata(i_role_rdata), .i_err(i_role_err),
     .d_valid(d_role_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata), .d_wstrb(d_bus_wstrb),
     .d_ready(d_role_ready), .d_rdata(d_role_rdata), .d_err(d_role_err)
+  );
+
+  // Device interrupts converge here and reach the core as irq_external.  Source
+  // 1 is the UART receiver; source 2 is reserved for role completion, which is
+  // the next step and is tied low until a role drives it.
+  plic #(.SOURCES(2)) u_plic (
+    .clk(clk), .rst(rst),
+    .i_valid(i_plic_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
+    .i_wstrb(i_bus_wstrb), .i_ready(i_plic_ready), .i_rdata(i_plic_rdata),
+    .i_err(i_plic_err),
+    .d_valid(d_plic_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata),
+    .d_wstrb(d_bus_wstrb), .d_ready(d_plic_ready), .d_rdata(d_plic_rdata),
+    .d_err(d_plic_err),
+    .sources({1'b0, uart_irq_rx}),
+    .irq_external(plic_irq)
   );
 
   axspi u_spi (
