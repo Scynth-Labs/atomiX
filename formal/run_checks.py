@@ -10,8 +10,16 @@ import sys
 
 
 ROOT = Path(__file__).resolve().parent
-CHECK_ROOT = ROOT / "build" / "riscv-formal" / "cores" / "axcore" / "checks"
-WORK_ROOT = ROOT / "build" / "sat"
+
+
+def check_root(core: str) -> Path:
+    return ROOT / "build" / "riscv-formal" / "cores" / core / "checks"
+
+
+def work_root(core: str) -> Path:
+    # Per-core solver trees, so one core's counterexamples are never mistaken
+    # for another's.
+    return ROOT / "build" / "sat" / core
 
 
 def script_from(config: Path) -> str:
@@ -37,12 +45,12 @@ def proof_depth(config: Path) -> int:
     return int(match.group(1))
 
 
-def run_check(check: str) -> bool:
-    job = CHECK_ROOT / f"{check}.sby"
+def run_check(core: str, check: str) -> bool:
+    job = check_root(core) / f"{check}.sby"
     if not job.is_file():
-        raise RuntimeError(f"unknown generated check: {check}")
+        raise RuntimeError(f"unknown generated check for {core}: {check}")
 
-    work = WORK_ROOT / check
+    work = work_root(core) / check
     subprocess.run(
         ["sby", "--setup", "-f", "-d", str(work), str(job)], check=True
     )
@@ -81,7 +89,7 @@ def run_check(check: str) -> bool:
     yosys_log = (work / "yosys.log").read_text()
     (work / "result.log").write_text(result.stdout + yosys_log)
     passed = result.returncode == 0 and "SUCCESS!" in yosys_log
-    print(f"[formal] {check}: {'PASS' if passed else 'FAIL'}")
+    print(f"[formal] {core}/{check}: {'PASS' if passed else 'FAIL'}")
     if not passed:
         print(result.stdout + yosys_log, file=sys.stderr)
     return passed
@@ -90,14 +98,18 @@ def run_check(check: str) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("checks", nargs="*")
+    parser.add_argument("--core", default="axcore")
     parser.add_argument("--all", action="store_true")
     args = parser.parse_args()
     checks = args.checks
     if args.all:
-        checks = sorted(path.stem for path in CHECK_ROOT.glob("*.sby"))
+        checks = sorted(path.stem for path in check_root(args.core).glob("*.sby"))
     if not checks:
         parser.error("specify one or more checks, or --all")
-    return 0 if all(run_check(check) for check in checks) else 1
+    # Run every check rather than stopping at the first failure: a formal run is
+    # slow enough that seeing all the counterexamples from one pass matters.
+    results = [run_check(args.core, check) for check in checks]
+    return 0 if all(results) else 1
 
 
 if __name__ == "__main__":

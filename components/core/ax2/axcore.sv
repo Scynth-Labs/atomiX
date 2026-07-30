@@ -60,11 +60,25 @@ module axcore #(
   output logic        trace_trap,
   output logic [31:0] trace_insn
 );
+  // RVFI is deliberately not part of the `core` component seam: the reference
+  // core retires one instruction per cycle and ax2 retires two, so the two
+  // traces have different channel counts and cannot share a port list.  The
+  // formal environment instantiates ax2_core directly to reach them.
+  /* verilator lint_off PINCONNECTEMPTY */
   ax2_core #(
     .RESET_PC(RESET_PC),
     .ENABLE_M(ENABLE_M),
     .ISSUE_WIDTH(`AX2_ISSUE_WIDTH),
     .ICACHE_KB(`AX2_ICACHE_KB),
     .BTB_ENTRIES(`AX2_BTB_ENTRIES)
-  ) u_core (.*);
+  ) u_core (
+    .rvfi_valid(), .rvfi_order(), .rvfi_insn(), .rvfi_trap(), .rvfi_halt(),
+    .rvfi_intr(), .rvfi_mode(), .rvfi_ixl(),
+    .rvfi_rs1_addr(), .rvfi_rs2_addr(), .rvfi_rs1_rdata(), .rvfi_rs2_rdata(),
+    .rvfi_rd_addr(), .rvfi_rd_wdata(), .rvfi_pc_rdata(), .rvfi_pc_wdata(),
+    .rvfi_mem_addr(), .rvfi_mem_rmask(), .rvfi_mem_wmask(),
+    .rvfi_mem_rdata(), .rvfi_mem_wdata(),
+    .*
+  );
+  /* verilator lint_on PINCONNECTEMPTY */
 endmodule

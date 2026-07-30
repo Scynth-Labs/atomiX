@@ -123,6 +123,11 @@ module ax2_icache #(
   endfunction
   /* verilator lint_on UNUSED */
 
+  // Declared before the lookup below uses it: the assignment is further down
+  // with the fetch pointer it belongs to, but a strict 1800-2017 frontend
+  // (Slang, which the formal flow uses) requires the net to exist first.
+  wire [31:0] fetch_addr;     // address the lookup launched this cycle uses
+
   // The lookup is combinational on the address being launched this cycle, so
   // the prediction is available in time to choose the *next* fetch address --
   // that is what makes a correct prediction cost zero cycles.
@@ -141,8 +146,6 @@ module ax2_icache #(
   logic        pred_taken_q;
   logic        pred_slot_q;
   logic [31:0] pred_target_q;
-
-  wire [31:0] fetch_addr;     // address the lookup launched this cycle uses
 
   typedef enum logic [1:0] { S_LOOK, S_REFILL, S_INSTALL } state_e;
   state_e state_q;

@@ -66,8 +66,16 @@ jobs:
 
       # The default suite uses Yosys's built-in SAT engine; `make -C formal
       # full` runs every generated check and is deliberately not the gate.
-      - name: Bounded instruction checks
+      - name: Bounded instruction checks (reference core)
         run: make -C formal check
+
+      # ax2 is the dual-issue core, proved on both retire channels. It needs
+      # noticeably more memory than the reference core -- its block-RAM
+      # instruction cache dominates model construction, and a 3 GB development
+      # box OOM-kills the solver before the bounded search starts. A hosted
+      # runner has the headroom, which is why this job is where it runs.
+      - name: Bounded instruction checks (ax2, both channels)
+        run: make -C formal check-ax2
 
       - name: Preserve counterexample traces on failure
         if: failure()

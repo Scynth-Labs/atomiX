@@ -70,7 +70,33 @@ module ax2_core #(
 
   output logic        trace_valid,
   output logic        trace_trap,
-  output logic [31:0] trace_insn
+  output logic [31:0] trace_insn,
+
+  // Two-channel RVFI.  Channel 0 is slot 0 and channel 1 is slot 1, which is
+  // also program order: slot 1 is never valid without slot 0, and a slot-0 trap
+  // squashes slot 1 entirely, so `rvfi_order` stays gapless without a reorder
+  // network.  Fields are packed low-channel-first, as riscv-formal expects.
+  output logic [1:0]   rvfi_valid,
+  output logic [127:0] rvfi_order,
+  output logic [63:0]  rvfi_insn,
+  output logic [1:0]   rvfi_trap,
+  output logic [1:0]   rvfi_halt,
+  output logic [1:0]   rvfi_intr,
+  output logic [3:0]   rvfi_mode,
+  output logic [3:0]   rvfi_ixl,
+  output logic [9:0]   rvfi_rs1_addr,
+  output logic [9:0]   rvfi_rs2_addr,
+  output logic [63:0]  rvfi_rs1_rdata,
+  output logic [63:0]  rvfi_rs2_rdata,
+  output logic [9:0]   rvfi_rd_addr,
+  output logic [63:0]  rvfi_rd_wdata,
+  output logic [63:0]  rvfi_pc_rdata,
+  output logic [63:0]  rvfi_pc_wdata,
+  output logic [63:0]  rvfi_mem_addr,
+  output logic [7:0]   rvfi_mem_rmask,
+  output logic [7:0]   rvfi_mem_wmask,
+  output logic [63:0]  rvfi_mem_rdata,
+  output logic [63:0]  rvfi_mem_wdata
 );
   import axcore_pkg::*;
   import ax2_pkg::*;
@@ -183,7 +209,11 @@ module ax2_core #(
   logic [31:0] x_pc0_q, x_insn0_q, x_insn1_q;
   dec_t        x_d0_q, x_d1_q;
   logic [31:0] x_a0_q, x_b0_q, x_imm0_q, x_a1_q, x_b1_q, x_imm1_q;
+  // rs1 of slot 0 is execute state (CSR immediates read it).  The other three
+  // source addresses are carried only so the RVFI trace can name them; nothing
+  // in the datapath reads them.
   logic [4:0]  x_rd0_q, x_rd1_q, x_rs1_0_q;
+  logic [4:0]  x_rs2_0_q, x_rs1_1_q, x_rs2_1_q;
   logic        x_ic_err_q;
   logic        x_pred_taken_q, x_pred_slot_q;
   logic [31:0] x_pred_target_q;
@@ -478,6 +508,85 @@ module ax2_core #(
   assign trace_trap  = take_trap;
   assign trace_insn  = commit1 ? x_insn1_q : x_insn0_q;
 
+  // ---- RVFI --------------------------------------------------------------------
+  // Slot 0 either retires or traps; slot 1 only ever appears when slot 0 did not
+  // trap, because a slot-0 trap redirects before slot 1 has any architectural
+  // effect and mepc names slot 0, so slot 1 is re-fetched rather than retired.
+  wire rvfi_v0 = x_retire && x_v0_q;
+  wire rvfi_v1 = x_retire && x_v1_q && !trap0;
+
+  // Where the bundle actually goes, ignoring an interrupt taken at the bundle
+  // boundary: that redirect belongs to the *next* instruction (which reports
+  // rvfi_intr), not to the one retiring here, whose successor is still its own.
+  wire [31:0] arch_next_pc =
+      take_trap                     ? mtvec_q
+    : is_mret                       ? mepc_q
+    : (has_br && br_actual_taken)   ? br_actual_target
+                                    : bundle_next_pc;
+
+  // A dual bundle never puts a control transfer, CSR, or system instruction in
+  // slot 0 (`dual_ok` forbids it), so whenever slot 1 is live the architectural
+  // successor of slot 0 is simply slot 1.
+  wire [31:0] rvfi_pc_wdata0 = rvfi_v1 ? x_pc1_q : arch_next_pc;
+
+  // The single memory port belongs to one slot per bundle, and only reports a
+  // transaction that actually reached the bus.
+  wire mem_ok      = has_mem && !mem_misaligned && !mem_fault;
+  wire mem_is_load = mem_ok && !mem_is_store;
+  wire mem_on0     = mem_ok && mem_slot == 1'b0 && commit0;
+  wire mem_on1     = mem_ok && mem_slot == 1'b1 && commit1;
+
+  // The first instruction to retire after any trap-vector redirect is the
+  // handler's entry, which is what rvfi_intr marks.  A bundle always starts at
+  // slot 0, so slot 1 is never a handler entry.
+  logic rvfi_intr_q;
+  always_ff @(posedge clk) begin
+    if (rst)                        rvfi_intr_q <= 1'b0;
+    else if (take_trap || take_int) rvfi_intr_q <= 1'b1;
+    else if (rvfi_v0)               rvfi_intr_q <= 1'b0;
+  end
+
+  logic [63:0] rvfi_order_q;
+  always_ff @(posedge clk) begin
+    if (rst) rvfi_order_q <= 64'b0;
+    else     rvfi_order_q <= rvfi_order_q + 64'(rvfi_v0) + 64'(rvfi_v1);
+  end
+
+  always_comb begin
+    rvfi_valid = {rvfi_v1, rvfi_v0};
+    rvfi_order = {rvfi_order_q + 64'd1, rvfi_order_q};
+    rvfi_insn  = {x_insn1_q, x_insn0_q};
+    rvfi_trap  = {rvfi_v1 && trap1, rvfi_v0 && trap0};
+    rvfi_halt  = 2'b00;
+    rvfi_intr  = {1'b0, rvfi_intr_q};
+    rvfi_mode  = {2'b11, 2'b11};            // machine mode only
+    rvfi_ixl   = {2'b01, 2'b01};            // RV32
+
+    rvfi_rs1_addr  = {x_rs1_1_q, x_rs1_0_q};
+    rvfi_rs2_addr  = {x_rs2_1_q, x_rs2_0_q};
+    // Reading x0 must report zero, which is the one place the raw operand
+    // capture and the architectural value can differ.
+    rvfi_rs1_rdata = {x_rs1_1_q == 5'd0 ? 32'b0 : x_a1_q,
+                      x_rs1_0_q == 5'd0 ? 32'b0 : x_a0_q};
+    rvfi_rs2_rdata = {x_rs2_1_q == 5'd0 ? 32'b0 : x_b1_q,
+                      x_rs2_0_q == 5'd0 ? 32'b0 : x_b0_q};
+
+    rvfi_rd_addr  = {wb_we1 ? x_rd1_q : 5'd0, wb_we0 ? x_rd0_q : 5'd0};
+    rvfi_rd_wdata = {(wb_we1 && x_rd1_q != 5'd0) ? wb_data1 : 32'b0,
+                     (wb_we0 && x_rd0_q != 5'd0) ? wb_data0 : 32'b0};
+
+    rvfi_pc_rdata = {x_pc1_q, x_pc0_q};
+    rvfi_pc_wdata = {arch_next_pc, rvfi_pc_wdata0};
+
+    rvfi_mem_addr  = {mem_on1 ? dbus_addr : 32'b0, mem_on0 ? dbus_addr : 32'b0};
+    rvfi_mem_rmask = {(mem_on1 && mem_is_load) ? st_wstrb : 4'b0,
+                      (mem_on0 && mem_is_load) ? st_wstrb : 4'b0};
+    rvfi_mem_wmask = {(mem_on1 && mem_is_store) ? st_wstrb : 4'b0,
+                      (mem_on0 && mem_is_store) ? st_wstrb : 4'b0};
+    rvfi_mem_rdata = {mem_on1 ? mem_raw : 32'b0, mem_on0 ? mem_raw : 32'b0};
+    rvfi_mem_wdata = {mem_on1 ? st_wdata : 32'b0, mem_on0 ? st_wdata : 32'b0};
+  end
+
   // ---- Sequential --------------------------------------------------------------
   task automatic csr_write(input logic [11:0] a, input logic [31:0] v);
     unique case (a)
@@ -567,6 +676,9 @@ module ax2_core #(
         x_rd0_q         <= rd_0;
         x_rd1_q         <= rd_1;
         x_rs1_0_q       <= rs1_0;
+        x_rs2_0_q       <= rs2_0;
+        x_rs1_1_q       <= rs1_1;
+        x_rs2_1_q       <= rs2_1;
         x_ic_err_q      <= ic_err;
         x_pred_taken_q  <= ic_pred_taken;
         x_pred_slot_q   <= ic_pred_slot;
