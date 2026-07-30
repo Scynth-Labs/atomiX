@@ -82,12 +82,19 @@ run-%: tb_%.cpp
 	  -o tb_$* $(CORE_COMPONENT)/axcore_pkg.sv $(UNIT_SV_$*) $(CURDIR)/tb_$*.cpp >/dev/null
 	./obj_dir_$*/tb_$*
 
+# The ISA binaries are build products of the tests/riscv-tests submodule, so
+# every target that runs a suite depends on this.  It is not optional
+# convenience: the runners now fail on a suite that matched nothing, so without
+# it a job with no binaries is a hard error rather than a vacuous pass.
+isa-binaries:
+	@../../tests/build-isa.sh
+
 # core.minimal against the official ISA suites.  It had no simulation coverage
 # at all before this -- only the formal flow -- so rv32mi trap/CSR bugs could
 # sit in it indefinitely.  Wait states are swept for the same reason as ax2.
 MINIMAL_WS := 0 1 3
 
-run-minimal-isa: tb_ax2_isa.cpp $(MINIMAL_SOURCES)
+run-minimal-isa: tb_ax2_isa.cpp $(MINIMAL_SOURCES) isa-binaries
 	$(VERILATOR) $(VFLAGS) --top-module axcore --Mdir obj_dir_minimal_isa \
 	  --exe --build -o tb_minimal_isa $(MINIMAL_SOURCES) \
 	  $(CURDIR)/tb_ax2_isa.cpp >/dev/null
@@ -290,7 +297,7 @@ AX2_POINTS := \
   1,8,0
 AX2_WS := 0 1 3
 
-run-suite-ax2: tb_ax2_isa.cpp tb_axcore.cpp $(AX2_SOURCES)
+run-suite-ax2: tb_ax2_isa.cpp tb_axcore.cpp $(AX2_SOURCES) isa-binaries
 	@mkdir -p build
 	@python3 ../../tests/directed/words2bin.py ../../tests/directed/smoke_ok.words build/smoke_ok.bin
 	@python3 ../../tests/directed/words2bin.py ../../tests/directed/trap_ecall.words build/trap_ecall.bin
@@ -315,4 +322,4 @@ run-suite-ax2: tb_ax2_isa.cpp tb_axcore.cpp $(AX2_SOURCES)
 	done
 	@echo "suite/ax2: PASS"
 
-.PHONY: run-suite-gpu1 run-suite-ax2 run-minimal-isa
+.PHONY: run-suite-gpu1 run-suite-ax2 run-minimal-isa isa-binaries

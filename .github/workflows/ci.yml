@@ -53,7 +53,13 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 60
     steps:
+      # The core ISA suites build their binaries out of the riscv-tests
+      # submodule, so this job needs it checked out. Without it the suites
+      # matched nothing and reported a vacuous pass; the runners now treat
+      # that as a hard error instead.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: ./.github/actions/setup-atomix
         with:
           cache-key: unit

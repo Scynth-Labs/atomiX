@@ -43,23 +43,11 @@ jobs:
         with:
           cache-key: isa-suite
 
-      # Build the -p (physical) variants by name, the way sim/cosim/Makefile
-      # already does for its M tests. The suite's own default target also
-      # builds the -v (Sv32 demand-paging) and rv32uc variants, which need
-      # libc headers the Ubuntu cross package hides inside picolibc, so it
-      # cannot be used here -- see tests/README.md.
+      # Shared with sim/unit, which needs the same binaries for its core ISA
+      # suites; the target-name logic lives in the script so the two cannot
+      # drift apart.
       - name: Build the suite binaries
-        run: |
-          set -euo pipefail
-          targets=""
-          for suite in rv32ui rv32mi rv32um; do
-            for src in tests/riscv-tests/isa/"$suite"/*.S; do
-              targets="$targets $suite-p-$(basename "$src" .S)"
-            done
-          done
-          echo "[isa] building $(echo "$targets" | wc -w) test binaries"
-          make -C tests/riscv-tests/isa \
-            XLEN=32 RISCV_PREFIX=riscv64-unknown-elf- $targets
+        run: ./tests/build-isa.sh rv32ui rv32mi rv32um
 
       - name: Against the golden ISS
         run: |
