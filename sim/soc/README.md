@@ -11,6 +11,34 @@ It is driven by the bare-metal build:
 make -C sw/baremetal run-rtl
 ```
 
+## Batch and interactive sessions
+
+By default a run is **batch**: it consumes a fixed byte script, runs to the
+finisher or a cycle bound, and prints the whole transcript at the end. That is
+what a self-checking test wants, and every `check-*` target uses it.
+
+`--uart-interactive` instead keeps the console byte pipe open in both
+directions for the life of the process — stdin becomes UART receive, and UART
+transmit is streamed to stdout as it is produced rather than buffered to the
+end. This is what makes a *session* possible: in batch mode every exchange is a
+separate process, so the machine reboots between commands and nothing carries
+over. Interactive runs end when the console closes or the finisher fires, so
+they are not bounded by `MAX_CYCLES`.
+
+Because a session must outlive one command, the build and the launch are
+separate targets. `model-path` builds the model and prints only its path, for a
+caller that wants to spawn it once and keep it open:
+
+```bash
+MODEL=$(make -s -C sim/soc model-path \
+  RAM_INIT_FILE="$PWD/sw/kernel/build/axos_boot.hex" RESET_PC=0x80000000 \
+  COMPONENT_CONFIG=../../configs/sim-role-loopback.json)
+"$MODEL" --uart-interactive     # type at the aXos prompt; Ctrl-D ends it
+```
+
+State genuinely persists across commands — running the shell's `role` twice
+reports `irq=1` then `irq=2`, because it is one machine rather than two boots.
+
 For a direct invocation, provide a RAM image and an entry point:
 
 ```bash

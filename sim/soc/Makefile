@@ -90,7 +90,7 @@ run-config: $(COMPONENT_MK)
 	  echo "unsupported simulation runner: $(COMPONENT_SIM_RUNNER)"; exit 2;; esac
 	$(MAKE) $(COMPONENT_SIM_RUNNER)
 
-run: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)
+build-model: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)
 	@test -n "$(RAM_INIT_FILE)" || (echo "RAM_INIT_FILE is required"; exit 2)
 	@test -n "$(SIM_TOP)" || (echo "simulation profile must select a harness"; exit 2)
 	$(VERILATOR) $(VFLAGS) --top-module $(SIM_TOP) --Mdir $(MDIR) --exe --build \
@@ -100,7 +100,17 @@ run: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)
 	  $(DEFINES) \
 	  -GRAM_INIT_FILE=\"$(RAM_INIT_FILE)\" -GROM_INIT_FILE=\"$(ROM_INIT_FILE)\" \
 	  -o axsoc $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) >/dev/null
+
+run: build-model
 	./$(MDIR)/axsoc --max-cycles $(MAX_CYCLES) --uart-input '$(UART_INPUT)' $(if $(UART_INPUT_FILE),--uart-input-file "$(UART_INPUT_FILE)",) $(if $(SD_IMAGE),--sd-image "$(SD_IMAGE)",)
+
+# Build the model and print nothing but its path.  An interactive session
+# spawns the binary once and keeps it open for the life of the session, which
+# `run` cannot do: it is one process per invocation, so every command would
+# reboot the machine.  Keeping the build and the launch separate is what makes
+# that possible without duplicating the Verilator command line.
+model-path: build-model
+	@echo $(abspath $(MDIR)/axsoc)
 
 # Full Phase-6 controller integration: the SoC uses axsdram rather than the
 # delayed array model, and a CAS-2 x16 SDRAM model sits at the physical pins.
@@ -115,4 +125,4 @@ run-sdram: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)
 clean:
 	rm -rf obj_dir build
 
-.PHONY: config run run-sdram run-config clean
+.PHONY: config run run-sdram run-config build-model model-path clean
