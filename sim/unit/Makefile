@@ -25,7 +25,7 @@ SOC_REFERENCE := $(COMPONENTS)/soc/reference
 HARNESS_SDRAM := $(COMPONENTS)/harness/verilator-sdram
 BOARD_ULX3S := $(COMPONENTS)/board/ulx3s_85f
 
-MODULES := regfile alu immdec decoder branch_cmp muldiv
+MODULES := regfile alu immdec decoder branch_cmp muldiv plic
 
 # Functional units selected out of the core live in their own components;
 # each unit testbench builds the one source named here.
@@ -35,6 +35,7 @@ UNIT_SV_immdec     := $(CORE_COMPONENT)/immdec.sv
 UNIT_SV_decoder    := $(CORE_COMPONENT)/decoder.sv
 UNIT_SV_branch_cmp := $(CORE_COMPONENT)/branch_cmp.sv
 UNIT_SV_muldiv     := $(MULDIV_REFERENCE)/muldiv.sv
+UNIT_SV_plic       := $(PLIC_REFERENCE)/plic.sv
 
 CORE_SOURCES := $(CORE_COMPONENT)/axcore_pkg.sv $(UNIT_SV_regfile) \
   $(UNIT_SV_alu) $(UNIT_SV_immdec) $(UNIT_SV_decoder) $(UNIT_SV_branch_cmp) \

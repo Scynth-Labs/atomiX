@@ -86,6 +86,11 @@ jobs:
       - name: Bare-metal peripheral paths on RTL
         run: make -C sw/baremetal check-spi check-sd
 
+      # Role completion both ways: polled (check-role) and delivered through
+      # the PLIC as a machine external interrupt (check-role-irq).
+      - name: Role window and its interrupt path on RTL
+        run: make -C sw/baremetal check-role check-role-irq
+
       - name: aXos shell, role driver, and host-link
         run: make -C sw/kernel check-shell check-role-driver check-hostlink
 

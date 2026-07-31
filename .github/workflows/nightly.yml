@@ -94,6 +94,15 @@ jobs:
           ./configure --target-list=riscv32-softmmu --prefix="$HOME/.local"
           ninja -C build install
 
+      # The cached tree holds only the binary, which still resolves these at
+      # load time. They arrive as dependencies of the -dev packages above, so
+      # a cache hit -- which skips that step -- would otherwise leave the
+      # runner without them.
+      - name: Install the QEMU runtime libraries
+        run: |
+          sudo apt-get install -y --no-install-recommends \
+            libfdt1 libglib2.0-0 libpixman-1-0 zlib1g
+
       - name: Put the local QEMU first on PATH
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 

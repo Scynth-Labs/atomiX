@@ -69,7 +69,7 @@ module soc_top #(
   logic d_rom_valid, d_ram_valid, d_test_valid, d_clint_valid, d_uart_valid, d_spi_valid;
   logic d_plic_valid, d_plic_ready, d_plic_err;
   logic [31:0] d_plic_rdata;
-  logic plic_irq, uart_irq_rx;
+  logic plic_irq, uart_irq_rx, role_irq;
   logic i_role_valid, d_role_valid;
   logic i_rom_ready, i_rom_err, i_ram_ready, i_ram_err, i_test_ready, i_test_err;
   logic i_clint_ready, i_clint_err, i_uart_ready, i_uart_err;
@@ -271,12 +271,14 @@ module soc_top #(
     .clk(clk), .rst(rst), .i_valid(i_role_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
     .i_wstrb(i_bus_wstrb), .i_ready(i_role_ready), .i_rdata(i_role_rdata), .i_err(i_role_err),
     .d_valid(d_role_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata), .d_wstrb(d_bus_wstrb),
-    .d_ready(d_role_ready), .d_rdata(d_role_rdata), .d_err(d_role_err)
+    .d_ready(d_role_ready), .d_rdata(d_role_rdata), .d_err(d_role_err),
+    .irq(role_irq)
   );
 
   // Device interrupts converge here and reach the core as irq_external.  Source
-  // 1 is the UART receiver; source 2 is reserved for role completion, which is
-  // the next step and is tied low until a role drives it.
+  // 1 is the UART receiver; source 2 is role completion, held while the role's
+  // STATUS.DONE stands.  role.none ties its line low, so a profile with no
+  // accelerator still presents a well-defined source.
   plic #(.SOURCES(2)) u_plic (
     .clk(clk), .rst(rst),
     .i_valid(i_plic_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
@@ -285,7 +287,7 @@ module soc_top #(
     .d_valid(d_plic_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata),
     .d_wstrb(d_bus_wstrb), .d_ready(d_plic_ready), .d_rdata(d_plic_rdata),
     .d_err(d_plic_err),
-    .sources({1'b0, uart_irq_rx}),
+    .sources({role_irq, uart_irq_rx}),
     .irq_external(plic_irq)
   );
 

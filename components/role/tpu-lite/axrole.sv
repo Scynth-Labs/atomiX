@@ -54,7 +54,11 @@ module axrole #(
   input  logic [3:0]  d_wstrb,
   output logic        d_ready,
   output logic [31:0] d_rdata,
-  output logic        d_err
+  output logic        d_err,
+
+  // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
+  // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
+  output logic        irq
 );
   localparam logic [31:0] ROLE_ID      = 32'h5450_554c;  // "TPUL"
   localparam logic [31:0] ROLE_VERSION = 32'h0000_0001;
@@ -147,6 +151,11 @@ module axrole #(
   wire d_buf_read  = d_buf_hit && d_wstrb == 4'b0;
   wire d_wreg_hit  = d_valid && d_in_range && wreg_offset(d_off) &&
                      d_addr[1:0] == 2'b00;
+
+  // Completion interrupt: level-sensitive, held while DONE stands.  The
+  // handler deasserts it by clearing DONE, which is the same write the
+  // polling driver already does.
+  assign irq = done_q;
 
   always_comb begin
     i_ready = i_valid;

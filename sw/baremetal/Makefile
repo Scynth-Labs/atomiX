@@ -13,7 +13,7 @@ CFLAGS   := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
 LDFLAGS  = -nostdlib -Wl,-T,link.ld -Wl,--defsym=__ram_bytes=$(RAM_BYTES) \
            -Wl,--gc-sections -Wl,-Map,$(@:.elf=.map)
 
-PROGRAMS := hello timer preempt fencei spi sd role tpu gpu gpu_perf gpu1 cpu_perf render_perf
+PROGRAMS := hello timer preempt fencei spi sd role role_irq tpu gpu gpu_perf gpu1 cpu_perf render_perf
 ELFS     := $(PROGRAMS:%=$(BUILD_DIR)/%.elf)
 BINS     := $(ELFS:.elf=.bin)
 HEXS     := $(ELFS:.elf=.hex)
@@ -21,7 +21,7 @@ HEXS     := $(ELFS:.elf=.hex)
 all: $(ELFS)
 images: $(BINS) $(HEXS)
 
-$(BUILD_DIR)/%.elf: crt0.S traps.S runtime.c examples/%.c link.ld include/platform.h include/bench_report.h include/csr.h include/clint.h include/role.h | $(BUILD_DIR)
+$(BUILD_DIR)/%.elf: crt0.S traps.S runtime.c examples/%.c link.ld include/platform.h include/bench_report.h include/csr.h include/clint.h include/role.h include/plic.h | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ crt0.S traps.S runtime.c examples/$*.c
 
 $(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf
@@ -72,6 +72,14 @@ check-role: $(BUILD_DIR)/role.hex
 	$(MAKE) -C ../../sim/soc run \
 	  COMPONENT_CONFIG=../../configs/sim-role-loopback.json \
 	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/role.hex) RESET_PC=0x80000000
+
+# The same completion, taken as an interrupt instead of polled: role line ->
+# PLIC source 2 -> machine external interrupt.  The program parks in wfi with
+# the job running, so it can only finish if the whole path works.
+check-role-irq: $(BUILD_DIR)/role_irq.hex
+	$(MAKE) -C ../../sim/soc run \
+	  COMPONENT_CONFIG=../../configs/sim-role-loopback.json \
+	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/role_irq.hex) RESET_PC=0x80000000
 
 # RTL-only like check-role.  The raised cycle budget covers the on-core
 # reference matmuls (three 12x8x8 GEMMs on the 32-cycle mul/div unit).
@@ -164,4 +172,4 @@ check-suite-ax2: $(BUILD_DIR)/hello.hex $(BUILD_DIR)/timer.hex $(BUILD_DIR)/pree
 clean:
 	rm -rf build
 
-.PHONY: all images run-iss run-qemu run-rtl check-hello check-timer check-preempt check-fencei check-spi check-sd check-role check-tpu check-gpu check-gpu-perf check-gpu1 check-cpu-perf check-suite-minimal check-suite-ax2 clean
+.PHONY: all images run-iss run-qemu run-rtl check-hello check-timer check-preempt check-fencei check-spi check-sd check-role check-role-irq check-tpu check-gpu check-gpu-perf check-gpu1 check-cpu-perf check-suite-minimal check-suite-ax2 clean

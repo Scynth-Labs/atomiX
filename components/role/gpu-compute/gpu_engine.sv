@@ -36,7 +36,11 @@ module gpu_engine #(
   input  logic [3:0]  d_wstrb,
   output logic        d_ready,
   output logic [31:0] d_rdata,
-  output logic        d_err
+  output logic        d_err,
+
+  // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
+  // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
+  output logic        irq
 );
   // NLANES may be any value in [1, 256]; the thread id is formed by addition
   // (tid = NLANES*wave + lane), so a non-power-of-two lane count (e.g. 6) works.
@@ -141,6 +145,11 @@ module gpu_engine #(
   wire [5:0]  d_prog_idx  = 6'(((d_off - PROG_BASE) >> 2));
   wire [DATA_ADDR_BITS-1:0] d_data_idx =
       DATA_ADDR_BITS'(((d_off - DATA_BASE) >> 2));
+
+  // Completion interrupt: level-sensitive, held while DONE stands.  The
+  // handler deasserts it by clearing DONE, which is the same write the
+  // polling driver already does.
+  assign irq = done_q;
 
   always_comb begin
     i_ready = i_valid;

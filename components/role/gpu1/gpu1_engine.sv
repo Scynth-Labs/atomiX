@@ -64,7 +64,11 @@ module gpu1_engine #(
   input  logic [3:0]  d_wstrb,
   output logic        d_ready,
   output logic [31:0] d_rdata,
-  output logic        d_err
+  output logic        d_err,
+
+  // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
+  // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
+  output logic        irq
 );
   localparam int unsigned LANE_BITS = (NLANES <= 1) ? 1 : $clog2(NLANES);
   localparam int unsigned BANK_BITS = (NBANKS <= 1) ? 1 : $clog2(NBANKS);
@@ -206,6 +210,11 @@ module gpu1_engine #(
   wire [BANK_BITS-1:0] d_data_bank = d_data_word[BANK_BITS-1:0];
   wire [IDX_BITS-1:0]  d_data_idx  = IDX_BITS'(d_data_word >> BANK_BITS);
   logic [BANK_BITS-1:0] d_data_bank_q;   // which bank the registered read came from
+
+  // Completion interrupt: level-sensitive, held while DONE stands.  The
+  // handler deasserts it by clearing DONE, which is the same write the
+  // polling driver already does.
+  assign irq = done_q;
 
   always_comb begin
     i_ready = i_valid;

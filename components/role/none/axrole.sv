@@ -19,8 +19,17 @@ module axrole (
   input  logic [3:0]  d_wstrb,
   output logic        d_ready,
   output logic [31:0] d_rdata,
-  output logic        d_err
+  output logic        d_err,
+
+  // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
+  // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
+  output logic        irq
 );
+  // No engine, so nothing ever completes: the line is tied low rather than
+  // left unconnected, which keeps the PLIC source well defined when a profile
+  // selects no role.
+  assign irq = 1'b0;
+
   always_comb begin
     i_ready = i_valid;
     i_rdata = 32'b0;

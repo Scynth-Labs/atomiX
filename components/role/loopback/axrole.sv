@@ -13,6 +13,12 @@
 //   0x000c  STATUS    R/W1C  bit0 BUSY, bit1 DONE; writing bit1 clears DONE
 //   0x0010+           role-defined registers
 //
+// Every role also drives one level-sensitive `irq` line, asserted for exactly
+// as long as STATUS.DONE stands.  It reaches the core as an external interrupt
+// through the shell's PLIC, so completion can be waited on instead of polled;
+// clearing DONE is what deasserts it, which is the write a polling driver
+// already performs.  A role with no engine (role.none) ties it low.
+//
 // Loopback-defined layout:
 //
 //   0x0010  SRC    byte offset of the source region inside the buffer
@@ -48,7 +54,11 @@ module axrole #(
   input  logic [3:0]  d_wstrb,
   output logic        d_ready,
   output logic [31:0] d_rdata,
-  output logic        d_err
+  output logic        d_err,
+
+  // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
+  // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
+  output logic        irq
 );
   localparam logic [31:0] ROLE_ID      = 32'h4c4f_4f50;  // "LOOP"
   localparam logic [31:0] ROLE_VERSION = 32'h0000_0001;
@@ -114,6 +124,11 @@ module axrole #(
                      d_addr[1:0] == 2'b00;
   wire d_buf_write = d_buf_hit && d_wstrb == 4'hf;
   wire d_buf_read  = d_buf_hit && d_wstrb == 4'b0;
+
+  // Completion interrupt: level-sensitive, held while DONE stands.  The
+  // handler deasserts it by clearing DONE, which is the same write the
+  // polling driver already does.
+  assign irq = done_q;
 
   always_comb begin
     i_ready = i_valid;

@@ -125,9 +125,7 @@ static inline uint32_t gpu_insn(uint32_t op, uint32_t rd, uint32_t ra,
 #define AX_GPU_LDXI  34u   /* rd = mem[ra + imm] */
 #define AX_GPU_STXI  35u   /* mem[ra + imm] = rb */
 
-static inline uint32_t mmio_read32(uint32_t addr) {
-  return *(volatile const uint32_t *)(uintptr_t)addr;
-}
+/* mmio_read32 lives in platform.h with the rest of the accessors. */
 
 static inline uint32_t role_id(void) { return mmio_read32(AX_ROLE_ID); }
 

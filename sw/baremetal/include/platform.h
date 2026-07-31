@@ -19,6 +19,10 @@ static inline uint8_t mmio_read8(uint32_t addr) {
   return *(volatile const uint8_t *)(uintptr_t)addr;
 }
 
+static inline uint32_t mmio_read32(uint32_t addr) {
+  return *(volatile const uint32_t *)(uintptr_t)addr;
+}
+
 static inline void uart_putchar(char c) {
   /* 16550 LSR bit 5: THR empty. */
   while (!(mmio_read8(AX_UART_BASE + 5) & 0x20)) {}

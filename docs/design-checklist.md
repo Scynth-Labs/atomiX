@@ -308,8 +308,22 @@ Use this for a substantive implementation or interface change:
 - [ ] Remaining host-link enhancements: a dedicated second byte pipe so console
   and host-link coexist; buffer/stream and asynchronous-completion ops; cached
   prebuilt-bitstream selection for physical datapath changes.
-- [ ] Add PLIC/role interrupt integration when a second interrupt source
-  exists.
+- [x] PLIC/role interrupt integration.  The shell's PLIC (`plic.qemu-virt`:
+  per-source priority, enable, threshold, claim/complete, level-sensitive
+  gateway) arbitrates two sources — UART receive and role completion.  Every
+  role drives a level-sensitive `irq` line held for exactly as long as
+  `STATUS.DONE` stands, so completion can be waited on instead of polled and
+  clearing DONE is what deasserts it; `role.none` ties it low, so a profile
+  with no accelerator still presents a defined source.  Evidence:
+  `make -C sim/unit run-plic` (the register contract, priority/threshold
+  gating, lowest-id tie-break at equal priority, and the level-sensitive
+  re-arm — a source still asserted at complete becomes pending again) and
+  `make -C sw/baremetal check-role-irq` (end to end on the RTL: the job is
+  started with the source masked to prove nothing reaches the core, then
+  routing it delivers, and the CPU parks in `wfi` so it can only finish
+  through the interrupt).  Both are mutation-tested: reverting the source to
+  tied-low no longer builds, and a role that never asserts fails with the
+  specific check that caught it.
 - [ ] Evaluate A or C ISA extensions only when their enabling need is explicit;
   neither is required for the current single-hart reference machine.
 
