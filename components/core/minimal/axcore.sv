@@ -45,6 +45,12 @@ module axcore #(
   input  logic        irq_software,
   input  logic        irq_timer,
   input  logic        irq_external,
+  // Part of the shell's core contract, but this is a machine-mode-only core:
+  // there is no S-mode to deliver a supervisor external interrupt to, so the
+  // line is accepted and ignored.
+  /* verilator lint_off UNUSED */
+  input  logic        irq_s_external,
+  /* verilator lint_on UNUSED */
 
   output logic        trace_valid,
   output logic        trace_trap,

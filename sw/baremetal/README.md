@@ -16,6 +16,17 @@ QEMU-virt-aligned UART, CLINT, and test-finisher addresses.
 - `include/spi.h`, `examples/spi.c`, and `examples/sd.c` — the polling SPI
   register interface, an idle-MISO smoke image, and SPI-mode SDHC
   initialization plus a 512-byte CMD17 sector read.
+- `include/role.h` and `examples/role.c` — the accelerator-window driver:
+  discovery through `ROLE_ID`, descriptor setup, doorbell, and polled `STATUS`.
+  `examples/tpu.c`, `gpu.c`, and `gpu1.c` drive the real accelerator roles
+  through the same header.
+- `include/plic.h` and `examples/role_irq.c` — the same completion taken as an
+  interrupt instead of polled: the role's level-sensitive line reaches the core
+  through PLIC source 2 as a machine external interrupt. The program starts the
+  job with the source masked (proving nothing bypasses the PLIC), then routes
+  it and parks in `wfi`, so it can only finish if the whole path works.
+- `examples/cpu_perf.c`, `gpu_perf.c`, and `render_perf.c` — the measured
+  workload payloads described under *Performance payloads* below.
 
 Build and run the current bring-up program:
 
@@ -29,7 +40,16 @@ make -C sw/baremetal check-timer # CLINT timer interrupts on all three
 make -C sw/baremetal check-preempt # timer-preempted task switching on all three
 make -C sw/baremetal check-spi   # polling SPI controller on RTL
 make -C sw/baremetal check-sd    # virtual SDHC init + block read on RTL
+make -C sw/baremetal check-role  # role window, polled completion, on RTL
+make -C sw/baremetal check-role-irq # the same completion through the PLIC
+make -C sw/baremetal check-tpu   # TPU-lite GEMM vs an on-core reference
+make -C sw/baremetal check-gpu   # SIMT engine vs an on-core interpreter
+make -C sw/baremetal check-gpu1  # the banked SIMT engine, same battery
 ```
+
+The role checks need a profile with an accelerator in the window; the targets
+above select `configs/sim-role-loopback.json` and its per-role siblings
+themselves.
 
 `RISCV_PREFIX` defaults to `riscv64-unknown-elf-`. GCC 10 accepts
 `RISCV_ARCH=rv32im` (its Zicsr support is included in that spelling); newer

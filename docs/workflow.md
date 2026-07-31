@@ -258,12 +258,18 @@ make -C sw/kernel check-uartboot        # immutable ROM + blank RAM + runtime ke
 ### 3.6 Shell control plane + host-link (RTL-only)
 ```bash
 make -C sw/kernel check-role-driver     # aXos drives role.loopback from its own shell
+make -C sw/kernel check-role-irq        # completion arrives as an S-mode interrupt, not a poll
 make -C sw/kernel check-hostlink        # axhost drives loopback, TPU-lite, and GPU-compute over the link
 ```
 
 `check-role-driver` also executes `hello.elf` in U-mode against the loopback
 role, covering `role_info` plus tokenized `role_submit`/`role_wait`, retry
 errors, and the kernel-only MMIO alias.
+
+`check-role-irq` is the narrower claim underneath it: the role's level-sensitive
+line reaches S-mode through the PLIC's supervisor context, and the kernel never
+reads `STATUS`. It runs two jobs, because a single completion would also pass
+with a handler that claims but never completes.
 
 ### 3.7 Randomized + formal (run on core / RVFI / translation changes)
 ```bash
@@ -289,7 +295,7 @@ make -C sw/baremetal images
 make -C sw/baremetal check-hello check-timer check-preempt check-fencei check-role check-tpu check-gpu
 make component-test
 make -C sw/kernel kernel-component-test QEMU=/path/to/qemu-system-riscv32
-make -C sw/kernel check-role-driver check-hostlink check-uartboot
+make -C sw/kernel check-role-driver check-role-irq check-hostlink check-uartboot
 make -C formal check          # after core/RVFI changes
 ```
 

@@ -39,6 +39,10 @@ module csr_file (
   input  logic        irq_software,
   input  logic        irq_timer,
   input  logic        irq_external,
+  // Supervisor external interrupt, driven by the PLIC's S-mode context. It is
+  // a second hardware source for mip.SEIP alongside the software-writable one,
+  // exactly as an M-mode-plus-PLIC platform provides it.
+  input  logic        irq_s_external,
 
   // Interrupt delivery decision against current (pre-commit) state.
   output logic        irq_take,
@@ -79,8 +83,11 @@ module csr_file (
                          4'b0, mpp_q, 2'b0, spp_q, mpie_q, 1'b0, spie_q,
                          1'b0, mie_q, 1'b0, sie_q, 1'b0};
   localparam logic [31:0] SSTATUS_MASK = 32'h000C_0122;
-  wire [31:0] mip = {20'b0, irq_external, 3'b0, irq_timer, 3'b0,
-                     irq_software, 3'b0} | (soft_ip_q & 32'h222);
+  // Bit 11 MEIP, bit 9 SEIP, bit 7 MTIP, bit 3 MSIP; the software-writable
+  // SSIP/STIP/SEIP sources (mask 0x222) are OR-ed in on top.
+  wire [31:0] mip = {20'b0, irq_external, 1'b0, irq_s_external, 1'b0,
+                     irq_timer, 3'b0, irq_software, 3'b0} |
+                    (soft_ip_q & 32'h222);
 
   assign mepc_out = mepc_q;
   assign sepc_out = sepc_q;

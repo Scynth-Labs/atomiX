@@ -6,6 +6,7 @@
 #include "loader.h"
 #include "page.h"
 #include "platform.h"
+#include "plic.h"
 #include "process.h"
 #include "role.h"
 #include "scheduler.h"
@@ -24,6 +25,7 @@ enum {
   SCAUSE_LOAD_ACCESS_FAULT = 5,
   SCAUSE_USER_ECALL = 8,
   SCAUSE_SUPERVISOR_SOFTWARE = 0x80000001u,
+  SCAUSE_SUPERVISOR_EXTERNAL = 0x80000009u,
   USER_CODE_VA = 0x40000000u,
   USER_STACK_VA = USER_CODE_VA + PAGE_SIZE,
 };
@@ -32,8 +34,8 @@ extern void s_entry(void);
 extern void machine_timer_trap(void);
 extern void user_entry(void);
 extern void shell_run(void);
-extern void role_probe_fault(void);
-extern volatile uint32_t role_probe_active;
+extern void mmio_probe_fault(void);
+extern volatile uint32_t mmio_probe_active;
 
 static volatile uint32_t supervisor_ticks;
 static uint32_t allocator_total_pages;
@@ -198,9 +200,12 @@ void m_setup(void) {
   csr_write_mtvec((uint32_t)(uintptr_t)machine_timer_trap);
   csr_write_medeleg((1u << SCAUSE_LOAD_ACCESS_FAULT) |
                     (1u << SCAUSE_USER_ECALL));
-  /* MTIP stays M-owned; the shim raises delegated SSIP for S-mode policy. */
-  csr_write_mideleg(1u << 1);
-  csr_write_mie((1u << 7) | (1u << 1));
+  /* MTIP stays M-owned; the shim raises delegated SSIP for S-mode policy.
+   * SEI is genuinely delegatable, so the PLIC's S-mode context reaches the
+   * kernel directly: no M-mode round trip, and the same claim/complete code
+   * runs on QEMU, whose virt machine wires context 1 the same way. */
+  csr_write_mideleg((1u << 1) | (1u << 9));
+  csr_write_mie((1u << 7) | (1u << 1) | (1u << 9));
   /* Keep interrupts out of the bootstrap; kmain arms the first scheduler tick
    * once its allocator, task state, and trap stacks are all ready. */
   clint_arm_timer(0x00100000u);
@@ -250,8 +255,18 @@ static uint32_t *schedule(uint32_t *trap_frame) {
 uint32_t *supervisor_trap(uint32_t *trap_frame) {
   const uint32_t cause = csr_read_scause();
 
-  if (cause == SCAUSE_LOAD_ACCESS_FAULT && role_probe_active) {
-    csr_write_sepc((uint32_t)(uintptr_t)role_probe_fault);
+  if (cause == SCAUSE_LOAD_ACCESS_FAULT && mmio_probe_active) {
+    csr_write_sepc((uint32_t)(uintptr_t)mmio_probe_fault);
+    return trap_frame;
+  }
+
+  /* Device interrupts arrive here through the PLIC's S-mode context. The
+   * dispatcher claims, hands the source to its device, and completes; it does
+   * not schedule, because a device completion says nothing about which task
+   * should run next. The interrupted context resumes and observes whatever
+   * flag its device handler set. */
+  if (cause == SCAUSE_SUPERVISOR_EXTERNAL) {
+    plic_dispatch();
     return trap_frame;
   }
 
@@ -707,7 +722,16 @@ void kmain(void) {
   page_init();
   allocator_total_pages = page_free_count();
   page_allocator_self_test();
+  plic_init();
   role_init();
+  /* Interrupt policy lives here rather than in the drivers: the kernel owns
+   * the controller, so it decides that role completion is source 2 on its own
+   * S-mode context.  With no controller (the ISS) or no accelerator, nothing
+   * is routed and the role driver keeps polling. */
+  if (plic_present() && role_discover() != 0) {
+    plic_route(AX_PLIC_SRC_ROLE, 1u);
+    role_enable_irq();
+  }
 #ifdef AXOS_HOSTLINK
   /* Host-managed personality: the console byte pipe carries the host-link
    * protocol instead of the interactive shell (DESIGN.md §3.3). */

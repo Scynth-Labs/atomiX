@@ -33,6 +33,51 @@ allocator or scheduler state. AXFS is a flat root, so directory commands are
 deliberately absent; runtime-created and copied files remain limited to one
 512-byte sector.
 
+## Interrupts
+
+Two controllers reach the kernel, and they arrive by different routes because
+the architecture allows only one of them to be delegated.
+
+The CLINT owns the machine timer, and `mtime`/`mtimecmp` are M-mode state that
+cannot be delegated to S-mode. A small M-mode shim in [trap.S](trap.S)
+therefore re-arms the timer and raises delegated `SSIP`, which the kernel takes
+as its scheduler tick — machine-owned hardware, S-mode policy.
+
+Device interrupts need no such shim. The shell's PLIC has a supervisor context
+(context 1, at the QEMU-virt addresses), so `mideleg` bit 9 delegates the
+supervisor external interrupt and the kernel claims and completes directly from
+S-mode. That is deliberate rather than incidental: QEMU's `virt` machine wires
+context 1 the same way, so the identical driver runs on QEMU and on the RTL,
+which is the three-platform rule applied to interrupts.
+
+[plic.c](plic.c) is the driver. `plic_dispatch` claims, hands the source to its
+device, and completes — in that order, because the sources are level-sensitive
+and completing a device that is still asserting simply re-arms it. It does not
+schedule: a device completion says nothing about which task should run next.
+
+The kernel does not carry its own copy of the interrupt numbering. Which device
+is which source, and which context maps to which privilege, is declared once in
+the SoC component that does the wiring, and `tools/gen_irq_map.py` derives
+`build/ax_irq_map.h` from it — so adding a device is an edit to the shell alone.
+The generator also checks the ids cover their declared range exactly, which
+turns "added a source and forgot to bump the count" from a silently unreachable
+interrupt into a build failure that names the problem. `SOC_TOP` selects a
+different shell's map; the default is the reference one, since the kernel image
+is otherwise hardware-profile-independent.
+
+The PLIC is probed once at boot through the same recoverable-load path the role
+window uses, so its absence is an ordinary configuration rather than a failure.
+The ISS models no PLIC at all; there, and in any profile without one, drivers
+fall back to polling and behave identically at more cost.
+
+The Primer monitor personality goes further and omits the driver at build time.
+It has a 32 KiB image whose allocator pool begins on a 4 KiB boundary, so text
+it never executes costs a whole page of allocatable memory; since it has no
+interrupt policy of its own, `plic.c` is left out of its `SOURCES` and the
+interrupt-driven wait is compiled out of [role.c](role.c). `make -C sw/kernel
+check-primer` holds that budget — the monitor image is byte-for-byte the size
+it was before this existed.
+
 ## Role control plane
 
 `role` is the first piece of the shell + role control plane (DESIGN.md §3.3):
@@ -47,10 +92,25 @@ The shell `role` command drives a loopback self-test. U-mode programs use
 `role_info`, `role_submit`, and `role_wait`; the kernel validates and copies
 the same loopback, TPU GEMM, and GPU kernel encodings used by the host link, so
 neither userspace nor the host daemon receives raw MMIO access. Completion is
-tokenized and retry-safe, with bounded polling under the current hardware.
-Evidence: `make -C sw/kernel check-role-driver` runs both the resident-shell and
-U-mode paths against RTL `role.loopback`; `check-hostlink` covers all three
-role job formats.
+tokenized and retry-safe.
+
+Waiting for a job is interrupt-driven where it can be. When both a role and a
+PLIC are present, `role_init` routes the role's completion line to the
+supervisor context and `role_wait_done` sleeps in `wfi` until the handler
+reports the job, instead of reading `STATUS` in a loop. The test-and-sleep race
+is closed by dropping `sstatus.SIE` around the check, since `wfi` still wakes on
+a pending enabled interrupt. Two cases deliberately keep polling: a syscall runs
+with interrupts masked, so the `role_submit` path would never observe the
+handler, and re-enabling interrupts underneath a half-finished syscall is not
+worth the re-entrancy; and a platform without a PLIC has nothing to wait on.
+Both paths stay bounded so a wedged device cannot hang the kernel.
+
+The shell reports which one happened — `irq=N polled=M` after a loopback copy —
+so "waited on the interrupt" is checkable rather than assumed. Evidence:
+`make -C sw/kernel check-role-driver` runs both the resident-shell and U-mode
+paths against RTL `role.loopback`; `check-role-irq` runs two consecutive jobs
+and requires `irq=2 polled=0`, which fails if the source is not completed and
+re-armed between them; `check-hostlink` covers all three role job formats.
 
 The initial immutable RAM disk is a named-file table. An optional AXFS v1 SD
 image path runs on cached external-memory RTL: `check-storage` mounts `motd`,

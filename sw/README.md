@@ -11,8 +11,8 @@ note.
 |---|---|---|
 | [baremetal/](baremetal/) | crt0, linker scripts, bring-up programs | the target (no OS) |
 | [kernel/](kernel/) | `aXos` — our monolithic kernel | the target |
-| [user/](user/) | planned separately linked userland; current shell/demo live in aXos | the target, under aXos |
-| [host/](host/) | planned `axhost` driver/daemon + role libraries | the host PC |
+| [user/](user/) | separately linked userland; the shipped programs still live beside the kernel in `kernel/userprog/` | the target, under aXos |
+| [host/](host/) | `axhost` — host-link driver and kernel uploader | the host PC |
 
 Three-platform rule (DESIGN.md §3.1): target software must run unchanged on
 aXsim, QEMU `-machine virt`, and the RTL — never `#ifdef` per platform; if it

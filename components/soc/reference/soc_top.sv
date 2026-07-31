@@ -69,7 +69,26 @@ module soc_top #(
   logic d_rom_valid, d_ram_valid, d_test_valid, d_clint_valid, d_uart_valid, d_spi_valid;
   logic d_plic_valid, d_plic_ready, d_plic_err;
   logic [31:0] d_plic_rdata;
-  logic plic_irq, uart_irq_rx, role_irq;
+  // ---- Shell interrupt map ---------------------------------------------------
+  // The single declaration of which device is which interrupt, and which core
+  // input each target drives.  tools/gen_irq_map.py parses these localparams
+  // and generates the C header the bare-metal runtime and aXos both include, so
+  // a device added here reaches every software tree without a second list to
+  // keep in step.  It also checks the ids cover their range exactly, which is
+  // what catches adding a source and forgetting to bump the count.
+  //
+  // Sources are numbered from 1: the PLIC spec reserves id 0 for "no
+  // interrupt".  Contexts follow the QEMU-virt single-hart layout.
+  localparam int unsigned PLIC_SRC_UART = 1;  // receive holding register full
+  localparam int unsigned PLIC_SRC_ROLE = 2;  // held while role STATUS.DONE
+  localparam int unsigned PLIC_SOURCES  = 2;
+
+  localparam int unsigned PLIC_CTX_M    = 0;  // hart 0 machine mode
+  localparam int unsigned PLIC_CTX_S    = 1;  // hart 0 supervisor mode
+  localparam int unsigned PLIC_CONTEXTS = 2;
+
+  logic [PLIC_CONTEXTS-1:0] plic_irq;
+  logic uart_irq_rx, role_irq;
   logic i_role_valid, d_role_valid;
   logic i_rom_ready, i_rom_err, i_ram_ready, i_ram_err, i_test_ready, i_test_err;
   logic i_clint_ready, i_clint_err, i_uart_ready, i_uart_err;
@@ -101,7 +120,8 @@ module soc_top #(
     .irq_software(irq_software), .irq_timer(irq_timer),
     // The board/testbench line and the on-chip controller are both sources of
     // the same machine-external interrupt; the core sees their union.
-    .irq_external(irq_external || plic_irq), .trace_valid(core_trace_valid),
+    .irq_external(irq_external || plic_irq[PLIC_CTX_M]),
+    .irq_s_external(plic_irq[PLIC_CTX_S]), .trace_valid(core_trace_valid),
     .trace_trap(core_trace_trap), .trace_insn(core_trace_insn)
   );
   // verilator lint_on PINMISSING
@@ -275,11 +295,21 @@ module soc_top #(
     .irq(role_irq)
   );
 
-  // Device interrupts converge here and reach the core as irq_external.  Source
-  // 1 is the UART receiver; source 2 is role completion, held while the role's
-  // STATUS.DONE stands.  role.none ties its line low, so a profile with no
-  // accelerator still presents a well-defined source.
-  plic #(.SOURCES(2)) u_plic (
+  // Device interrupts converge here, indexed by source id rather than
+  // concatenated: a concatenation would encode the numbering a second time, in
+  // bit order, where reordering it silently remaps every device.  This vector
+  // is declared [SOURCES:1] so an index reads as the source id it is, and its
+  // LSB still lands on the PLIC's `sources[0]`.  role.none ties its line low,
+  // so a profile with no accelerator still presents a well-defined source.
+  logic [PLIC_SOURCES:1] plic_sources;
+  assign plic_sources[PLIC_SRC_UART] = uart_irq_rx;
+  assign plic_sources[PLIC_SRC_ROLE] = role_irq;
+
+  // Context 0 drives the core's machine external interrupt and context 1 its
+  // supervisor external interrupt.  A bare-metal program owns context 0; aXos
+  // runs in S-mode and owns context 1, which is what lets it claim and complete
+  // without an M-mode round trip.
+  plic #(.SOURCES(PLIC_SOURCES), .CONTEXTS(PLIC_CONTEXTS)) u_plic (
     .clk(clk), .rst(rst),
     .i_valid(i_plic_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
     .i_wstrb(i_bus_wstrb), .i_ready(i_plic_ready), .i_rdata(i_plic_rdata),
@@ -287,7 +317,7 @@ module soc_top #(
     .d_valid(d_plic_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata),
     .d_wstrb(d_bus_wstrb), .d_ready(d_plic_ready), .d_rdata(d_plic_rdata),
     .d_err(d_plic_err),
-    .sources({role_irq, uart_irq_rx}),
+    .sources(plic_sources),
     .irq_external(plic_irq)
   );
 

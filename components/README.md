@@ -9,10 +9,12 @@ remain project roots because their build contract includes startup code,
 linker scripts, and produced images. The manifest, not a particular build
 directory, is the integration boundary.
 
-The built-in selections are deliberately modest: the verified five-stage CPU,
-reference SoC shell, three reference memory modes, standard peripherals,
-simulation/ULX3S boards and harnesses, SoC infrastructure, and aXos service
-policies.
+The built-in selections cover the verified five-stage CPU and two alternative
+RISC-V cores (`core.minimal`, the compact multi-cycle accelerator host, and
+`core.ax2`, the dual-issue superscalar family), the reference SoC shell, three
+reference memory modes, three cache policies, standard peripherals including
+the CLINT and PLIC, accelerator roles, simulation/ULX3S/Tang Nano/Tang Primer
+boards and harnesses, SoC infrastructure, and aXos service policies.
 `core.finisher-smoke` is a deliberately tiny,
 non-RISC-V composition example: it proves an alternate CPU source can replace
 the reference core, but is explicitly not a software-compatible CPU.
@@ -51,7 +53,7 @@ module is plugged in:
 
 | Selection | Stock integration module | Purpose |
 |---|---|---|
-| `core` | `axcore` | instruction/data aXbus masters, interrupt inputs, and the small commit signal set used for `fence.i` |
+| `core` | `axcore` | instruction/data aXbus masters, interrupt inputs (software, timer, machine-external, and supervisor-external — a machine-mode-only core accepts the last and ignores it), and the small commit signal set used for `fence.i` |
 | `alu` | `alu` | combinational RV32I integer operations inside the reference core's EX stage |
 | `muldiv` | `muldiv` | RV32M execution unit behind a latency-tolerant `start/busy/done` handshake |
 | `regfile` | `regfile` | 2R1W register file, x0 hardwired, write-before-read bypass |
@@ -63,8 +65,9 @@ module is plugged in:
 | `finisher` | `test_finisher` | simulation termination endpoint |
 | `uart` | `uart` | UART0 aXbus device and byte-level RX/TX sideband |
 | `clint` | `clint` | CLINT aXbus device plus software/timer IRQs |
+| `plic` | `plic` | external-interrupt controller: per-source priority/enable/threshold, claim-complete, a level-sensitive `sources` input driven by the shell's devices, and one `irq_external` delivery line per target context |
 | `spi` | `axspi` | SPI0 aXbus device and four SPI pins |
-| `role` | `axrole` | accelerator in the fixed 64 KiB window at `0x4000_0000`: `ROLE_ID`/`VERSION`/`DOORBELL`/`STATUS` header, then role-defined registers and windows |
+| `role` | `axrole` | accelerator in the fixed 64 KiB window at `0x4000_0000`: `ROLE_ID`/`VERSION`/`DOORBELL`/`STATUS` header, then role-defined registers and windows, plus a level-sensitive `irq` line held while `STATUS.DONE` stands |
 | `soc` | `soc_top` | complete-SoC simulation/board shell |
 | `software` | its own Make target and produced image(s) | payload built independently, then supplied to the selected hardware profile |
 | `harness` | selected simulation top + C++ testbench | simulation environment kept separate from board RTL |
@@ -87,9 +90,11 @@ functional units (`alu.single-cycle`, `muldiv.iterative32`,
 with one line while a one-line addition swaps a single unit —
 `configs/sim-fastmul.json` does exactly that, selecting the
 single-cycle-multiply `muldiv.fast-mul` unit. `soc.reference` likewise
-defaults `role` to `role.none` (the role window reads `ROLE_ID` = 0), and
-`configs/sim-role-loopback.json` swaps in `role.loopback`, the accelerator
-contract proof driven by `make -C sw/baremetal check-role`. An explicit
+defaults `role` to `role.none` (the role window reads `ROLE_ID` = 0) and
+`plic` to `plic.qemu-virt`, so a profile inherits a working interrupt
+controller without naming one; `configs/sim-role-loopback.json` swaps in
+`role.loopback`, the accelerator contract proof driven by
+`make -C sw/baremetal check-role` and `check-role-irq`. An explicit
 selection always wins over a default, and if two selected components default
 the same kind differently the resolver requires the profile to choose.
 A swapped functional unit re-runs through the same lock-step cosimulation,

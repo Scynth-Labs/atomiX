@@ -5,6 +5,7 @@
 /* Shared aXbus/QEMU-virt-compatible device addresses. */
 #define AX_TEST_BASE  0x00100000u
 #define AX_CLINT_BASE 0x02000000u
+#define AX_PLIC_BASE  0x0c000000u
 #define AX_UART_BASE  0x10000000u
 #define AX_SPI_BASE   0x10010000u
 /* Accelerator role window (DESIGN.md §3.3): a fixed 64 KiB aXbus device that

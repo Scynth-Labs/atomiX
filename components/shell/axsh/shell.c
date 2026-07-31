@@ -146,9 +146,18 @@ static void shell_role(void) {
   uart_puts(" v");
   put_u32(role_version());
   uart_puts("\n");
-  if (id == AX_ROLE_ID_LOOPBACK)
-    uart_puts(role_loopback_selftest() == 0 ? "role: copy ok\n"
-                                            : "role: copy FAIL\n");
+  if (id == AX_ROLE_ID_LOOPBACK) {
+    const int copied = role_loopback_selftest();
+    uart_puts(copied == 0 ? "role: copy ok" : "role: copy FAIL");
+    /* Report how the completion was observed. This is the difference between
+     * "the job finished" and "the job finished without polling the device",
+     * which is the property the interrupt path exists to provide. */
+    uart_puts(" irq=");
+    put_u32(role_irq_waits());
+    uart_puts(" polled=");
+    put_u32(role_polled_waits());
+    uart_puts("\n");
+  }
 }
 
 static void shell_cat(const char *name) {

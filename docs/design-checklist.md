@@ -324,6 +324,39 @@ Use this for a substantive implementation or interface change:
   through the interrupt).  Both are mutation-tested: reverting the source to
   tied-low no longer builds, and a role that never asserts fails with the
   specific check that caught it.
+- [x] The interrupt reaches aXos, not just a bare-metal program.  The PLIC now
+  has two targets at the QEMU-virt strides — context 0 is hart 0's machine
+  context and context 1 its supervisor context — and the reference core gained
+  an `irq_s_external` input that drives `mip.SEIP`, so `mideleg` bit 9 delegates
+  the interrupt and the S-mode kernel claims and completes with no M-mode round
+  trip.  That is what keeps the same driver code running on QEMU, whose `virt`
+  machine wires context 1 the same way.  `role_wait_done` sleeps in `wfi`
+  instead of polling `STATUS`, closing the test-and-sleep race by dropping
+  `sstatus.SIE` around it.  Deliberate limits, stated rather than implied: a
+  syscall runs with interrupts masked, so the userspace `role_submit` path
+  still polls rather than having interrupts re-enabled underneath a
+  half-finished syscall; and the ISS models no PLIC, so it falls back to
+  polling through the same recoverable-probe path the role window already uses.
+  Evidence: `make -C sw/kernel check-role-irq` — two consecutive shell jobs
+  reporting `irq=2 polled=0`, so the completions arrived as interrupts and
+  `STATUS` was never read.  Mutation-tested: dropping the PLIC COMPLETE lets
+  the first job pass and hangs the second, which is why the check runs two.
+  `make -C sim/unit run-plic` covers the second context directly (independent
+  enable, threshold, and claim state; a source claimed by one context stops
+  being pending for the other).
+- [x] The interrupt map has one authority rather than a copy per consumer.
+  Which device is which source, and which context carries which privilege, is
+  declared once as `PLIC_SRC_*`/`PLIC_CTX_*` localparams in the selected `soc`
+  component; `tools/gen_irq_map.py` derives the C header the bare-metal runtime
+  and aXos both include, and the shell indexes its `sources` vector by id rather
+  than concatenating it, so bit order cannot encode the numbering a second time.
+  The generator validates that source ids cover `1..PLIC_SOURCES` and context
+  ids `0..PLIC_CONTEXTS-1` exactly, so adding a source without bumping the count
+  fails the build naming the problem instead of leaving the top source silently
+  unreachable.  Evidence: renumbering the shell's sources and rebuilding moves
+  every software tree with it — `check-role-irq` passes with role on source 1
+  and no C file changed — and the three drift cases (extra source, duplicate id,
+  shell with no map) each exit nonzero with a specific message.
 - [ ] Evaluate A or C ISA extensions only when their enabling need is explicit;
   neither is required for the current single-hart reference machine.
 

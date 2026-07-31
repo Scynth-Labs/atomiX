@@ -92,7 +92,7 @@ jobs:
         run: make -C sw/baremetal check-role check-role-irq
 
       - name: aXos shell, role driver, and host-link
-        run: make -C sw/kernel check-shell check-role-driver check-hostlink
+        run: make -C sw/kernel check-shell check-role-driver check-role-irq check-hostlink
 
       - name: aXos 32 KiB primer image and UART kernel upload
         run: make -C sw/kernel check-primer check-uartboot

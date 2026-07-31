@@ -42,7 +42,15 @@ custom component may define its own knobs without changing the common resolver.
 |---|---|
 | `sim-bram.json` | reference CPU and SoC with 128 KiB BRAM |
 | `sim-fastmul.json` | the BRAM machine with one line changed: `muldiv.fast-mul` replaces the core's default mul/div unit |
+| `sim-minimal.json` | the compact multi-cycle `core.minimal` in place of the reference CPU |
+| `sim-ax2.json` | the dual-issue `core.ax2` in place of the reference CPU |
 | `sim-role-loopback.json` | the BRAM machine with `role.loopback` in the accelerator window instead of the default `role.none` |
+| `sim-tpu-lite.json` | reference CPU plus the folded int8 GEMM role (`check-tpu`) |
+| `sim-gpu-compute.json` | reference CPU plus the SIMT vector role (`check-gpu`) |
+| `sim-ax2-gpu1.json` | dual-issue CPU plus the banked SIMT role (`check-gpu1`) |
+| `sim-minimal-gpu.json` | minimal host plus the SIMT role — the Tang GPU pairing in simulation |
+| `sim-minimal-tpu.json` | minimal host plus the TPU role — the Tang TPU pairing in simulation |
+| `sim-primer-runtime-gpu.json` | the Primer runtime platform in simulation: ROM reset, blank RAM, 1-lane programmable GPU |
 | `sim-delayed.json` | 32 MiB delayed backing store plus I/D caches |
 | `sim-delayed-passthrough-cache.json` | delayed memory with the transparent cache implementation |
 | `sim-sdram.json` | x16 SDRAM controller against the behavioral SDRAM model |
@@ -50,6 +58,8 @@ custom component may define its own knobs without changing the common resolver.
 | `sim-hello.json` | reference BRAM machine plus selectable bare-metal payload |
 | `sim-axos.json` | reference SDRAM machine plus selectable aXos SD-boot payload |
 | `ulx3s-85f.json` | ULX3S/ECP5 board implementation and constraints |
+| `ulx3s-85f-gpu.json` | ULX3S with a minimal host and the SIMT GPU role |
+| `ulx3s-85f-tpu.json` | ULX3S with the reference CPU and the TPU-lite role |
 | `tangnano20k.json` | Tang Nano 20K/GW2A BRAM-only board target |
 | `tangnano20k-gpu.json` | Nano max GPU: minimal host plus 6-lane SIMT engine |
 | `tangnano20k-tpu.json` | Nano max TPU: folded 24-MAC int8 GEMM engine |
@@ -60,6 +70,7 @@ custom component may define its own knobs without changing the common resolver.
 | `tangprimer25k-tpu.json` | Primer max TPU: folded 24-MAC int8 GEMM engine |
 | `kernel-default.json` | aXos round-robin scheduling with the reference Sv32 VM |
 | `kernel-cooperative.json` | aXos cooperative-until-blocked scheduling with the reference Sv32 VM |
+| `kernel-primer-monitor.json` | aXos sized for the Primer's 32 KiB RAM, with the compact `shell.monitor` console |
 
 Validate before building:
 

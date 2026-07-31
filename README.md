@@ -27,8 +27,10 @@ atomiX is a from-scratch RISC-V computer that grows into a reconfigurable FPGA
 platform.  The reference build includes a five-stage CPU, SoC, bare-metal
 runtime, and the aXos kernel.  The longer-term platform keeps that computer as
 the management shell while accelerator roles attach at a defined boundary —
-the role window is live today (`role.loopback` proves it), with TPU-lite and
-GPU-compute engines implemented and verified as selectable roles.
+the role window is live today (`role.loopback` proves it), with TPU-lite,
+GPU-compute, and the banked-memory gpu1 family implemented and verified as
+selectable roles.  Their completion is available either polled or as a machine
+external interrupt through the shell's PLIC.
 The normal reconfiguration path is now program loading, not synthesis:
 `make runtime-primer` uploads one 32 KiB aXos payload into a stable RTL image,
 then loads, runs, replaces, and re-runs GPU microcode in milliseconds.

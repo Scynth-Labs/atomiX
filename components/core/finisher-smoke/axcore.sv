@@ -25,6 +25,7 @@ module axcore #(
   input  logic        irq_software,
   input  logic        irq_timer,
   input  logic        irq_external,
+  input  logic        irq_s_external,
   output logic        trace_valid,
   output logic        trace_trap,
   output logic [31:0] trace_insn
@@ -53,6 +54,7 @@ module axcore #(
   // Intentional no-op inputs make this small module useful as a template.
   // verilator lint_off UNUSED
   wire unused_inputs = ^{ibus_ready, ibus_rdata, ibus_err, dbus_rdata,
-                         dbus_err, irq_software, irq_timer, irq_external};
+                         dbus_err, irq_software, irq_timer, irq_external,
+                         irq_s_external};
   // verilator lint_on UNUSED
 endmodule

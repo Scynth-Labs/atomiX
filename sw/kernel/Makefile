@@ -31,6 +31,16 @@ SD_IMAGE ?=
 FS_BLOCK ?= 0
 BOOT_FS_BLOCK ?= 128
 
+# The shell's interrupt numbering is declared in the SoC component that wires
+# it; the header is derived from there rather than restated here. The kernel
+# image is hardware-profile-independent, so it targets the reference shell's map
+# by default -- point SOC_TOP at another shell to build against its.
+SOC_TOP ?= ../../components/soc/reference/soc_top.sv
+IRQ_MAP := $(BUILD_DIR)/ax_irq_map.h
+
+$(IRQ_MAP): $(SOC_TOP) ../../tools/gen_irq_map.py | $(BUILD_DIR)
+	$(PYTHON) ../../tools/gen_irq_map.py --soc $(SOC_TOP) --output $@
+
 HOSTLINK ?= 0
 CPPFLAGS := -Iinclude -I$(BUILD_DIR) -DAXOS_SD=$(STORAGE) -DAXFS_BLOCK=$(FS_BLOCK)
 ifeq ($(KERNEL_MODE),monitor)
@@ -85,10 +95,14 @@ ELF := $(BUILD_DIR)/axos_boot.elf
 BIN := $(ELF:.elf=.bin)
 HEX := $(ELF:.elf=.hex)
 ifeq ($(KERNEL_MODE),monitor)
+# The monitor personality has a 32 KiB image budget and no interrupt policy of
+# its own: it never routes a source, so the PLIC driver is left out entirely
+# rather than linked and garbage-collected.  Role waits there stay polled,
+# exactly as they do on any platform without a controller.
 SOURCES := boot.S trap.S monitor.c role.c \
            $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES)
 else
-SOURCES := boot.S trap.S user.S kernel.c role.c $(COMPONENT_SYSCALL_SOURCES) \
+SOURCES := boot.S trap.S user.S kernel.c plic.c role.c $(COMPONENT_SYSCALL_SOURCES) \
            $(COMPONENT_LOADER_SOURCES) \
            $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES) \
            $(COMPONENT_FILESYSTEM_SOURCES) $(COMPONENT_BLOCK_SOURCES) \
@@ -101,7 +115,7 @@ endif
 all: $(ELF)
 images: $(BIN) $(HEX)
 
-$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/hostlink.h include/kernel_info.h include/process.h | $(BUILD_DIR)
+$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) $(IRQ_MAP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/plic.h include/hostlink.h include/kernel_info.h include/process.h | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
 
 $(BIN): $(ELF)
@@ -175,6 +189,13 @@ check-role-driver: images
 	$(MAKE) -B images STORAGE=0
 	python3 check_role_driver.py
 
+# The same driver, but the claim underneath it: completion arrives as a
+# supervisor external interrupt through the PLIC's S-mode context, and two
+# consecutive jobs prove the level-sensitive source is completed and re-armed.
+check-role-irq: images
+	$(MAKE) -B images STORAGE=0
+	python3 check_role_irq.py
+
 # RTL-only: build the host-managed personality and drive it with axhost over
 # the simulated console byte pipe (the virtual-pipe transport), against
 # role.loopback.  Proves the whole host -> shell -> role control plane.
@@ -245,4 +266,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean

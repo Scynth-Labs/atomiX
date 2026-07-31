@@ -18,7 +18,7 @@ EXPECTED = (
     "aXos: shell online\n"
     "aXos> role\n"
     "role: loopback v1\n"
-    "role: copy ok\n"
+    "role: copy ok irq=1 polled=0\n"
     "aXos> exec hello.elf\n"
     "exec: role-user: loopback ok\n"
     "axlibc: pid=1 n=42 hex=beef str=reused motd=17\n"

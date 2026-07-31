@@ -23,8 +23,8 @@ enum {
 extern void s_entry(void);
 extern void machine_timer_trap(void);
 extern void shell_run(void);
-extern void role_probe_fault(void);
-extern volatile uint32_t role_probe_active;
+extern void mmio_probe_fault(void);
+extern volatile uint32_t mmio_probe_active;
 
 static volatile uint32_t supervisor_ticks;
 static uint32_t allocator_total_pages;
@@ -116,9 +116,9 @@ static void put_hex32(uint32_t value) {
 
 uint32_t *supervisor_trap(uint32_t *trap_frame) {
   const uint32_t cause = csr_read_scause();
-  if (cause == SCAUSE_LOAD_ACCESS_FAULT && role_probe_active) {
+  if (cause == SCAUSE_LOAD_ACCESS_FAULT && mmio_probe_active) {
     __asm__ volatile("csrw sepc, %0" ::
-                     "r"((uint32_t)(uintptr_t)role_probe_fault));
+                     "r"((uint32_t)(uintptr_t)mmio_probe_fault));
     return trap_frame;
   }
   if (cause == SCAUSE_SUPERVISOR_SOFTWARE) {

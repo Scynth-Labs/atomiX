@@ -49,6 +49,9 @@ module axcore #(
   input  logic        irq_software,
   input  logic        irq_timer,
   input  logic        irq_external,
+  // Supervisor external interrupt from the PLIC's S-mode context. A core
+  // without S-mode ignores it; this one routes it to mip.SEIP.
+  input  logic        irq_s_external,
 
   // Commit trace for lock-step cosimulation.  `trace_valid` marks exactly
   // one architectural event: either a retirement or a precise trap.
@@ -572,7 +575,7 @@ module axcore #(
     .mret_en(mret_now), .sret_en(sret_now),
     .mepc_out(mepc_out), .sepc_out(sepc_out),
     .retire(retire), .irq_software(irq_software), .irq_timer(irq_timer),
-    .irq_external(irq_external),
+    .irq_external(irq_external), .irq_s_external(irq_s_external),
     .irq_take(csr_irq_take), .irq_cause(csr_irq_cause),
     .prv(csr_prv), .satp_out(csr_satp),
     .state_mstatus(csr_mstatus), .state_mtvec(csr_mtvec),

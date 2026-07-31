@@ -48,10 +48,14 @@ void vm_bootstrap_map(volatile uint32_t *root_pt, volatile uint32_t *low_pt) {
   const uint32_t kernel_flags = PTE_V | PTE_R | PTE_W | PTE_X | PTE_A | PTE_D;
   const uint32_t device_flags = PTE_V | PTE_R | PTE_W | PTE_A | PTE_D;
 
-  /* Kernel RAM, UART, and CLINT are superpages. The finisher uses one L0 PTE. */
+  /* Kernel RAM, UART, CLINT, and PLIC are superpages. The finisher uses one
+   * L0 PTE.  The PLIC's 4 MiB aperture is exactly one Sv32 superpage, and
+   * nothing in user space claims 0x0c00_0000, so it is identity-mapped like
+   * the other devices rather than aliased the way the role window is. */
   root_pt[0x200] = pte_leaf(0x80000000u, kernel_flags);
   root_pt[0x040] = pte_leaf(AX_UART_BASE, device_flags);
   root_pt[0x008] = pte_leaf(AX_CLINT_BASE, device_flags);
+  root_pt[AX_PLIC_BASE >> 22] = pte_leaf(AX_PLIC_BASE, device_flags);
   /* Accelerator role window: map its physical 0x4000_0000 aperture through a
    * kernel-only 0x5000_0000 alias.  User executables occupy virtual
    * 0x4000_0000, and syscalls keep the process page table active, so an

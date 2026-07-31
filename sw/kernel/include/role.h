@@ -86,6 +86,22 @@ const char *role_name(uint32_t role_id);
 void role_init(void);               /* safely probe whether the MMIO window exists */
 int role_loopback_selftest(void);   /* 0 = copy verified, -1 = mismatch */
 
+/* How completions were actually observed, so "waited on the interrupt" is
+ * evidence rather than an assumption.  role_irq_waits counts jobs finished by
+ * the PLIC handler; role_polled_waits counts those that fell back to reading
+ * STATUS, which is what a profile without a controller (or a caller running
+ * with interrupts masked) still does. */
+uint32_t role_irq_waits(void);
+uint32_t role_polled_waits(void);
+
+/* Called from plic_dispatch with the role source claimed. */
+void role_irq_complete(void);
+
+/* Let completions be waited on instead of polled.  The kernel calls this once
+ * it has routed the role's source to its own interrupt context; until then,
+ * and in any personality that never calls it, waits stay polled. */
+void role_enable_irq(void);
+
 /* Drive one loopback copy over caller-supplied data: write `words` inputs into
  * the role buffer, run the copy, and read the results back.  Used by the
  * host-link service to run a job on behalf of a remote request. */

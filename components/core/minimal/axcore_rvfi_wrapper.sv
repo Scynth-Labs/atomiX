@@ -53,6 +53,7 @@ module rvfi_wrapper (
     .dbus_wstrb(dbus_wstrb), .dbus_ready(1'b1), .dbus_rdata(dbus_rdata),
     .dbus_err(1'b0),
     .irq_software(1'b0), .irq_timer(1'b0), .irq_external(1'b0),
+    .irq_s_external(1'b0),
     .trace_valid(), .trace_trap(), .trace_insn(),
     .rvfi_valid(rvfi_valid), .rvfi_order(rvfi_order), .rvfi_insn(rvfi_insn),
     .rvfi_trap(rvfi_trap), .rvfi_halt(rvfi_halt), .rvfi_intr(rvfi_intr),

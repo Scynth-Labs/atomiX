@@ -4,7 +4,16 @@ RAM_BYTES    ?= 131072
 CC      := $(RISCV_PREFIX)gcc
 OBJCOPY := $(RISCV_PREFIX)objcopy
 
-CPPFLAGS := -Iinclude
+CPPFLAGS := -Iinclude -I$(BUILD_DIR)
+
+# The shell's interrupt numbering is declared in the SoC component that wires
+# it; the header is derived from there rather than restated here. Point SOC_TOP
+# at a different shell to build against its map.
+SOC_TOP  ?= ../../components/soc/reference/soc_top.sv
+IRQ_MAP  := $(BUILD_DIR)/ax_irq_map.h
+
+$(IRQ_MAP): $(SOC_TOP) ../../tools/gen_irq_map.py | $(BUILD_DIR)
+	python3 ../../tools/gen_irq_map.py --soc $(SOC_TOP) --output $@
 # RISCV_ARCH is probed in mk/toolchain.mk, because the Zicsr spelling this
 # needs depends on the compiler generation rather than on anything we choose.
 CFLAGS   := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
@@ -21,7 +30,7 @@ HEXS     := $(ELFS:.elf=.hex)
 all: $(ELFS)
 images: $(BINS) $(HEXS)
 
-$(BUILD_DIR)/%.elf: crt0.S traps.S runtime.c examples/%.c link.ld include/platform.h include/bench_report.h include/csr.h include/clint.h include/role.h include/plic.h | $(BUILD_DIR)
+$(BUILD_DIR)/%.elf: crt0.S traps.S runtime.c examples/%.c link.ld include/platform.h include/bench_report.h include/csr.h include/clint.h include/role.h include/plic.h $(IRQ_MAP) | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ crt0.S traps.S runtime.c examples/$*.c
 
 $(BUILD_DIR)/%.bin: $(BUILD_DIR)/%.elf

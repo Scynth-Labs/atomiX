@@ -1,7 +1,8 @@
 # rtl/ — synthesizable hardware
 
 Synthesizable hardware lives in component folders, with this directory holding
-the generic FPGA flow, architecture notes, and future role area. All authored
+the generic FPGA flow and the architecture signposts for the core, SoC, and
+role areas. All authored
 SystemVerilog stays within the Yosys-synthesizable subset: synchronous
 single-clock design, BRAM-shaped memories, no latches. Everything must pass
 both Verilator (simulation) and Yosys (synthesis) — that dual gate is what
@@ -11,7 +12,7 @@ keeps us FPGA-portable.
 |---|---|
 | [../components/core/](../components/core/) | Replaceable `aXcore` implementations |
 | [../components/](../components/README.md) | SoC shell, fabric, memory, peripherals, and board implementations |
-| [roles/](roles/) | Swappable accelerator roles (loopback, TPU-lite, …) |
+| [roles/](roles/) | Swappable accelerator roles (loopback, TPU-lite, GPU-compute, gpu1) |
 | [soc/](soc/) | SoC architecture notes and integration entry point |
 | [fpga/](fpga/) | Generic ECP5 synthesis, P&R, and programming flow |
 

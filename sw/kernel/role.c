@@ -4,30 +4,141 @@
  * role.none window.  role_init performs one recoverable load before userspace
  * starts and remembers whether MMIO exists; later discovery can then remain
  * live for role swapping without risking a fault from inside a syscall. */
-volatile uint32_t role_probe_active;
+volatile uint32_t mmio_probe_active;
 static int role_window_present;
 static uint32_t gpu_loaded_ninsn;
 
-extern int role_probe_read32(uint32_t addr, uint32_t *value);
+/* The monitor personality is a 32 KiB image whose page pool starts on a
+ * 4 KiB boundary, so a hundred bytes of text it never executes costs a whole
+ * page of allocatable memory.  It has no interrupt policy -- it never routes a
+ * source -- so the interrupt-driven wait is compiled out rather than linked
+ * and left unreachable.  Waits there are polled, exactly as they are on any
+ * platform without a controller. */
+#ifndef AXOS_MONITOR
+#define ROLE_IRQ_WAIT 1
+#endif
+
+#ifdef ROLE_IRQ_WAIT
+/* Wait accounting exists so "waited on the interrupt" is evidence rather than
+ * an assumption.  Only a personality that can take the interrupt reports it,
+ * so the counters go with the rest of the machinery. */
+static uint32_t role_polled_wait_count;
+
+/* Set by the PLIC handler when the role's completion interrupt arrives.  The
+ * waiter only ever reads it, so a plain volatile flag is enough: there is one
+ * hart, and the handler cannot interleave with itself. */
+static volatile uint32_t role_irq_done;
+static int role_irq_routed;
+static uint32_t role_irq_wait_count;
+#endif
+
+extern int mmio_probe_read32(uint32_t addr, uint32_t *value);
 
 void role_init(void) {
   uint32_t ignored;
-  role_window_present = role_probe_read32(AX_ROLE_ID, &ignored);
+  role_window_present = mmio_probe_read32(AX_ROLE_ID, &ignored);
   gpu_loaded_ninsn = 0;
+#ifdef ROLE_IRQ_WAIT
+  role_irq_done = 0;
+  role_irq_routed = 0;
+#endif
+}
+
+/* Whether completion may be waited on rather than polled is the kernel's call,
+ * not the driver's: it owns the interrupt controller and decides which source
+ * belongs to which context.  Keeping the decision there also keeps this file
+ * free of any reference to the PLIC driver, so the monitor links none of it. */
+void role_enable_irq(void) {
+#ifdef ROLE_IRQ_WAIT
+  role_irq_routed = role_window_present;
+#endif
+}
+
+/* Called from plic_dispatch with the role source claimed.  Clearing DONE is
+ * what makes the role drop its level-sensitive line, so it must happen here,
+ * before the PLIC COMPLETE that plic_dispatch issues on return. */
+void role_irq_complete(void) {
+#ifdef ROLE_IRQ_WAIT
+  mmio_write32(AX_ROLE_STATUS, AX_ROLE_STATUS_DONE);
+  role_irq_done = 1u;
+#endif
 }
 
 /* Generic role-header operations, shared by every role. */
-static void role_ring_doorbell(void) { mmio_write32(AX_ROLE_DOORBELL, 1u); }
+static void role_ring_doorbell(void) {
+#ifdef ROLE_IRQ_WAIT
+  role_irq_done = 0;
+#endif
+  mmio_write32(AX_ROLE_DOORBELL, 1u);
+}
 
 /* A malformed userspace request is rejected before the doorbell, but a broken
- * or partially reconfigured device must not wedge the whole kernel forever. */
+ * or partially reconfigured device must not wedge the whole kernel forever.
+ * Both waits below are bounded for that reason; the interrupt-driven one
+ * counts wakeups rather than loads, and every wakeup is a real interrupt (the
+ * scheduler tick at minimum), so the bound is much smaller. */
 #define AX_ROLE_POLL_LIMIT 10000000u
 
-static int role_wait_done(void) {
-  for (uint32_t polls = 0; polls < AX_ROLE_POLL_LIMIT; ++polls)
-    if (mmio_read32(AX_ROLE_STATUS) & AX_ROLE_STATUS_DONE) return 0;
+#ifdef ROLE_IRQ_WAIT
+#define AX_ROLE_WAIT_LIMIT 100000u
+
+#define SSTATUS_SIE (1u << 1)
+
+static inline uint32_t csr_read_sstatus(void) {
+  uint32_t value;
+  __asm__ volatile("csrr %0, sstatus" : "=r"(value));
+  return value;
+}
+
+/* Waiting on the interrupt is only possible where the interrupt can actually
+ * be delivered.  A trap handler runs with sstatus.SIE clear -- so a syscall
+ * such as role_submit does -- and there the handler would never run to set the
+ * flag.  Rather than re-enable interrupts underneath a half-finished syscall,
+ * those callers keep the polled path; only the supervisor contexts that run
+ * with interrupts on (the shell, the host-link service) sleep. */
+static int role_wait_irq(void) {
+  for (uint32_t waits = 0; waits < AX_ROLE_WAIT_LIMIT; ++waits) {
+    /* Close the window between testing the flag and sleeping: with SIE clear
+     * the completion cannot be delivered and missed in between, and wfi still
+     * wakes on any pending enabled interrupt.  Re-enabling SIE afterwards is
+     * what lets the handler actually run. */
+    __asm__ volatile("csrci sstatus, %0" :: "i"(SSTATUS_SIE));
+    if (role_irq_done) {
+      __asm__ volatile("csrsi sstatus, %0" :: "i"(SSTATUS_SIE));
+      return 0;
+    }
+    __asm__ volatile("wfi");
+    __asm__ volatile("csrsi sstatus, %0" :: "i"(SSTATUS_SIE));
+  }
   return -1;
 }
+#endif /* ROLE_IRQ_WAIT */
+
+static int role_wait_done(void) {
+#ifdef ROLE_IRQ_WAIT
+  if (role_irq_routed && (csr_read_sstatus() & SSTATUS_SIE)) {
+    const int result = role_wait_irq();
+    if (result == 0) role_irq_wait_count++;
+    return result;
+  }
+#endif
+  for (uint32_t polls = 0; polls < AX_ROLE_POLL_LIMIT; ++polls)
+    if (mmio_read32(AX_ROLE_STATUS) & AX_ROLE_STATUS_DONE) {
+#ifdef ROLE_IRQ_WAIT
+      role_polled_wait_count++;
+#endif
+      return 0;
+    }
+  return -1;
+}
+
+#ifdef ROLE_IRQ_WAIT
+uint32_t role_irq_waits(void) { return role_irq_wait_count; }
+uint32_t role_polled_waits(void) { return role_polled_wait_count; }
+#else
+uint32_t role_irq_waits(void) { return 0u; }
+uint32_t role_polled_waits(void) { return 0u; }
+#endif
 
 uint32_t role_discover(void) {
   return role_window_present ? mmio_read32(AX_ROLE_ID) : 0;
