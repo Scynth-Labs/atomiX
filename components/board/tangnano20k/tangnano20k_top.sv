@@ -44,6 +44,10 @@ module tangnano20k_top #(
     .rx_valid(uart_rx_valid), .rx_data(uart_rx_data), .rx_ready(uart_rx_ready)
   );
 
+  // cpu_idle is deliberately left unconnected: a board may gate a clock on it,
+  // and this one does not.  Verilator makes a missing pin fatal under -Wall, so
+  // say so here rather than wiring a signal nothing consumes.
+  // verilator lint_off PINMISSING
   soc_top #(
     .RESET_PC(32'h8000_0000),
     .RAM_BYTES(RAM_BYTES),
@@ -67,6 +71,7 @@ module tangnano20k_top #(
     .sdram_dq_o(), .sdram_dq_oe(), .sdram_init_done(),
     .finished(finished), .exit_code(exit_code)
   );
+  // verilator lint_on PINMISSING
 
   // Liveness aid: LED0 shows reset, LED5 a ~0.5 s heartbeat.  The documented
   // UART transcript remains the verdict.  LEDs are active-low.

@@ -344,6 +344,38 @@ Use this for a substantive implementation or interface change:
   `make -C sim/unit run-plic` covers the second context directly (independent
   enable, threshold, and claim state; a source claimed by one context stops
   being pending for the other).
+- [x] The machine idles instead of spinning.  Two halves, and neither works
+  alone.  In the core, `wfi` stopped retiring as a nop and now holds the
+  pipeline until `mip` is nonzero — *pending*, not enabled, which is what the
+  spec asks for and what lets a masked device wake the hart; the illegal case
+  (`wfi` below M-mode with `mstatus.TW`) is excluded so it still traps rather
+  than deadlocking.  In aXos, the shell's console stopped polling the UART's
+  line status: the 16550's `irq_rx` was already wired to PLIC source 1 and
+  simply unused, so the handler now drains bytes into a ring and the shell
+  parks between keystrokes.  A full ring masks the source rather than dropping
+  bytes — the UART's holding register then stops the sender, and completing a
+  source the handler cannot quiet would re-trap and starve the only context
+  able to make room.  Deliberate limits, measured rather than assumed: the
+  driver spins until an interrupt has actually been delivered once, because
+  routing a source is not proof it is the *right* source — aXos also runs on
+  QEMU's `virt`, whose PLIC numbers devices differently, and parking on that
+  assumption hung the cooperative profile.  The host-link personality stays
+  polled: it streams framed binary with no idle to reclaim, and an interrupt
+  handler on that path starves the poller of a one-byte register.  Arming a
+  tick to guarantee a wake was tried and rejected — the M-mode shim re-arms at
+  a fixed 2000 cycles, so a tick started for the console also fires through
+  every shell command, and `exec` and the AXFS write/readback both overran
+  their bounds.  Evidence: the shell's `console` command reports
+  `irq 21 polled 0 stalls 0` after a session, so input demonstrably arrived as
+  interrupts; `cpu_idle` leaves the core, the SoC, and both simulation tops so
+  a board can gate a clock on it and a simulator can stop paying for cycles in
+  which nothing can happen; and in the browser the same interaction that used
+  to accumulate 10.1M cycles now costs 52,672 with the counter *stopping* at an
+  idle prompt.  Cost, stated: the fork demo went from 492,933 cycles to
+  504,702, because a hart that parks resumes on the next tick instead of
+  spinning straight through — the bound in `check_boot.py` moved from 500,000
+  to 700,000, which had only 1.4% margin and could no longer tell "slower" from
+  "hung".
 - [x] The interrupt map has one authority rather than a copy per consumer.
   Which device is which source, and which context carries which privilege, is
   declared once as `PLIC_SRC_*`/`PLIC_CTX_*` localparams in the selected `soc`
@@ -406,13 +438,33 @@ Staged so each step has its own evidence rather than landing as one large jump:
 - [ ] **Runtime payload selection.** `RAM_INIT_FILE` is compiled into the model
   at elaboration, so changing the program today means rebuilding it.  A session
   that boots different payloads needs the image loaded at run time instead.
-- [ ] **WASM spike.** Build one profile with Emscripten, boot aXos headless
+  Solved for the browser target only, and without touching the RTL: the path
+  compiled in there is virtual (`/payload.hex`), and the model's `$readmemh`
+  reads it out of Emscripten's in-memory filesystem when the machine is
+  constructed, so the caller stages an image first and one compiled machine
+  boots any of them.  The native model still rebuilds per payload, so this stays
+  open — but the browser console, which is what needed it, no longer blocks on
+  it.
+- [x] **WASM spike.** Build one profile with Emscripten, boot aXos headless
   under Node, and compare against the 29,634-cycle / 25 ms native baseline
   recorded above.  The bet is that a 1.5–4× slowdown still leaves boot
   imperceptible; the point of the spike is to find out cheaply rather than to
   design around a guess.  Deliberately attempted against the *existing*
   Verilator first: the suite is green on 4.038, and proving the idea costs
-  nothing if the generated C++ happens to compile.
+  nothing if the generated C++ happens to compile.  It did — the Verilated C++
+  compiled under `emcc` unmodified, and no RTL, harness source, or elaboration
+  parameter differs from the native model.  Measured against the native build on
+  the same host (`make web-bench`), profile `sim-role-loopback`, three runs:
+  **27,509 cycles to the aXos prompt in 25–35 ms, against 26–27 ms native —
+  0.94–1.37× wall-clock**, effectively parity and well inside imperceptible.
+  Absolute rates move with host load and the ratio does not, so the ratio is
+  the claim.  The cycle count is identical between the two by
+  construction; it is 27,509 rather than the recorded 29,634 because the RTL and
+  the payload have moved since that measurement, which `boot.mjs` reports rather
+  than hides.  Bundle: 374 KB total — 177 KB WASM, 61 KB glue, 117 KB aXos
+  payload, 18 KB page.  Evidence:
+  `make web-check` boots headless, waits for the prompt, then runs the shell's
+  `role` twice and requires `irq=1` then `irq=2`.
 - [ ] **Toolchain currency.** The measured baseline used Verilator 4.038 (2020),
   and newer releases are materially faster.  Sequenced after the spike rather
   than before it: Verilator 5 is stricter, `sim/soc/Makefile` already carries a
@@ -420,9 +472,19 @@ Staged so each step has its own evidence rather than landing as one large jump:
   upgrade risks the whole suite before answering the question that matters.
   Install beside the packaged one (`VERILATOR=` overrides per invocation) so a
   regression is one flag to undo.
-- [ ] **Browser console.** A terminal over the same byte pipe the interactive
+- [x] **Browser console.** A terminal over the same byte pipe the interactive
   session already exposes, so a reader boots aXos in a tab with no toolchain,
-  no FPGA, and no install.
+  no FPGA, and no install.  `make web` serves it.  What makes the byte pipe
+  genuinely *the same* one is that the per-cycle body of the machine — clocking,
+  the UART handshake, the SPI sampling edge — moved into
+  `components/harness/common/soc_machine.h`, which the batch runner, the
+  interactive session, and the browser driver now all use unmodified; a front
+  end that re-implemented any of it could drift without a test noticing.  The
+  browser owns only what is browser-shaped: control is inverted so nothing holds
+  the thread, the machine is clocked in slices sized to a frame, and the page
+  throttles hard while the shell polls at an idle prompt rather than pinning a
+  core in a background tab.  Evidence: `make web-check`, and the same `role`
+  twice → `irq=1`, `irq=2` continuity proof holding in the page.
 - [ ] **Machines side by side.** The same program on several component
   selections at once, each with its own cycle count — the demonstration the
   component system exists for.

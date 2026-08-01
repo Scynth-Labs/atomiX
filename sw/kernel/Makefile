@@ -96,13 +96,15 @@ BIN := $(ELF:.elf=.bin)
 HEX := $(ELF:.elf=.hex)
 ifeq ($(KERNEL_MODE),monitor)
 # The monitor personality has a 32 KiB image budget and no interrupt policy of
-# its own: it never routes a source, so the PLIC driver is left out entirely
-# rather than linked and garbage-collected.  Role waits there stay polled,
-# exactly as they do on any platform without a controller.
+# its own: it never routes a source, so the PLIC and console drivers are left
+# out entirely rather than linked and garbage-collected.  Role waits and
+# console reads there stay polled, exactly as they do on any platform without a
+# controller -- which is also why this personality selects shell.monitor rather
+# than shell.axsh, the shell that reads through the console driver.
 SOURCES := boot.S trap.S monitor.c role.c \
            $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES)
 else
-SOURCES := boot.S trap.S user.S kernel.c plic.c role.c $(COMPONENT_SYSCALL_SOURCES) \
+SOURCES := boot.S trap.S user.S kernel.c plic.c console.c role.c $(COMPONENT_SYSCALL_SOURCES) \
            $(COMPONENT_LOADER_SOURCES) \
            $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES) \
            $(COMPONENT_FILESYSTEM_SOURCES) $(COMPONENT_BLOCK_SOURCES) \

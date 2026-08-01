@@ -17,7 +17,11 @@ module soc_sdram_test_top #(
   output logic spi_cs_n,
   input  logic spi_miso,
   output logic finished,
-  output logic [15:0] exit_code
+  output logic [15:0] exit_code,
+  // Carried through for the same reason the BRAM harness top exposes it: the
+  // shared runner reads it on whichever top it was built against, so the two
+  // simulation environments have to present the same machine.
+  output logic cpu_idle
 );
   logic sdram_cke, sdram_cs_n, sdram_ras_n, sdram_cas_n, sdram_we_n;
   logic [1:0] sdram_ba, sdram_dqm;
@@ -40,7 +44,7 @@ module soc_sdram_test_top #(
     .sdram_cas_n(sdram_cas_n), .sdram_we_n(sdram_we_n), .sdram_ba(sdram_ba),
     .sdram_a(sdram_a), .sdram_dqm(sdram_dqm), .sdram_dq_i(sdram_dq_i),
     .sdram_dq_o(sdram_dq_o), .sdram_dq_oe(sdram_dq_oe), .sdram_init_done(sdram_init_done),
-    .finished(finished), .exit_code(exit_code)
+    .finished(finished), .exit_code(exit_code), .cpu_idle(cpu_idle)
   );
   assign sdram_dq = sdram_dq_oe ? sdram_dq_o : 16'hzzzz;
   assign sdram_dq_i = sdram_dq;

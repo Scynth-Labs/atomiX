@@ -53,6 +53,10 @@ module ulx3s_85f_top (
     .rx_valid(uart_rx_valid), .rx_data(uart_rx_data), .rx_ready(uart_rx_ready)
   );
 
+  // cpu_idle is deliberately left unconnected: a board may gate a clock on it,
+  // and this one does not.  Verilator makes a missing pin fatal under -Wall, so
+  // say so here rather than wiring a signal nothing consumes.
+  // verilator lint_off PINMISSING
   soc_top #(
     .RAM_BYTES(32 * 1024 * 1024),
     .USE_SDRAM(1),
@@ -69,6 +73,7 @@ module ulx3s_85f_top (
     .sdram_dq_o(sdram_dq_o), .sdram_dq_oe(sdram_dq_oe),
     .sdram_init_done(sdram_init_done), .finished(finished), .exit_code(exit_code)
   );
+  // verilator lint_on PINMISSING
 
   genvar dq_bit;
   generate

@@ -41,6 +41,10 @@ SOC_SVS  := $(COMPONENT_CORE_SOURCES) \
   $(COMPONENT_FINISHER_SOURCES) $(COMPONENT_SOC_SOURCES)
 HARNESS_SVS := $(filter %.sv,$(COMPONENT_HARNESS_SOURCES))
 HARNESS_CPP := $(filter %.cpp,$(COMPONENT_HARNESS_SOURCES))
+# A harness source is a thin front end over shared runner code; the device
+# models it pulls in are headers, which the manifest does not list because they
+# are not compiled on their own.  Depend on them here so editing one rebuilds.
+HARNESS_HDRS := $(wildcard ../../components/harness/common/*.h)
 SIM_TOP ?= $(COMPONENT_SIM_TOP)
 
 # Caller supplies a word-per-line $readmemh image and may choose its entry.
@@ -90,7 +94,7 @@ run-config: $(COMPONENT_MK)
 	  echo "unsupported simulation runner: $(COMPONENT_SIM_RUNNER)"; exit 2;; esac
 	$(MAKE) $(COMPONENT_SIM_RUNNER)
 
-build-model: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)
+build-model: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
 	@test -n "$(RAM_INIT_FILE)" || (echo "RAM_INIT_FILE is required"; exit 2)
 	@test -n "$(SIM_TOP)" || (echo "simulation profile must select a harness"; exit 2)
 	$(VERILATOR) $(VFLAGS) --top-module $(SIM_TOP) --Mdir $(MDIR) --exe --build \
@@ -114,7 +118,7 @@ model-path: build-model
 
 # Full Phase-6 controller integration: the SoC uses axsdram rather than the
 # delayed array model, and a CAS-2 x16 SDRAM model sits at the physical pins.
-run-sdram: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP)
+run-sdram: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
 	@test -n "$(ROM_INIT_FILE)" || (echo "ROM_INIT_FILE is required"; exit 2)
 	@test -n "$(SIM_TOP)" || (echo "simulation profile must select a harness"; exit 2)
 	$(VERILATOR) $(VFLAGS) --top-module $(SIM_TOP) --Mdir $(MDIR)-sdram --exe --build \

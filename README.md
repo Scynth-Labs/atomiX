@@ -76,6 +76,25 @@ selected Verilated SoC.  Continue with the
 randomized cosimulation, aXos, host-link, formal verification, and FPGA
 synthesis — it is the single, maintained list of every command.
 
+## Or boot it with nothing installed
+
+The same Verilated SoC compiles to WebAssembly, so aXos boots in a browser tab
+with no toolchain and no FPGA — 27,509 cycles to a shell prompt in about 30 ms,
+which is native wall-clock parity on the same host.
+
+```bash
+./tools/web.sh                # or: make web
+```
+
+One command from a plain shell: it sources the Emscripten SDK, picks a
+Verilator the suite is green on, builds the payload if it is missing, verifies
+the machine headlessly, finds a free port, and opens the page. Emscripten is
+the one thing it cannot install for you — see [docs/toolchain.md](docs/toolchain.md).
+
+It is the machine, not a re-implementation: the page clocks the model through
+the same runner code `make sim` uses, so a cycle count read off it is the one a
+local run reports. Details in [sim/web/](sim/web/).
+
 ## Build it your way
 
 Profiles select compatible components; manifests make every selection visible

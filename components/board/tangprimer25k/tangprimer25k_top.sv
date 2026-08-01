@@ -53,6 +53,10 @@ module tangprimer25k_top #(
     .rx_valid(uart_rx_valid), .rx_data(uart_rx_data), .rx_ready(uart_rx_ready)
   );
 
+  // cpu_idle is deliberately left unconnected: a board may gate a clock on it,
+  // and this one does not.  Verilator makes a missing pin fatal under -Wall, so
+  // say so here rather than wiring a signal nothing consumes.
+  // verilator lint_off PINMISSING
   soc_top #(
     .RESET_PC(RESET_PC),
     .RAM_BYTES(RAM_BYTES),
@@ -72,6 +76,7 @@ module tangprimer25k_top #(
     .sdram_dq_o(), .sdram_dq_oe(), .sdram_init_done(),
     .finished(finished), .exit_code(exit_code)
   );
+  // verilator lint_on PINMISSING
 
   // The Dock has no ordinary FPGA-driven user LED; UART is the bring-up
   // verdict. READY/DONE remain dedicated configuration pins.

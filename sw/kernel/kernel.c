@@ -6,6 +6,7 @@
 #include "loader.h"
 #include "page.h"
 #include "platform.h"
+#include "console.h"
 #include "plic.h"
 #include "process.h"
 #include "role.h"
@@ -735,8 +736,23 @@ void kmain(void) {
 #ifdef AXOS_HOSTLINK
   /* Host-managed personality: the console byte pipe carries the host-link
    * protocol instead of the interactive shell (DESIGN.md §3.3). */
+  /* Deliberately no console_init() here.  Routing the UART source would put an
+   * interrupt handler on the receive path, and host_service reads the device
+   * directly -- two readers of a one-byte holding register, where the handler
+   * always wins and the poller starves.  A streaming transport has no idle to
+   * reclaim anyway; the console interrupt exists for the shell, which waits on
+   * a human. */
   host_service();
 #else
+  /* Deliberately no timer armed here.  Starting the tick before the shell
+   * would give the console a guaranteed wake source and let it park on the
+   * very first read -- but the M-mode shim re-arms at a fixed 2000-cycle
+   * period, so the tick would then also fire throughout every shell command.
+   * Measured, that cost more than it saved: `exec`, the AXFS write/readback,
+   * and the full aXos profile all overran their cycle bounds.  The console
+   * driver instead parks once the console interrupt has proved itself, which
+   * the first keystroke does. */
+  console_init();
   shell_run();
 #endif
 }

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>atomiX — boot the machine</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <h1>atomiX</h1>
+    <p>
+      An RV32IM computer — CPU, SoC, and the aXos kernel — running as the
+      Verilated RTL, cycle for cycle, in this tab. No toolchain, no FPGA,
+      nothing installed.
+    </p>
+  </header>
+
+  <section class="machine" aria-label="Machine console">
+    <div class="machine-bar">
+      <span class="badge" id="state" data-state="loading">loading</span>
+      <dl class="readout">
+        <div><dt>profile</dt><dd id="profile">—</dd></div>
+        <div><dt>cycles</dt><dd id="cycles">0</dd></div>
+        <div><dt>boot</dt><dd id="boot-time">—</dd></div>
+        <div><dt>rate</dt><dd id="rate">—</dd></div>
+      </dl>
+      <button type="button" id="reboot" disabled>Reboot</button>
+    </div>
+
+    <div class="console" id="console" tabindex="0" role="textbox"
+         aria-multiline="true" aria-label="aXos console">
+      <pre id="screen"></pre>
+    </div>
+
+    <p class="hint" id="hint">
+      Click the console and type. Try <code>help</code>, <code>uname -a</code>,
+      <code>free</code>, or <code>role</code>.
+    </p>
+  </section>
+
+  <section class="notes">
+    <h2>What you are actually looking at</h2>
+    <p>
+      This is not a recording or a re-implementation. The RTL was compiled by
+      Verilator into C++ and then to WebAssembly, and it is clocked here one
+      cycle at a time by the same runner code the repository's
+      <code>make sim</code> checks use. The cycle counter above is the machine's
+      own count, so a number read off this page is the number a local run
+      reports.
+    </p>
+    <p>
+      Run <code>role</code> twice. It reports <code>irq=1</code> and then
+      <code>irq=2</code>, because this is one continuous machine rather than a
+      fresh boot per command — the accelerator's completion interrupt is
+      arriving through the SoC's PLIC. <em>Reboot</em> is a real power cycle,
+      and the count starts over.
+    </p>
+    <p class="provenance" id="provenance"></p>
+  </section>
+</main>
+<script src="axsoc.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -3,6 +3,7 @@
 #include "platform.h"
 /* Devices that can own a PLIC source declare their handler in their own
  * header, so the dispatch table below cannot drift from the implementation. */
+#include "console.h"
 #include "role.h"
 
 /* Recoverable MMIO probe, shared with the role window: a load-access fault
@@ -30,6 +31,13 @@ void plic_route(uint32_t source, uint32_t priority) {
   mmio_write32(AX_PLIC_S_THRESHOLD, 0u);
 }
 
+void plic_set_enabled(uint32_t source, int enabled) {
+  if (!plic_available) return;
+  const uint32_t mask = 1u << source;
+  const uint32_t current = mmio_read32(AX_PLIC_S_ENABLE);
+  mmio_write32(AX_PLIC_S_ENABLE, enabled ? (current | mask) : (current & ~mask));
+}
+
 uint32_t plic_claim(void) {
   return plic_available ? mmio_read32(AX_PLIC_S_CLAIM) : 0u;
 }
@@ -48,6 +56,7 @@ void plic_dispatch(void) {
     if (source == 0u) return;
     /* Quiet the device first, then complete: the source is level-sensitive,
      * so completing a device that is still asserting simply re-arms it. */
+    if (source == AX_PLIC_SRC_UART) console_irq_drain();
     if (source == AX_PLIC_SRC_ROLE) role_irq_complete();
     plic_complete(source);
   }

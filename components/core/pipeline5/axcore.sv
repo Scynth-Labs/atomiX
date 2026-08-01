@@ -53,6 +53,14 @@ module axcore #(
   // without S-mode ignores it; this one routes it to mip.SEIP.
   input  logic        irq_s_external,
 
+  // High while the hart is parked in WFI with nothing pending.  It carries no
+  // architectural meaning -- the machine behaves identically whether anyone
+  // looks at it -- but it is the only way for anything outside the core to
+  // tell "waiting for an interrupt" apart from "working".  A board can gate a
+  // clock on it; a simulator can decline to spend host time clocking a core
+  // that is, by construction, going to do nothing until an input changes.
+  output logic        cpu_idle,
+
   // Commit trace for lock-step cosimulation.  `trace_valid` marks exactly
   // one architectural event: either a retirement or a precise trap.
   output logic        trace_valid,
@@ -112,6 +120,13 @@ module axcore #(
   // ---------------------------------------------------------------- control
   logic        stall_ld;                    // load-use: ID holds, EX bubbles
   logic        mem_busy;                    // dbus wait state: global freeze
+  logic        wfi_wait;                    // WFI parked: global freeze
+  // Both freezes hold the whole pipeline for the same reason -- the commit
+  // point cannot proceed -- so they hold it the same way.  Keeping them
+  // separate signals rather than one is deliberate: `mem_busy` is a property
+  // of the bus and `wfi_wait` of the program, and only the latter means the
+  // machine is idle rather than slow.
+  wire         core_hold = mem_busy || wfi_wait;
   logic        redirect_ex, redirect_mem;
   logic [31:0] redirect_ex_pc, redirect_mem_pc;
   wire         redirect    = redirect_mem || redirect_ex;
@@ -159,12 +174,12 @@ module axcore #(
           kill_q <= 1'b0;
         end
       end else begin
-        if (ser_in_id && !stall_ld && !mem_busy)
+        if (ser_in_id && !stall_ld && !core_hold)
           halt_q <= 1'b1;                 // serialized insn advances to EX
         if (fetch_done && kill_q) begin   // stale fetch drained
           pc_q   <= npc_q;
           kill_q <= 1'b0;
-        end else if (fetch_done && !mem_busy && !stall_ld && !fetch_halt)
+        end else if (fetch_done && !core_hold && !stall_ld && !fetch_halt)
           pc_q <= pc_q + 32'd4;           // normal advance
       end
     end
@@ -182,7 +197,7 @@ module axcore #(
   always_ff @(posedge clk) begin
     if (rst || redirect) begin
       ifid_v_q <= 1'b0;
-    end else if (!mem_busy && !stall_ld) begin
+    end else if (!core_hold && !stall_ld) begin
       if (if_capture) begin
         ifid_v_q     <= 1'b1;
         ifid_pc_q    <= pc_q;
@@ -201,7 +216,7 @@ module axcore #(
         ifid_v_q <= 1'b0;                 // bubble
       end
     end
-    // stall_ld or mem_busy: IF/ID holds
+    // stall_ld, mem_busy, or wfi_wait: IF/ID holds
   end
 
   // ---------------------------------------------------------------- ID
@@ -274,9 +289,9 @@ module axcore #(
       ((dec_rs1 && id_rs1 == idex_rd_q) || (dec_rs2 && id_rs2 == idex_rd_q));
 
   always_ff @(posedge clk) begin
-    if (rst || redirect || (!mem_busy && !md_wait && (stall_ld || !ifid_v_q))) begin
+    if (rst || redirect || (!core_hold && !md_wait && (stall_ld || !ifid_v_q))) begin
       idex_v_q <= 1'b0;
-    end else if (!mem_busy && !md_wait) begin
+    end else if (!core_hold && !md_wait) begin
       idex_v_q       <= 1'b1;
       idex_pc_q      <= ifid_pc_q;
       idex_insn_q    <= ifid_insn_q;
@@ -386,7 +401,7 @@ module axcore #(
 
   // Branch acts only when this instruction actually advances, and an older
   // committing instruction's redirect wins (it flushes EX anyway).
-  assign redirect_ex    = ex_take && !ex_take_misal && !mem_busy && !redirect_mem;
+  assign redirect_ex    = ex_take && !ex_take_misal && !core_hold && !redirect_mem;
   assign redirect_ex_pc = br_target;
 
   // Misaligned data address detect (address is known here).
@@ -411,9 +426,9 @@ module axcore #(
   always_ff @(posedge clk) begin
     // A taken branch is NOT flushed here — it advances and commits; only
     // younger stages (IF/ID, ID/EX) are flushed by redirect_ex.
-    if (rst || redirect_mem || (!mem_busy && (!idex_v_q || md_wait))) begin
+    if (rst || redirect_mem || (!core_hold && (!idex_v_q || md_wait))) begin
       exmem_v_q <= 1'b0;
-    end else if (!mem_busy && !md_wait) begin
+    end else if (!core_hold && !md_wait) begin
       exmem_v_q         <= 1'b1;
       exmem_pc_q        <= idex_pc_q;
       exmem_npc_q       <= ex_take ? br_target : idex_pc_q + 32'd4;
@@ -485,7 +500,7 @@ module axcore #(
   logic [1:0]  csr_prv;
   logic        csr_illegal, csr_irq_take;
   logic [3:0]  csr_irq_cause;
-  wire mem_commit = exmem_v_q && !mem_busy;
+  wire mem_commit = exmem_v_q && !core_hold;
   wire csr_acc_en = mem_commit && !exmem_exc_q && exmem_csr_q != CSR_NONE;
 
   // Dynamic (privilege-dependent) SYSTEM legality, resolved at commit.
@@ -496,6 +511,23 @@ module axcore #(
       (exmem_sys_q == SYS_WFI && csr_prv != 2'b11 && csr_mstatus[21]) ||
       (exmem_sys_q == SYS_SFENCE &&
        (csr_prv == 2'b00 || (csr_prv == 2'b01 && csr_mstatus[20])));
+
+  // WFI parks the hart instead of retiring as a nop.  The spec permits either,
+  // and v1 chose the nop; the cost is that a kernel waiting for a keystroke
+  // fetches and retires forever, which burns power on a board and host time
+  // under simulation for no architectural gain.
+  //
+  // "Pending", not "enabled", is the wake condition the spec asks for: a
+  // pending-but-disabled interrupt resumes execution at the next instruction
+  // rather than trapping, so waking on mip alone is correct and is also what
+  // makes a masked device able to break the hart out.
+  //
+  // The illegal case must be excluded or it deadlocks: WFI below M-mode with
+  // mstatus.TW set is an illegal instruction, and an instruction that is going
+  // to trap has to be allowed to reach the commit point to do it.
+  assign wfi_wait = exmem_v_q && !exmem_exc_q && !sys_ill &&
+                    exmem_sys_q == SYS_WFI && csr_mip == 32'b0;
+  assign cpu_idle = wfi_wait;
 
   // Final exception resolution at commit.
   wire bus_fault = dm_valid && dm_ready && dm_err;
@@ -624,13 +656,15 @@ module axcore #(
     endcase
   end
 
-  // MEM/WB must HOLD during a dbus stall: a consumer frozen in EX still
-  // forwards from here, and its ID-time regfile read predates this result.
+  // MEM/WB must HOLD during a freeze: a consumer frozen in EX still forwards
+  // from here, and its ID-time regfile read predates this result.  That is
+  // true of a WFI park for exactly the reason it is true of a dbus stall --
+  // the younger instruction is still sitting in EX waiting on this value.
   // (The repeated regfile write while held is idempotent.)
   always_ff @(posedge clk) begin
     if (rst) begin
       memwb_v_q <= 1'b0;
-    end else if (!mem_busy) begin
+    end else if (!core_hold) begin
       memwb_v_q     <= retire;
       memwb_rd_q    <= exmem_rd_q;
       memwb_rd_we_q <= exmem_rd_we_q;

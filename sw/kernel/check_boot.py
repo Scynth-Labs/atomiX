@@ -14,8 +14,8 @@ STORAGE_WRITE_INPUT = ROOT / "sw/kernel/storage_write_input.txt"
 SHELL_OUTPUT = (
     "aXos: shell online\n"
     "aXos> help\n"
-    "commands: help clear uname uptime free ps pwd ls cat stat hexdump touch cp "
-    "mv rm write echo fork exec run role shutdown exit\n"
+    "commands: help clear uname uptime console free ps pwd ls cat stat hexdump "
+    "touch cp mv rm write echo fork exec run role shutdown exit\n"
     "aXos> ls\n"
     "motd\n"
     "readme\n"
@@ -125,7 +125,16 @@ def main() -> None:
                 "make", "-s", "--no-print-directory", "-C", str(ROOT / "sim/soc"),
                 "run", f"RAM_INIT_FILE={image}", "RESET_PC=0x80000000",
                 "RAM_BYTES=33554432", "EXTERNAL_MEMORY=1", "CACHES=1",
-                "MAX_CYCLES=500000",
+                # A hang bound, not a performance budget.  Raised from 500,000
+                # when WFI stopped retiring as a nop: a hart that parks until
+                # an interrupt resumes on the next scheduler tick rather than
+                # spinning straight through an idle loop, which costs real
+                # cycles in a batch run precisely because there is no idle time
+                # to reclaim.  The fork demo measured 492,933 cycles before
+                # that change and 504,702 after -- the old bound had 1.4%
+                # margin, which was too little to distinguish "slower" from
+                # "hung".
+                "MAX_CYCLES=700000",
             ]),
         ]
         if sd_image:

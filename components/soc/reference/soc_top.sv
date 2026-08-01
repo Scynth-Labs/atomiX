@@ -44,7 +44,12 @@ module soc_top #(
   output logic       sdram_dq_oe,
   output logic       sdram_init_done,
   output logic       finished,
-  output logic [15:0] exit_code
+  output logic [15:0] exit_code,
+  // High while the CPU is parked in WFI with nothing pending.  Purely an
+  // observation -- nothing inside the shell reads it -- but it lets a board
+  // gate a clock and lets a simulator stop paying for cycles in which, by
+  // construction, nothing can happen until an input changes.
+  output logic       cpu_idle
 );
   logic ibus_valid, ibus_ready, ibus_err;
   logic [31:0] ibus_addr, ibus_rdata, ibus_wdata;
@@ -121,7 +126,8 @@ module soc_top #(
     // The board/testbench line and the on-chip controller are both sources of
     // the same machine-external interrupt; the core sees their union.
     .irq_external(irq_external || plic_irq[PLIC_CTX_M]),
-    .irq_s_external(plic_irq[PLIC_CTX_S]), .trace_valid(core_trace_valid),
+    .irq_s_external(plic_irq[PLIC_CTX_S]), .cpu_idle(cpu_idle),
+    .trace_valid(core_trace_valid),
     .trace_trap(core_trace_trap), .trace_insn(core_trace_insn)
   );
   // verilator lint_on PINMISSING

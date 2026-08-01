@@ -37,6 +37,8 @@ help:
 	@echo "  make fpga-runtime-primer # fast-switch gate, then build once"
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make component-test"
+	@echo "  make web                 # boot the machine in a browser (needs emcc)"
+	@echo "  make web-check           # headless WASM boot, timed against native"
 	@echo "  make doctor              # what this host can build, and what it cannot"
 
 # Report the host's toolchain the way a build will actually see it: which
@@ -160,6 +162,27 @@ software: $(COMPONENT_MK)
 	    MAX_CYCLES="$(COMPONENT_SOFTWARE_MAX_CYCLES)" BUILD_ID=software-$(COMPONENT_CONFIG_NAME); \
 	fi
 
+# Browser tier.  Optional and load-bearing for nothing: it compiles the same
+# Verilated model to WebAssembly so the machine can be booted without a
+# toolchain.  WEB_CONFIG selects the profile the page boots and WEB_PAYLOAD the
+# program it runs; both default to the aXos shell with the loopback role, which
+# is the selection that has something to demonstrate.
+WEB_CONFIG ?= configs/sim-role-loopback.json
+WEB_PAYLOAD ?= sw/kernel/build/axos_boot.hex
+
+# One script rather than a second implementation: it sources the SDK, picks a
+# Verilator the suite is green on, builds a missing payload, verifies headlessly,
+# finds a free port, and opens the page.  The per-directory targets underneath
+# it stay available for anyone who wants the steps separately.
+web:
+	./tools/web.sh --config "$(WEB_CONFIG)" --payload "$(WEB_PAYLOAD)"
+
+web-check:
+	./tools/web.sh --config "$(WEB_CONFIG)" --payload "$(WEB_PAYLOAD)" --check-only
+
+web-bench:
+	$(MAKE) -C sim/web bench COMPONENT_CONFIG="$(abspath $(WEB_CONFIG))" PAYLOAD="$(abspath $(WEB_PAYLOAD))"
+
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
 component-test: config-check-all
@@ -169,4 +192,4 @@ component-test: config-check-all
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help doctor component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer component-test
+.PHONY: help doctor component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer component-test web web-check web-bench

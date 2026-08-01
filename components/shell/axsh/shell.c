@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "console.h"
 #include "fs.h"
 #include "kernel_info.h"
 #include "page.h"
@@ -52,7 +53,7 @@ static void put_hex32(uint32_t value) {
 static void readline(char *line, uint32_t capacity) {
   uint32_t length = 0;
   for (;;) {
-    const char c = uart_getchar();
+    const char c = console_getchar();
     if (c == '\r' || c == '\n') {
       uart_puts("\n");
       line[length] = 0;
@@ -232,6 +233,25 @@ static void command_uname(uint32_t argc, char **argv) {
   } else {
     uart_puts("uname: usage uname [-a]\n");
   }
+}
+
+/* Report how console input actually reached the shell.  The point is not the
+ * numbers themselves but that they are checkable: "interrupt-driven console"
+ * is otherwise a claim about code nobody can see from the prompt, and a
+ * regression that silently fell back to polling would look identical. */
+static void command_console(uint32_t argc, char **argv) {
+  (void)argv;
+  if (argc != 1) {
+    uart_puts("console: usage console\n");
+    return;
+  }
+  uart_puts("console: irq ");
+  put_u32(console_irq_bytes());
+  uart_puts(" polled ");
+  put_u32(console_polled_bytes());
+  uart_puts(" stalls ");
+  put_u32(console_ring_stalls());
+  uart_puts("\n");
 }
 
 static void command_uptime(uint32_t argc, char **argv) {
@@ -528,6 +548,7 @@ const struct shell_command shell_commands[] = {
     {"clear", "clear", "clear an ANSI-compatible console", command_clear},
     {"uname", "uname [-a]", "print kernel and architecture information", command_uname},
     {"uptime", "uptime", "print elapsed kernel timer ticks", command_uptime},
+    {"console", "console", "report console input path and buffering", command_console},
     {"free", "free", "show physical page allocator usage", command_free},
     {"ps", "ps", "show kernel and user task state", command_ps},
     {"pwd", "pwd", "print the current AXFS root", command_pwd},

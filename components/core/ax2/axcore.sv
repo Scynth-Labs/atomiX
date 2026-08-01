@@ -60,6 +60,11 @@ module axcore #(
   // line is accepted and ignored.
   /* verilator lint_off UNUSED */
   input  logic        irq_s_external,
+
+  // Part of the core contract.  This core retires WFI as a nop rather than
+  // parking on it, which the spec permits, so it is never idle in the sense
+  // the signal reports and says so honestly rather than guessing.
+  output logic        cpu_idle,
   /* verilator lint_on UNUSED */
 
   output logic        trace_valid,
@@ -87,4 +92,6 @@ module axcore #(
     .*
   );
   /* verilator lint_on PINCONNECTEMPTY */
+  assign cpu_idle = 1'b0;
+
 endmodule

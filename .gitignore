@@ -36,6 +36,13 @@ __pycache__/
 *.bit
 *.svf
 
+# Browser bundle. The page sources in sim/web/public/ are tracked; the compiled
+# machine and the payload staged beside them are build products of
+# `make -C sim/web build` (payload.hex is already covered by *.hex above).
+sim/web/public/axsoc.js
+sim/web/public/axsoc.wasm
+sim/web/public/.bundle-tag
+
 # editor noise
 *.swp
 .vscode/

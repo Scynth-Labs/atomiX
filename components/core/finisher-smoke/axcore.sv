@@ -26,6 +26,11 @@ module axcore #(
   input  logic        irq_timer,
   input  logic        irq_external,
   input  logic        irq_s_external,
+
+  // Part of the core contract.  This core retires WFI as a nop rather than
+  // parking on it, which the spec permits, so it is never idle in the sense
+  // the signal reports and says so honestly rather than guessing.
+  output logic        cpu_idle,
   output logic        trace_valid,
   output logic        trace_trap,
   output logic [31:0] trace_insn
@@ -57,4 +62,6 @@ module axcore #(
                          dbus_err, irq_software, irq_timer, irq_external,
                          irq_s_external};
   // verilator lint_on UNUSED
+  assign cpu_idle = 1'b0;
+
 endmodule

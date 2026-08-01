@@ -51,6 +51,12 @@ void plic_route(uint32_t source, uint32_t priority);
 
 /* Claim returns the winning source id, or 0 when nothing is eligible.
  * Complete ends its service. */
+/* Enable or mask a routed source.  Masking is how a device applies
+ * backpressure: a level-sensitive line that its handler cannot yet quiet would
+ * otherwise re-trap the moment it is completed, and the interrupted context --
+ * the one that has to make room -- would never run again. */
+void plic_set_enabled(uint32_t source, int enabled);
+
 uint32_t plic_claim(void);
 void plic_complete(uint32_t source);
 

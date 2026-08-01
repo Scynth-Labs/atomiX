@@ -17,6 +17,10 @@
  * buffer, so this is the only host-link job buffer. */
 static uint8_t payload[HOSTLINK_MAX_PAYLOAD];
 
+/* Polled, deliberately.  The interrupt-driven console exists to stop the hart
+ * spinning while a *human* thinks; a host-link session streams framed binary
+ * back-to-back and never idles, so buffering it would add a queue to overrun
+ * and win nothing.  This is the case polling is right for. */
 static uint8_t get_byte(void) { return (uint8_t)uart_getchar(); }
 static void put_byte(uint8_t b) { uart_putchar((char)b); }
 

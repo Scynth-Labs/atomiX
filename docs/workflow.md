@@ -130,6 +130,53 @@ State persists across commands: running the shell's `role` twice reports
 interactive run ends on console close or the finisher, so it is not bounded by
 `MAX_CYCLES`.
 
+Between keystrokes the machine is *stopped*, not spinning: `wfi` parks the hart
+and the console is interrupt-driven, so the cycle counter holds still while it
+waits for you. `console` in the shell reports which path input actually took —
+`irq 21 polled 0 stalls 0` means every byte arrived as an interrupt. A platform
+whose PLIC numbers its devices differently (QEMU's `virt`) falls back to polling
+and says so there, rather than parking on an interrupt that will never arrive.
+
+### Open the same session in a browser
+
+Optional tier, and load-bearing for nothing — it needs Emscripten
+([toolchain.md](toolchain.md)) and no evidence claim rests on it. The same
+Verilated model compiled to WebAssembly boots aXos in a tab with no toolchain
+and nothing installed:
+
+```bash
+./tools/web.sh                 # verify headlessly, then serve and open the page
+```
+
+That is the whole thing from a plain shell. It sources the SDK (emsdk
+deliberately does not touch your profile), prefers a Verilator the suite is
+green on, builds the aXos payload if it has never been built, runs the headless
+check, picks a free port, and opens the browser.
+
+```bash
+./tools/web.sh --check-only                        # verify, do not serve
+./tools/web.sh --port 9000 --no-open               # pin the port, stay put
+./tools/web.sh --config configs/sim-bram.json \
+               --payload sw/baremetal/build/hello.hex
+```
+
+`make web` and `make web-check` call the same script with `WEB_CONFIG` /
+`WEB_PAYLOAD`. The steps underneath stay available separately —
+`make -C sim/web build|check|bench|serve` — and `make web-bench` times the WASM
+machine against the native one on the same host.
+
+Changing the payload does not rebuild the machine: unlike the native model, the
+image is loaded into it at run time. Changing the *profile* does rebuild it, and
+the bundle is keyed on the selection so a stale one is never served under a new
+name.
+
+The page is the same machine, not a re-implementation: clocking, the UART
+handshake, and the SPI sampling edge all come from
+`components/harness/common/soc_machine.h`, which the batch runner and the
+interactive session use too, so a cycle count read off the page is the one a
+local run reports. Details and measurements are in
+[sim/web/README.md](../sim/web/README.md).
+
 ---
 
 ## 3. Test
