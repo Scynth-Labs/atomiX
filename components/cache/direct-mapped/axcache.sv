@@ -57,12 +57,30 @@ module axcache #(
   wire [WORD_BITS-1:0] c_word = c_addr[OFFSET_BITS-1:2];
   wire [31:0] c_tag = c_addr >> (OFFSET_BITS + INDEX_BITS);
   wire hit = cacheable && valid_lines[c_index] && tags[c_index] == c_tag;
-  wire read_hit = c_valid && c_wstrb == 4'b0 && hit && !flush;
+  // Only IDLE may answer from the array.  A refill writes the line's words in
+  // place as they arrive and only updates the tag at the end, so while it runs
+  // the addressed line still advertises its previous occupant while already
+  // holding some of the new one's data.  Answering a lookup then returns a
+  // blend of two lines -- and because index bits are all that decide which line
+  // a fetch and a page-table read share, that is exactly how a walker reading a
+  // PTE collides with an instruction fetch.
+  wire read_hit = c_valid && c_wstrb == 4'b0 && hit && !flush && state == IDLE;
+
+  // A master may walk away from a request it has not yet been answered for:
+  // the MMU abandons an in-flight page-table read when a trap redirect or an
+  // sfence.vma changes the translation context under it, and then drives the
+  // next request on the very next cycle.  The buffered response belongs to the
+  // request that was latched, so it may only be handed back to that same
+  // request -- otherwise the new one silently collects the old one's data,
+  // which for a walker means a page-table entry read out of an instruction
+  // line and a page fault on a perfectly valid mapping.
+  wire respond_hold = state == RESPOND && c_valid &&
+                      c_addr == req_addr_q && c_wstrb == req_wstrb_q;
 
   always_comb begin
-    c_ready = read_hit || (state == RESPOND && c_valid);
+    c_ready = read_hit || respond_hold;
     c_rdata = read_hit ? data[c_index][c_word] : response_data_q;
-    c_err = state == RESPOND && c_valid && response_err_q;
+    c_err = respond_hold && response_err_q;
 
     m_valid = state == REFILL || state == WRITE || state == BYPASS;
     m_addr = req_addr_q;
@@ -112,6 +130,11 @@ module axcache #(
               valid_lines[c_index] <= 1'b0;
               state <= WRITE;
             end else begin
+              // Drop the victim up front rather than at the end of the burst:
+              // the line stops describing anything the moment its words start
+              // being overwritten, and a half-filled line must never look like
+              // a hit.
+              valid_lines[c_index] <= 1'b0;
               line_base_q <= {c_addr[31:OFFSET_BITS], {OFFSET_BITS{1'b0}}};
               fill_word_q <= '0;
               discard_fill_q <= 1'b0;

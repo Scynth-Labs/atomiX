@@ -113,12 +113,19 @@ module axcache #(
 
   assign flush_busy = state == DRAIN || flush_pending_q;
 
+  // See the direct-mapped component: a master (the MMU, on a trap redirect or
+  // an sfence.vma under an in-flight walk) may abandon a request and present a
+  // different one immediately.  The buffered response is only valid for the
+  // request that was latched.
+  wire respond_hold = state == RESPOND && c_valid &&
+                      c_addr == req_addr_q && c_wstrb == req_wstrb_q;
+
   always_comb begin
     // Both hit kinds complete in the cycle they are presented; that single-cycle
     // write hit is the whole point of the component.
-    c_ready = read_hit || write_hit || (state == RESPOND && c_valid);
+    c_ready = read_hit || write_hit || respond_hold;
     c_rdata = read_hit ? data[c_index][c_word] : response_data_q;
-    c_err   = state == RESPOND && c_valid && response_err_q;
+    c_err   = respond_hold && response_err_q;
 
     m_valid = state == WRITEBACK || state == REFILL || state == BYPASS ||
               (state == DRAIN && drain_index_q < LINES[INDEX_BITS:0] &&

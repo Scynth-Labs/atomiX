@@ -14,7 +14,19 @@ module axcache_test_top (
   output logic [31:0] c_rdata,
   output logic c_err,
   output logic mem_valid,
-  output logic mem_ready
+  output logic mem_ready,
+  // A second instance whose backing store is four times its capacity, so two
+  // addresses can land on the same line.  The primary instance above covers
+  // exactly as many bytes as it can hold and therefore never evicts anything,
+  // which leaves the whole conflict-miss path -- refill over a live line --
+  // untested.
+  input  logic a_valid,
+  input  logic [31:0] a_addr,
+  input  logic [31:0] a_wdata,
+  input  logic [3:0] a_wstrb,
+  output logic a_ready,
+  output logic [31:0] a_rdata,
+  output logic a_err
 );
   logic [31:0] mem_addr, mem_wdata, mem_rdata;
   logic [3:0] mem_wstrb;
@@ -33,6 +45,30 @@ module axcache_test_top (
     .clk(clk), .rst(rst),
     .i_valid(mem_valid), .i_addr(mem_addr), .i_wdata(mem_wdata), .i_wstrb(mem_wstrb),
     .i_ready(mem_ready), .i_rdata(mem_rdata), .i_err(mem_err),
+    .d_valid(1'b0), .d_addr(32'b0), .d_wdata(32'b0), .d_wstrb(4'b0),
+    .d_ready(), .d_rdata(), .d_err()
+  );
+  // verilator lint_on PINCONNECTEMPTY
+
+  logic [31:0] alias_mem_addr, alias_mem_wdata, alias_mem_rdata;
+  logic [3:0] alias_mem_wstrb;
+  logic alias_mem_valid, alias_mem_ready, alias_mem_err;
+
+  // verilator lint_off PINCONNECTEMPTY
+  axcache #(.CACHE_BASE(32'h8000_0000), .CACHE_BYTES(256), .LINES(4), .WORDS_PER_LINE(4)) u_alias_cache (
+    .clk(clk), .rst(rst), .flush(1'b0), .flush_busy(),
+    .c_valid(a_valid), .c_addr(a_addr), .c_wdata(a_wdata), .c_wstrb(a_wstrb),
+    .c_ready(a_ready), .c_rdata(a_rdata), .c_err(a_err),
+    .m_valid(alias_mem_valid), .m_addr(alias_mem_addr), .m_wdata(alias_mem_wdata),
+    .m_wstrb(alias_mem_wstrb),
+    .m_ready(alias_mem_ready), .m_rdata(alias_mem_rdata), .m_err(alias_mem_err)
+  );
+
+  axdram_model #(.BASE(32'h8000_0000), .BYTES(256), .LATENCY(2)) u_alias_memory (
+    .clk(clk), .rst(rst),
+    .i_valid(alias_mem_valid), .i_addr(alias_mem_addr), .i_wdata(alias_mem_wdata),
+    .i_wstrb(alias_mem_wstrb),
+    .i_ready(alias_mem_ready), .i_rdata(alias_mem_rdata), .i_err(alias_mem_err),
     .d_valid(1'b0), .d_addr(32'b0), .d_wdata(32'b0), .d_wstrb(4'b0),
     .d_ready(), .d_rdata(), .d_err()
   );
