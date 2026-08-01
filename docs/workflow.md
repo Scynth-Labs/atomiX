@@ -110,6 +110,26 @@ make sim CONFIG=configs/sim-bram.json \
 make software CONFIG=configs/sim-axos.json   # build + run the profile's software component
 ```
 
+### Open an interactive session on a profile
+
+A `run` is batch: it consumes a fixed script, then prints the whole transcript.
+Every `check-*` target uses that, and it is what a self-checking test wants. To
+*type* at the machine instead, build the model once and keep it open — in batch
+mode each exchange is a separate process, so the machine reboots between
+commands and nothing carries over.
+
+```bash
+MODEL=$(make -s -C sim/soc model-path \
+  RAM_INIT_FILE="$PWD/sw/kernel/build/axos_boot.hex" RESET_PC=0x80000000 \
+  COMPONENT_CONFIG=../../configs/sim-role-loopback.json)
+"$MODEL" --uart-interactive        # aXos prompt; Ctrl-D closes the session
+```
+
+State persists across commands: running the shell's `role` twice reports
+`irq=1` then `irq=2`, because it is one machine rather than two boots. An
+interactive run ends on console close or the finisher, so it is not bounded by
+`MAX_CYCLES`.
+
 ---
 
 ## 3. Test

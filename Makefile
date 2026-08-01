@@ -86,6 +86,16 @@ doctor:
 	  printf '  %-22s %s\n' "/opt/riscv-formal" "absent - see docs/toolchain.md"; \
 	fi
 	@echo ""
+	@echo "Browser tier (optional; WASM build of the Verilated model)"
+	@if command -v emcc >/dev/null 2>&1; then \
+	  printf '  %-22s %s\n' "Emscripten" \
+	    "$$(emcc --version | awk 'NR==1{print $$(NF-1)}')"; \
+	elif [ -f "$$HOME/emsdk/emsdk_env.sh" ]; then \
+	  printf '  %-22s %s\n' "Emscripten" "installed, not sourced - source ~/emsdk/emsdk_env.sh"; \
+	else \
+	  printf '  %-22s %s\n' "Emscripten" "not found - skip the browser targets"; \
+	fi
+	@echo ""
 	@echo "FPGA tier: make -C rtl/fpga check-tools CONFIG=<board profile>"
 	@echo "Install guidance for every tier: docs/dependencies.md"
 

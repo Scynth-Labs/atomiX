@@ -241,3 +241,37 @@ Then verify the platform-neutral aXos shell and fork/wait sessions:
 ```bash
 make -C sw/kernel check-boot QEMU="$HOME/.local/bin/qemu-system-riscv32"
 ```
+
+## Emscripten for browser-hosted simulation
+
+Optional, and deliberately isolated. It is only needed to compile the Verilated
+model to WebAssembly so the machine can be booted in a browser tab; the ISS,
+Verilator simulation, kernel checks, formal flow, and FPGA flow all work without
+it, and no evidence claim depends on it.
+
+Install through the SDK rather than apt — the packaged version lags, and `emsdk`
+needs no `sudo`:
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+cd ~/emsdk
+./emsdk install latest
+./emsdk activate latest
+```
+
+Activation writes the SDK's own config; it does **not** modify your shell
+profile. Source the environment in each shell that needs it, which keeps an
+ordinary shell pointed at the native toolchain:
+
+```bash
+source ~/emsdk/emsdk_env.sh
+emcc --version        # expect 6.x (recorded working: 6.0.5)
+```
+
+`emsdk` installs its own Node (recorded: 22.16.0), which is what runs a headless
+WASM boot when timing it against the native baseline. A separately installed
+Node works too. The SDK is about 1.5 GB on disk.
+
+Nothing in the repository requires this to be sourced. If `emcc` is absent the
+browser targets are simply unavailable, exactly as the FPGA targets are without
+the OSS CAD Suite.

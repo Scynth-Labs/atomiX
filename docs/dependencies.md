@@ -102,6 +102,31 @@ setup, tool verification, and safe SRAM-versus-flash distinction are in
 [tangprimer25k-bringup.md](tangprimer25k-bringup.md) and
 [ulx3s-bringup.md](ulx3s-bringup.md).
 
+## Browser-hosted simulation (optional)
+
+Only needed to build the Verilated model as WebAssembly, so a reader can boot
+the machine in a tab with no toolchain at all.  Nothing in the normal build,
+test, or FPGA flow depends on it, and no evidence claim rests on it.
+
+Emscripten is installed through its own SDK rather than from apt: the packaged
+version lags, and `emsdk` needs no root and coexists with everything else.
+
+```bash
+git clone https://github.com/emscripten-core/emsdk.git ~/emsdk
+cd ~/emsdk && ./emsdk install latest && ./emsdk activate latest
+```
+
+Each shell that uses it sources the environment first; this deliberately does
+not touch `.bashrc`, so an unsourced shell keeps the ordinary native toolchain:
+
+```bash
+source ~/emsdk/emsdk_env.sh
+emcc --version
+```
+
+`emsdk` brings its own Node, which is what runs a headless WASM boot for
+timing.  A separately installed Node also works.  Budget about 1.5 GB.
+
 ## Recorded working baseline
 
 The following is a compatibility record from the verified Ubuntu 22.04.5 WSL2
@@ -117,6 +142,8 @@ your own host, which is the useful thing to quote in a bug report:
 | Yosys | 0.67+ (upstream) | Formal flow |
 | Python | 3.10.12 | Test generation and runners |
 | GNU Make | 4.3 | Build orchestration |
+| Emscripten | 6.0.5 | Browser-hosted simulation (optional) |
+| Node | 24.18.0 host / 22.16.0 via emsdk | Headless WASM boot and timing (optional) |
 
 Newer compatible releases are welcome.  Record the version and the evidence
 you ran when changing a toolchain assumption.

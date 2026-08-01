@@ -110,7 +110,7 @@ contracts and selections are in [components/](../components/).
   `make config-check-all` and the parameter sweeps in
   `make -C sim/unit run-suite-ax2` / `run-suite-gpu1`.
 
-## Userspace ABI (next milestone)
+## Userspace ABI
 
 aXos has a scheduler, an allocator, a filesystem, and a shell, but no way to
 *run a program*: there is no syscall ABI, no loader, and no C library.  Nothing
@@ -359,6 +359,80 @@ Use this for a substantive implementation or interface change:
   shell with no map) each exit nonzero with a specific message.
 - [ ] Evaluate A or C ISA extensions only when their enabling need is explicit;
   neither is required for the current single-hart reference machine.
+
+## Interactive exploration (next milestone)
+
+The strongest thing about this project is also its least visible.  Three cores
+with real cycle differences, a cache policy worth 2.91× on a renderer workload,
+accelerator microcode that reloads in 0.46 ms — every one of those is a measured
+claim, and seeing any of them costs an afternoon: install a toolchain, build
+Verilator, resolve a profile, run a check, read a terminal.  Nobody evaluates a
+project that way, so the evidence persuades only the people who already stayed.
+
+Two measurements make a different shape possible.  A cold boot to an aXos shell
+prompt is 29,634 cycles, and the Verilated model sustains roughly 1.2M cycles/s
+on a developer machine, so booting an entire computer costs about **25 ms** —
+less than a page repaint.  A shell `role` command, including the accelerator
+job and the interrupt that reports it, is 1,882 cycles (about 1.6 ms), and the
+cost is linear: three of them are 5,647 cycles.  The model binary is 216 KB.
+
+**Decision: make the unit of interaction a machine rather than a command.**  At
+25 ms a boot is not something to wait for, which means a page can boot several
+different machines while it renders — the same program on `core.pipeline5`,
+`core.minimal`, and `core.ax2`, with three honest cycle counts beside each
+other.  That is the argument for the component system, and it cannot be made in
+prose or a screenshot.  It also fixes what the project is *for*: not another
+RV32 SoC, but the place you go to change the machine rather than the program.
+
+This is deliberately a reach-and-presentation milestone.  It adds no hardware
+capability, and no claim here may substitute for the simulation, formal, or
+board evidence above.
+
+Staged so each step has its own evidence rather than landing as one large jump:
+
+- [x] **Interactive sessions.** The Verilator harness keeps the console byte
+  pipe open in both directions for the life of the process
+  (`--uart-interactive`): stdin becomes UART receive and UART transmit is
+  streamed as produced rather than buffered to the end.  Batch runs are
+  unchanged and remain what every `check-*` target uses.  Because a session must
+  outlive one command, building and launching are separate targets —
+  `make -C sim/soc model-path` prints the model's path for a caller that spawns
+  it once and keeps it open.  This is the prerequisite for everything below: in
+  batch mode each exchange is its own process, so the machine reboots between
+  commands and nothing carries over.  Evidence: a live session runs the shell's
+  `role` twice and reports `irq=1` then `irq=2`, which is only possible on one
+  continuous machine; `make -C sw/kernel check-role-driver` and `check-sdboot`
+  confirm the batch and physical-SDRAM paths still pass.
+- [ ] **Runtime payload selection.** `RAM_INIT_FILE` is compiled into the model
+  at elaboration, so changing the program today means rebuilding it.  A session
+  that boots different payloads needs the image loaded at run time instead.
+- [ ] **WASM spike.** Build one profile with Emscripten, boot aXos headless
+  under Node, and compare against the 29,634-cycle / 25 ms native baseline
+  recorded above.  The bet is that a 1.5–4× slowdown still leaves boot
+  imperceptible; the point of the spike is to find out cheaply rather than to
+  design around a guess.  Deliberately attempted against the *existing*
+  Verilator first: the suite is green on 4.038, and proving the idea costs
+  nothing if the generated C++ happens to compile.
+- [ ] **Toolchain currency.** The measured baseline used Verilator 4.038 (2020),
+  and newer releases are materially faster.  Sequenced after the spike rather
+  than before it: Verilator 5 is stricter, `sim/soc/Makefile` already carries a
+  `-Wno-UNUSEDPARAM` guard for it that has never been exercised here, and an
+  upgrade risks the whole suite before answering the question that matters.
+  Install beside the packaged one (`VERILATOR=` overrides per invocation) so a
+  regression is one flag to undo.
+- [ ] **Browser console.** A terminal over the same byte pipe the interactive
+  session already exposes, so a reader boots aXos in a tab with no toolchain,
+  no FPGA, and no install.
+- [ ] **Machines side by side.** The same program on several component
+  selections at once, each with its own cycle count — the demonstration the
+  component system exists for.
+- [ ] **Live documentation.** Code blocks that boot the machine they describe,
+  so an example cannot drift from what it claims, and a bug report can be a URL
+  that boots the machine that failed.
+- [ ] **Verification made visible.** Formal counterexample traces, lock-step
+  cosim divergence, and injected-fault results rendered rather than printed.
+  The rigor above is the credential for every number on screen and is currently
+  legible only in terminal output.
 
 ## Final physical FPGA gate
 
