@@ -37,6 +37,7 @@ help:
 	@echo "  make fpga-runtime-primer # fast-switch gate, then build once"
 	@echo "  make primer-runtime-preflight # simulation + bitstream evidence, no board"
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
+	@echo "  make personality-check  # validate open compute-personality contracts"
 	@echo "  make component-test"
 	@echo "  make web                 # boot the machine in a browser (needs emcc)"
 	@echo "  make web-check           # headless WASM boot, timed against native"
@@ -118,6 +119,10 @@ config-check-all:
 	  echo "configuration: $$component_config: PASS"; \
 	done
 
+personality-check:
+	$(PYTHON) tools/personality_contract.py check research/personalities
+	$(PYTHON) tools/personality_contract.py self-test
+
 sim:
 	$(MAKE) -C sim/soc run-config COMPONENT_CONFIG="$(abspath $(CONFIG))"
 
@@ -196,11 +201,11 @@ web-bench:
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
-component-test: config-check-all
+component-test: config-check-all personality-check
 	$(MAKE) software CONFIG=configs/sim-hello.json
 	$(MAKE) sim CONFIG=configs/sim-delayed.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-delayed
 	$(MAKE) sim CONFIG=configs/sim-delayed-passthrough-cache.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-passthrough-cache
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help doctor component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help doctor component-list component-show config-check config-check-all personality-check sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

@@ -12,6 +12,8 @@ verifiable, and replaceable.
   baseline.
 - [design-checklist.md](design-checklist.md) — live, evidence-based status and
   the final hardware gate.
+- [research-checklist.md](research-checklist.md) — staged partial-
+  reconfiguration, morph-fabric, and adaptive-logic experiments.
 - [toolchain.md](toolchain.md) — exact Ubuntu/Debian setup and known tool
   workarounds.
 - [tangprimer25k-bringup.md](tangprimer25k-bringup.md) — safe Tang Primer 25K
@@ -29,6 +31,8 @@ verifiable, and replaceable.
   the shell control plane.
 - [abi.md](abi.md) — the aXos userspace ABI: syscall convention and numbers,
   ELF entry contract, process state, files, and kernel-mediated role jobs.
+- [personality-contract.md](personality-contract.md) — vendor-neutral compute
+  personality, workload, capability-negotiation, and reconfiguration contract.
 
 Keep a specification and its implementation change together whenever a
 documented interface changes.

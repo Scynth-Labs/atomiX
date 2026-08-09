@@ -218,6 +218,14 @@ the check for any parameterisation.  See
 [hardware-capabilities.md](hardware-capabilities.md) for measured cycles.
 
 ### 3.4 Components / composition
+
+Validate the vendor-neutral research descriptors and their exact workload
+oracles independently of any FPGA toolchain:
+
+```bash
+make personality-check
+```
+
 ```bash
 make config-check-all              # all profiles resolve
 make component-test                # runs the supplied composition matrix (slower)

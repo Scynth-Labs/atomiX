@@ -19,6 +19,10 @@ explicitly acquired or borrowed.
 
 The architectural contract remains [DESIGN.md](../DESIGN.md); component
 contracts and selections are in [components/](../components/).
+Long-horizon hypotheses and experiments for partial reconfiguration, a shared
+CPU/GPU/TPU-style compute fabric, and adaptive logic are tracked separately in
+the [research checklist](research-checklist.md).  Items move here only when
+their engineering scope and evidence gate are concrete.
 
 ## Reference computer
 

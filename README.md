@@ -17,6 +17,7 @@ Tang Primer 25K CPU, GPU, and TPU verified on physical FPGA hardware.
 [Architecture](DESIGN.md) · [Build/test/deploy](docs/workflow.md) ·
 [Dependencies](docs/dependencies.md) ·
 [Live checklist](docs/design-checklist.md) ·
+[Research checklist](docs/research-checklist.md) ·
 [Components](components/README.md)
 
 ---
@@ -121,6 +122,8 @@ and verification claim.  Read the [component catalog](components/README.md),
 | Set up a host or FPGA toolchain | [docs/dependencies.md](docs/dependencies.md) |
 | Change an implementation | [components/README.md](components/README.md) |
 | Inspect current evidence and open work | [docs/design-checklist.md](docs/design-checklist.md) |
+| Track partial reconfiguration, morph compute, and adaptive-logic research | [docs/research-checklist.md](docs/research-checklist.md) |
+| Extend the open compute-personality contract | [docs/personality-contract.md](docs/personality-contract.md) |
 | Prepare the Tang Primer 25K | [docs/tangprimer25k-bringup.md](docs/tangprimer25k-bringup.md) |
 | Prepare the ULX3S | [docs/ulx3s-bringup.md](docs/ulx3s-bringup.md) |
 
@@ -130,6 +133,7 @@ and verification claim.  Read the [component catalog](components/README.md),
 |---|---|
 | [components/](components/) | Selectable manifests and their owned RTL/service sources |
 | [configs/](configs/) | Reproducible system and kernel-service profiles |
+| [research/](research/) | Versioned research contracts, workloads, and experiment inputs |
 | [sim/](sim/) | ISS, lock-step harnesses, SoC runner, and generators |
 | [formal/](formal/) | riscv-formal and SymbiYosys integration |
 | [rtl/](rtl/) | Generic FPGA flow and architecture entry points |
