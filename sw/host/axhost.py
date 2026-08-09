@@ -28,6 +28,11 @@ import tty
 import zlib
 from pathlib import Path
 
+from gpu_programs import (
+    GPU_ADD, GPU_ADDI, GPU_HALT, GPU_LDX, GPU_MUL, GPU_MULI, GPU_STX,
+    GPU_TID, gpu_insn, reviewed_fast_switch_programs,
+)
+
 ROOT = Path(__file__).resolve().parents[2]
 
 REQ_SYNC = 0xA5
@@ -44,17 +49,6 @@ ST_OK = 0x00
 ROLE_ID_LOOPBACK = 0x4C4F4F50  # "LOOP"
 ROLE_ID_TPU = 0x5450554C       # "TPUL"
 ROLE_ID_GPU = 0x47505543       # "GPUC"
-
-# gpu-compute ISA (mirror of components/role/gpu-compute/axrole.sv).
-GPU_HALT, GPU_TID, GPU_LI, GPU_MOV, GPU_LDX, GPU_STX = 0, 1, 2, 3, 4, 5
-GPU_ADD, GPU_SUB, GPU_MUL = 6, 7, 8
-GPU_ADDI, GPU_MULI = 17, 18
-
-
-def gpu_insn(op, rd=0, ra=0, rb=0, imm=0):
-    return ((op << 26) | (rd << 23) | (ra << 20) | (rb << 17) |
-            (imm & 0x1FFFF)) & 0xFFFFFFFF
-
 
 def request(op, payload=b""):
     return bytes([REQ_SYNC, op]) + struct.pack("<H", len(payload)) + payload
@@ -321,50 +315,15 @@ def gpu_exec_payload(nthreads, data):
 
 def fast_switch(pipe, baud):
     """Switch between two GPU programs in one live shell session."""
-    n = 10
-    base_a, base_b, base_c = 0, n, 2 * n
-    saxpy_data = [i + 1 for i in range(n)] + \
-        [100 + 2 * i for i in range(n)] + [0] * n
-    saxpy = [
-        gpu_insn(GPU_TID, rd=0),
-        gpu_insn(GPU_LDX, rd=1, ra=0),
-        gpu_insn(GPU_ADDI, rd=2, ra=0, imm=base_b),
-        gpu_insn(GPU_LDX, rd=3, ra=2),
-        gpu_insn(GPU_MULI, rd=1, ra=1, imm=3),
-        gpu_insn(GPU_ADD, rd=1, ra=1, rb=3),
-        gpu_insn(GPU_ADDI, rd=4, ra=0, imm=base_c),
-        gpu_insn(GPU_STX, ra=4, rb=1),
-        gpu_insn(GPU_HALT),
-    ]
-    saxpy_ref = list(saxpy_data)
-    for i in range(n):
-        saxpy_ref[base_c + i] = 3 * saxpy_data[i] + saxpy_data[base_b + i]
+    programs = reviewed_fast_switch_programs()
 
-    poly_data = [i - 4 for i in range(n)] + [0] * n
-    poly = [
-        gpu_insn(GPU_TID, rd=0),
-        gpu_insn(GPU_LDX, rd=1, ra=0),
-        gpu_insn(GPU_MUL, rd=2, ra=1, rb=1),
-        gpu_insn(GPU_MULI, rd=3, ra=1, imm=2),
-        gpu_insn(GPU_ADD, rd=2, ra=2, rb=3),
-        gpu_insn(GPU_ADDI, rd=2, ra=2, imm=7),
-        gpu_insn(GPU_ADDI, rd=4, ra=0, imm=n),
-        gpu_insn(GPU_STX, ra=4, rb=2),
-        gpu_insn(GPU_HALT),
-    ]
-    poly_ref = list(poly_data)
-    for i in range(n):
-        value = poly_data[i]
-        poly_ref[n + i] = (value * value + 2 * value + 7) & 0xFFFFFFFF
-
-    requests = [
-        request(OP_PING),
-        request(OP_INFO),
-        request(OP_GPU_LOAD, gpu_load_payload(saxpy)),
-        request(OP_GPU_EXEC, gpu_exec_payload(n, saxpy_data)),
-        request(OP_GPU_LOAD, gpu_load_payload(poly)),
-        request(OP_GPU_EXEC, gpu_exec_payload(n, poly_data)),
-    ]
+    requests = [request(OP_PING), request(OP_INFO)]
+    for program in programs:
+        requests.append(request(OP_GPU_LOAD, gpu_load_payload(program["words"])))
+        requests.append(request(
+            OP_GPU_EXEC,
+            gpu_exec_payload(program["nthreads"], program["data"]),
+        ))
     stream = b"".join(requests)
     if isinstance(pipe, SimPipe):
         stream += request(OP_BYE)
@@ -382,9 +341,11 @@ def fast_switch(pipe, baud):
         raise SystemExit(f"axhost: expected GPU role, got 0x{role_id:08x}")
 
     results = []
-    for name, load_frame, exec_frame, expected in (
-            ("saxpy", frames[2], frames[3], saxpy_ref),
-            ("polynomial", frames[4], frames[5], poly_ref)):
+    for index, program in enumerate(programs):
+        name = program["name"]
+        load_frame = frames[2 + index * 2]
+        exec_frame = frames[3 + index * 2]
+        expected = program["expected"]
         if load_frame[0] != ST_OK or len(load_frame[1]) != 4:
             raise SystemExit(f"axhost: {name} LOAD failed: {load_frame!r}")
         load_cycles = struct.unpack("<I", load_frame[1])[0]
@@ -398,7 +359,7 @@ def fast_switch(pipe, baud):
             raise SystemExit(f"axhost: {name} result mismatch")
         results.append((name, load_cycles, exec_cycles, len(load_frame[1])))
 
-    kernel_bytes = len(gpu_load_payload(saxpy))
+    kernel_bytes = len(gpu_load_payload(programs[0]["words"]))
     wire_ms = (4 + kernel_bytes) * 10_000.0 / baud
     print(f"PING -> ok; GPUC version={version}")
     for name, load_cycles, exec_cycles, _ in results:

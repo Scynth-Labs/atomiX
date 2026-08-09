@@ -9,3 +9,11 @@ Validate them with:
 ```bash
 make fitness-check
 ```
+
+`policy/l1-reviewed-gpu.json` is the L1 allow-list and example decision over
+the two runtime programs used by `axhost --fast-switch`. Its result can only be
+`hold`, `propose`, or `no-candidate`; actuation is explicitly unauthorized.
+
+```bash
+make policy-check
+```

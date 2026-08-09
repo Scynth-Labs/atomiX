@@ -1,0 +1,83 @@
+{
+  "schema": {"id": "org.atomix.live-l1-policy", "major": 1, "minor": 0},
+  "kind": "live-l1-policy",
+  "id": "org.atomix.live-l1-policy.reviewed-gpu-programs",
+  "revision": 1,
+  "summary": "Allow-listed selection between the two existing axhost GPU programs",
+  "programs": [
+    {
+      "id": "org.atomix.gpu-program.saxpy-i32-v1",
+      "numeric_id": 1,
+      "workload": {"id": "org.atomix.workload.saxpy-i32", "revision": 1},
+      "role": "org.atomix.role.gpu-compute",
+      "artifact": {
+        "format": "org.atomix.gpu-compute.words-le32",
+        "words": [67108864, 276824064, 1157627914, 295698432, 1217396739, 412483584, 1174405140, 339869696, 0],
+        "sha256": "e8b4950c5faf895fe87d70157bbb53a441d098d72e7543b58c88ab1003da2cf1",
+        "source": "org.atomix.axhost.fast-switch"
+      },
+      "review": {
+        "status": "org.atomix.approved",
+        "oracle": "org.atomix.oracle.saxpy-i32",
+        "note": "Exact output comparison is exercised by axhost --fast-switch"
+      }
+    },
+    {
+      "id": "org.atomix.gpu-program.polynomial-i32-v1",
+      "numeric_id": 2,
+      "workload": {"id": "org.atomix.workload.polynomial-i32", "revision": 1},
+      "role": "org.atomix.role.gpu-compute",
+      "artifact": {
+        "format": "org.atomix.gpu-compute.words-le32",
+        "words": [67108864, 276824064, 554827776, 1234173954, 421920768, 1159725063, 1174405130, 340000768, 0],
+        "sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254",
+        "source": "org.atomix.axhost.fast-switch"
+      },
+      "review": {
+        "status": "org.atomix.approved",
+        "oracle": "org.atomix.oracle.polynomial-i32",
+        "note": "Exact output comparison is exercised by axhost --fast-switch"
+      }
+    }
+  ],
+  "request": {
+    "workload": {"id": "org.atomix.workload.saxpy-i32", "revision": 1},
+    "role": "org.atomix.role.gpu-compute",
+    "current": "org.atomix.gpu-program.polynomial-i32-v1",
+    "objective_id": 1,
+    "minimum_improvement": 1,
+    "fitness_records": [
+      {
+        "id": "org.atomix.live-fitness.saxpy-example",
+        "program": "org.atomix.gpu-program.saxpy-i32-v1",
+        "eligible": true,
+        "objective_id": 1,
+        "fitness": 10000,
+        "evidence_generation": 1
+      },
+      {
+        "id": "org.atomix.live-fitness.polynomial-example",
+        "program": "org.atomix.gpu-program.polynomial-i32-v1",
+        "eligible": true,
+        "objective_id": 1,
+        "fitness": 1,
+        "evidence_generation": 1
+      }
+    ]
+  },
+  "result": {
+    "action": "org.atomix.propose",
+    "current": "org.atomix.gpu-program.polynomial-i32-v1",
+    "proposed": "org.atomix.gpu-program.saxpy-i32-v1",
+    "reason": [
+      "org.atomix.policy.current-incompatible",
+      "org.atomix.policy.reviewed-workload-match"
+    ],
+    "current_fitness": null,
+    "best_fitness": 10000,
+    "actuation": "org.atomix.not-authorized"
+  },
+  "extensions": {
+    "org.atomix.claim": {"value": "example-not-observation"}
+  }
+}

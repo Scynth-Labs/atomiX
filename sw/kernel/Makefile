@@ -180,7 +180,8 @@ check-primer: primer-images
 primer-runtime-images:
 	$(MAKE) images KERNEL_MODE=monitor HOSTLINK=1 \
 	  KERNEL_CONFIG=$(abspath ../../configs/kernel-primer-monitor.json) \
-	  BUILD_DIR=build/primer-runtime RAM_BYTES=32768 STORAGE=0
+	  BUILD_DIR=build/primer-runtime RAM_BYTES=32768 RESIDENT_BUDGET=16384 \
+	  STORAGE=0
 
 primer-uartboot:
 	$(MAKE) -C ../bootrom images MODE=uart RAM_BYTES=32768 \

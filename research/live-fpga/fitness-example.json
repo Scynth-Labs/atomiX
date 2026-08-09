@@ -1,0 +1,79 @@
+{
+  "schema": {"id": "org.atomix.live-fitness", "major": 1, "minor": 0},
+  "kind": "live-fitness",
+  "id": "org.atomix.live-fitness.example-cycles",
+  "revision": 1,
+  "summary": "Deterministic example derived from two Live FPGA L0 snapshots",
+  "candidate": {
+    "id": "org.atomix.candidate.example-reviewed-role",
+    "numeric_id": 9
+  },
+  "workload": {
+    "id": "org.atomix.workload.example-fixed",
+    "revision": 1,
+    "case": "case-0",
+    "expected_work": 4
+  },
+  "telemetry": {
+    "schema": {"major": 1, "minor": 0},
+    "before": {
+      "sequence": 7,
+      "cycles": 1000,
+      "work_completed": 10,
+      "memory_stalls": 100,
+      "descriptor_rejections": 2,
+      "watchdog_events": 3,
+      "configuration_generation": 4
+    },
+    "after": {
+      "sequence": 8,
+      "cycles": 1501,
+      "work_completed": 14,
+      "memory_stalls": 201,
+      "descriptor_rejections": 2,
+      "watchdog_events": 3,
+      "configuration_generation": 4
+    }
+  },
+  "oracle": {
+    "status": "org.atomix.pass",
+    "cases": 3,
+    "output_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "method": "Exact workload oracle over all declared output bytes"
+  },
+  "energy": {
+    "picojoules": null,
+    "method": "No energy sensor in the L0 monitor"
+  },
+  "objective": {
+    "id": "org.atomix.fitness.cycles-per-work-q10",
+    "scale": 1024,
+    "rounding": "org.atomix.round-up",
+    "direction": "org.atomix.lower-is-better"
+  },
+  "result": {
+    "eligible": true,
+    "rejection_mask": 0,
+    "rejection_reasons": [],
+    "deltas": {
+      "cycles": 501,
+      "work_completed": 4,
+      "memory_stalls": 101,
+      "descriptor_rejections": 0,
+      "watchdog_events": 0,
+      "configuration_generation": 0
+    },
+    "ratios": {
+      "cycles_per_work": {"numerator": 501, "denominator": 4},
+      "stall_fraction": {"numerator": 101, "denominator": 501}
+    },
+    "evolution_record": {
+      "candidate_id": 9,
+      "fitness": 128256,
+      "evidence_generation": 1,
+      "objective_id": 1,
+      "flags": 1
+    }
+  },
+  "extensions": {}
+}

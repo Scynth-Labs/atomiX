@@ -12,10 +12,16 @@ service on the shell — never role internals.
   backend. It runs PING/INFO/jobs, and can load and execute two different GPU
   programs without rebuilding the FPGA. Evidence:
   `make -C sw/kernel check-hostlink check-uartboot check-primer-runtime`.
+- [`gpu_programs.py`](gpu_programs.py) — the reviewed SAXPY and polynomial
+  runtime programs shared by `axhost --fast-switch` and the Live FPGA L1
+  allow-list check. The policy verifies their exact little-endian word hashes;
+  it cannot send or activate a program.
 
 The aXos side is the host-link personality built with `HOSTLINK=1`
 ([sw/kernel/hostlink.c](../kernel/hostlink.c)), which dispatches frames to the
-in-kernel role driver ([sw/kernel/role.c](../kernel/role.c)).
+in-kernel role driver ([sw/kernel/role.c](../kernel/role.c)). This transport
+personality has its own explicit 16 KiB resident ceiling; it does not relax the
+12 KiB predetermined interactive profile or any evolution tier's bound.
 
 Upload and start a kernel on an attached runtime image:
 

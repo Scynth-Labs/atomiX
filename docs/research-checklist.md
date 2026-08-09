@@ -184,9 +184,14 @@ and the later
   metrics, and emits a uint32 Q22.10 cycles/work score only for eligible
   trials. Evidence: [Live FPGA fitness record](live-fpga.md),
   `research/live-fpga/`, and `make fitness-check`.
-- [ ] **No hardware — next:** build an L1 host policy that selects among existing,
-  reviewed GPU programs or tunable schedules and records why it switched.
-- [ ] **No hardware:** create a content-addressed candidate registry containing
+- [x] **No hardware:** build an L1 host policy that selects among existing,
+  reviewed GPU programs or tunable schedules and records why it switched. The
+  first policy validates the exact `axhost --fast-switch` word streams, filters
+  by role/workload/revision and fitness eligibility, rejects mixed objectives,
+  applies a deterministic threshold, and emits a reasoned proposal with no
+  actuation authority. Evidence: [L1 reviewed selection](live-fpga.md),
+  `research/live-fpga/policy/`, and `make policy-check`.
+- [ ] **No hardware — next:** create a content-addressed candidate registry containing
   source/profile hash, tool versions, parent, mutation, test evidence, and
   deployment outcome.
 - [ ] **No hardware:** implement L2 shadow evaluation: simulate each candidate,
@@ -228,7 +233,8 @@ injected failure.
 
 ## Immediate queue without hardware
 
-1. Build the R3/L1 allow-listed selection policy over existing GPU programs.
+1. Create the content-addressed R3 candidate registry and connect its evidence
+   identity to L1 proposals.
 2. Generalise the R2 evidence identity into the shared record used by all three
    research tracks.
 3. Implement the R2 morph fabric when L3 overlay adaptation needs it; L0/L1 can

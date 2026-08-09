@@ -45,6 +45,13 @@ The current resident sizes are 8,220 (`none`), 12,412 (`small`), 12,652 (`mid`),
 and 13,612 bytes (`large`). `none` retains four free 4 KiB allocator pages; the
 three callable evolution services retain three.
 
+The host-link test personality is a separate, host-managed build rather than a
+public evolution tier. It has an explicit 16 KiB resident ceiling so its frame
+transport and GPU dispatcher fit, while the predetermined interactive profile
+keeps its 12 KiB ceiling and `kernel-evolve-small` keeps its 16 KiB ceiling.
+This exception is selected by the host-link build target; it does not enlarge
+any evolution component or grant configuration authority.
+
 This is still not a claim that the kernel can evolve an FPGA. Configuration
 actuation and rollback remain later, separately gated capabilities.
 
@@ -96,6 +103,42 @@ make fitness-check
 This validates the JSON contract, hard-gate negative cases, counter wrap,
 host C implementation, callable code in every evolving RISC-V profile, and the
 exact 32 KiB Primer link/boot gate.
+
+## L1 reviewed-program selection
+
+The first selecting policy runs on the host and accepts only programs listed in
+the versioned L1 document under `research/live-fpga/policy/`. The initial list
+contains the exact SAXPY and polynomial word streams already exercised by
+`axhost --fast-switch`; the policy recomputes each little-endian program hash
+and checks that those words still match the runtime client.
+
+Selection is deliberately ordered:
+
+1. require an approved allow-list entry for the requested role;
+2. require exact workload ID and revision compatibility;
+3. discard ineligible fitness records;
+4. require one objective ID for the whole decision;
+5. rank compatible candidates by fitness, then stable program ID;
+6. apply the declared minimum-improvement threshold before switching between
+   two compatible programs.
+
+The output is `hold`, `propose`, or `no-candidate` plus namespaced reason codes,
+the current and best fitness when comparable, and
+`actuation: org.atomix.not-authorized`. The tool never imports or calls the
+serial transport, `axhost` activation operations, FPGA programming tools, or
+kernel upload path. A proposal therefore records intent without gaining the
+authority to deploy it.
+
+The checked example requests SAXPY while polynomial is resident. Polynomial's
+synthetic example score is numerically lower, but it is workload-incompatible,
+so it cannot win; the policy proposes the reviewed SAXPY program and records
+both `current-incompatible` and `reviewed-workload-match`. Negative tests cover
+an ineligible oracle result, mixed objectives, a tampered program word, and a
+faster wrong-workload program.
+
+```bash
+make policy-check
+```
 
 ## Immutable boundary
 
@@ -162,9 +205,10 @@ rejected adaptive candidate.
 
 ## What this enables next
 
-The next Live FPGA item is the L1 allow-listed selection policy. It can now
-evaluate reviewed alternatives with this record, explain why it proposed a
-switch, and still leave activation to the immutable management path.
+The next Live FPGA item is the content-addressed candidate registry. It will
+add source/profile hashes, tool versions, parent/mutation identity, test
+evidence, and deployment outcomes around the program hashes already used by
+L1 selection.
 
 ## Evidence
 

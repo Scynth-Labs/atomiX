@@ -32,6 +32,9 @@ __pycache__/
 # new profiles are visible to Git by default.
 !components/**/component.json
 !configs/*.json
+# Live FPGA records are checked research inputs/evidence, not synthesis output.
+!research/live-fpga/*.json
+!research/live-fpga/**/*.json
 *.asc
 *.bit
 *.svf

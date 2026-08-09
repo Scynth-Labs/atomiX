@@ -14,7 +14,7 @@ import personality_contract as pc
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_ROOT = ROOT / "research" / "live-fpga"
+DEFAULT_ROOT = ROOT / "research" / "live-fpga" / "fitness-example.json"
 U32_MAX = (1 << 32) - 1
 U64_MAX = (1 << 64) - 1
 OBJECTIVE = "org.atomix.fitness.cycles-per-work-q10"
@@ -223,7 +223,7 @@ def check(paths: list[Path]) -> int:
 
 
 def self_test() -> int:
-    path = DEFAULT_ROOT / "fitness-example.json"
+    path = DEFAULT_ROOT
     record = load(path)
     validate_document(path, record)
 
