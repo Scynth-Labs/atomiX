@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "evolution.large",
+  "kind": "evolution",
+  "title": "Primer-bounded large evolution policy",
+  "sources": ["components/evolution/core/evolution.c"],
+  "make": {
+    "evolution_tier": 3,
+    "evolution_capabilities": 3,
+    "evolution_capacity": 64,
+    "evolution_state_budget": 1296,
+    "evolution_resident_budget": 24576
+  },
+  "capabilities": [
+    "correctness-gated-records",
+    "deterministic-proposal",
+    "primer-32k-gated"
+  ]
+}

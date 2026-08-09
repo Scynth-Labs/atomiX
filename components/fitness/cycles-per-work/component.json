@@ -1,0 +1,16 @@
+{
+  "schema": 1,
+  "id": "fitness.cycles-per-work",
+  "kind": "fitness",
+  "title": "Correctness-gated cycles per completed work item",
+  "sources": ["components/fitness/core/fitness.c"],
+  "make": {
+    "fitness_enabled": 1,
+    "fitness_objective": 1
+  },
+  "capabilities": [
+    "live-snapshot-delta",
+    "correctness-hard-gate",
+    "q22.10-cycles-per-work"
+  ]
+}

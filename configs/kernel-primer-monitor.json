@@ -10,9 +10,12 @@
     "block": "block.spi-sd",
     "syscall": "syscall.linux-compat",
     "loader": "loader.elf32",
-    "libc": "libc.axlibc"
+    "libc": "libc.axlibc",
+    "evolution": "evolution.none",
+    "fitness": "fitness.none"
   },
   "settings": {
+    "kernel_mode": "monitor",
     "ram_bytes": 32768
   }
 }

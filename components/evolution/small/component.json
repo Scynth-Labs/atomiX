@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "evolution.small",
+  "kind": "evolution",
+  "title": "Primer-bounded small evolution policy",
+  "sources": ["components/evolution/core/evolution.c"],
+  "make": {
+    "evolution_tier": 1,
+    "evolution_capabilities": 3,
+    "evolution_capacity": 4,
+    "evolution_state_budget": 96,
+    "evolution_resident_budget": 16384
+  },
+  "capabilities": [
+    "correctness-gated-records",
+    "deterministic-proposal",
+    "primer-32k-gated"
+  ]
+}

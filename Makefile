@@ -40,6 +40,8 @@ help:
 	@echo "  make personality-check  # validate open compute-personality contracts"
 	@echo "  make comparison-check   # validate research comparison/evidence contracts"
 	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL"
+	@echo "  make evolution-check    # bounded kernel-evolve tiers in Primer RAM"
+	@echo "  make fitness-check      # deterministic Live FPGA fitness contract"
 	@echo "  make component-test"
 	@echo "  make web                 # boot the machine in a browser (needs emcc)"
 	@echo "  make web-check           # headless WASM boot, timed against native"
@@ -132,6 +134,13 @@ comparison-check: personality-check
 live-check:
 	$(MAKE) -C sim/unit run-axlivemon run-axroleiso
 
+evolution-check:
+	$(MAKE) -C sw/kernel evolution-check
+
+fitness-check: evolution-check
+	$(PYTHON) tools/live_fitness.py check research/live-fpga
+	$(PYTHON) tools/live_fitness.py self-test
+
 sim:
 	$(MAKE) -C sim/soc run-config COMPONENT_CONFIG="$(abspath $(CONFIG))"
 
@@ -217,4 +226,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help doctor component-list component-show config-check config-check-all personality-check comparison-check live-check sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

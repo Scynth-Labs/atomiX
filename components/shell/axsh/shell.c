@@ -1,6 +1,7 @@
 #include <stdint.h>
 
 #include "console.h"
+#include "evolution.h"
 #include "fs.h"
 #include "kernel_info.h"
 #include "page.h"
@@ -532,6 +533,31 @@ static void command_role(uint32_t argc, char **argv) {
   shell_role();
 }
 
+#if AX_EVOLUTION_CAPABILITIES != 0
+static void command_evolve(uint32_t argc, char **argv) {
+  (void)argv;
+  if (argc != 1) {
+    uart_puts("evolve: usage evolve\n");
+    return;
+  }
+  struct evolution_status status;
+  evolution_get_status(&status);
+  uart_puts("evolve: tier ");
+  uart_puts(evolution_tier_name());
+  uart_puts(" capacity ");
+  put_u32(status.capacity);
+  uart_puts(" state ");
+  put_u32(status.state_bytes);
+  uart_puts(" records ");
+  put_u32(status.records);
+  uart_puts(" rejected ");
+  put_u32(status.rejected);
+  uart_puts(" overflow ");
+  put_u32(status.overflows);
+  uart_puts(status.capabilities == 0 ? " predetermined\n" : " propose-only\n");
+}
+#endif
+
 static void command_shutdown(uint32_t argc, char **argv) {
   if (argc != 1) {
     uart_puts(argv[0]);
@@ -566,6 +592,9 @@ const struct shell_command shell_commands[] = {
     {"exec", "exec [FILE [ARG ...]]", "load a user ELF and return to the shell", command_exec},
     {"run", "run FILE [ARG ...]", "run a named user ELF and return to the shell", command_exec},
     {"role", "role", "discover and test the accelerator role", command_role},
+#if AX_EVOLUTION_CAPABILITIES != 0
+    {"evolve", "evolve", "show the bounded evolution policy", command_evolve},
+#endif
     {"shutdown", "shutdown", "halt the machine cleanly", command_shutdown},
     {"exit", "exit", "leave the shell and halt the machine", command_shutdown},
 };

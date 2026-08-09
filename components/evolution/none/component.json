@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "id": "evolution.none",
+  "kind": "evolution",
+  "title": "Predetermined kernel with evolution disabled",
+  "sources": ["components/evolution/core/evolution.c"],
+  "make": {
+    "evolution_tier": 0,
+    "evolution_capabilities": 0,
+    "evolution_capacity": 0,
+    "evolution_state_budget": 0,
+    "evolution_resident_budget": 12288
+  },
+  "capabilities": ["predetermined", "zero-evolution-state"]
+}

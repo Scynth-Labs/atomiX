@@ -172,10 +172,19 @@ and the later
   counters for cycles, work completed, memory stalls, descriptor rejection,
   watchdog events, and configuration generation.  Evidence: the shell-owned
   [Live FPGA monitor and schema](live-fpga.md) and `make live-check`.
-- [ ] **No hardware — next:** define a deterministic fitness function with
-  correctness as a hard gate; performance or energy can rank only correct
-  candidates.
-- [ ] **No hardware:** build an L1 host policy that selects among existing,
+- [x] **No hardware:** split evolution policy from the immutable management
+  kernel and provide `none`, `small`, `mid`, and `large` bounded services.
+  Every supplied profile links and boots inside the Tang Primer's exact 32 KiB
+  RAM envelope; policy state is statically capped and no tier can actuate FPGA
+  configuration. Evidence: [kernel evolution service](live-fpga.md) and
+  `make evolution-check`.
+- [x] **No hardware:** define a deterministic fitness function over adjacent
+  L0 snapshots with correctness as a hard gate. The versioned record preserves
+  raw counters and oracle evidence, derives modular deltas and exact rational
+  metrics, and emits a uint32 Q22.10 cycles/work score only for eligible
+  trials. Evidence: [Live FPGA fitness record](live-fpga.md),
+  `research/live-fpga/`, and `make fitness-check`.
+- [ ] **No hardware — next:** build an L1 host policy that selects among existing,
   reviewed GPU programs or tunable schedules and records why it switched.
 - [ ] **No hardware:** create a content-addressed candidate registry containing
   source/profile hash, tool versions, parent, mutation, test evidence, and
@@ -219,9 +228,8 @@ injected failure.
 
 ## Immediate queue without hardware
 
-1. Define the R3 deterministic fitness record over two Live FPGA snapshots.
-2. Build the R3/L1 allow-listed selection policy over existing GPU programs.
-3. Generalise the R2 evidence identity into the shared record used by all three
+1. Build the R3/L1 allow-listed selection policy over existing GPU programs.
+2. Generalise the R2 evidence identity into the shared record used by all three
    research tracks.
-4. Implement the R2 morph fabric when L3 overlay adaptation needs it; L0/L1 can
+3. Implement the R2 morph fabric when L3 overlay adaptation needs it; L0/L1 can
    proceed independently.

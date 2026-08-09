@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "id": "fitness.none",
+  "kind": "fitness",
+  "title": "No adaptive fitness policy",
+  "sources": ["components/fitness/core/fitness.c"],
+  "make": {
+    "fitness_enabled": 0,
+    "fitness_objective": 0
+  },
+  "capabilities": ["predetermined", "zero-fitness-state"]
+}

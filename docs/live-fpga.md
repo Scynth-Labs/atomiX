@@ -5,6 +5,98 @@ execution, evaluates bounded alternatives, activates a verified candidate, and
 rolls back when correctness or safety fails.  The initial implementation is
 L0 observation.  It does not yet claim autonomous improvement.
 
+## Kernel architecture: immutable manager, selectable evolution service
+
+The kernel does not rewrite itself. A small management kernel remains the
+trusted owner of reset, isolation, telemetry, watchdog/recovery, and eventual
+configuration actuation. Its `evolution` service is a replaceable component
+behind the API in `sw/kernel/include/evolution.h`. That separation prevents a
+larger search policy from becoming a permanent kernel dependency and lets an
+external manifest replace the supplied policy without adopting one vendor's
+runtime or bitstream format.
+
+Four profiles are supplied:
+
+| Profile | Component | Records | State cap | Resident cap | Primer gate |
+|---|---|---:|---:|---:|---|
+| predetermined | `evolution.none` | 0 | 0 B | 12 KiB | 32 KiB link + boot |
+| `kernel-evolve-small` | `evolution.small` | 4 | 96 B | 16 KiB | 32 KiB link + boot |
+| `kernel-evolve-mid` | `evolution.mid` | 16 | 336 B | 20 KiB | 32 KiB link + boot |
+| `kernel-evolve-large` | `evolution.large` | 64 | 1,296 B | 24 KiB | 32 KiB link + boot |
+
+The class names describe bounded policy capacity, not permission to weaken the
+safety boundary. Each evolving tier accepts versioned candidate records,
+refuses to propose a record whose correctness flag is clear, and ranks correct
+records by caller-supplied fitness with candidate ID as the deterministic
+tie-breaker. A table accepts only one objective ID and rejects a mixed-objective
+record rather than comparing unrelated score scales.
+It returns a proposal only. It cannot activate a role, write configuration
+memory, mutate native FPGA frames, or promote a candidate.
+
+The state limit is compiled into each component and guarded by a static
+assertion. The linker separately enforces the tier's total resident cap, so a
+`small` policy cannot consume the space reserved for `mid` or `large`. Each
+public profile also selects the compact monitor kernel and an exact 32 KiB RAM
+map. The linker reserves the final 4 KiB for the bootstrap stack and fails if
+code, data, page tables, or evolution state cross it.
+`make evolution-check` tests the policy semantics, links all four profiles,
+boots each on the ISS with exactly 32 KiB, and reports the remaining headroom.
+The current resident sizes are 8,220 (`none`), 12,412 (`small`), 12,652 (`mid`),
+and 13,612 bytes (`large`). `none` retains four free 4 KiB allocator pages; the
+three callable evolution services retain three.
+
+This is still not a claim that the kernel can evolve an FPGA. Configuration
+actuation and rollback remain later, separately gated capabilities.
+
+## Deterministic fitness record, version 1.0
+
+The selected `fitness` component is separate from the `evolution` component.
+`fitness.cycles-per-work` consumes a trial; `evolution.small`, `.mid`, or
+`.large` stores and ranks the resulting compact record. A future energy,
+latency, or multi-objective policy can therefore replace the fitness component
+without changing the evolution service or management boundary. Predetermined
+profiles select `fitness.none` and link no fitness code.
+
+A trial pins the numeric and namespaced candidate identity, workload revision
+and case, expected work count, exact oracle result, optional integer energy in
+picojoules, and two L0 snapshots. It is eligible only when all of these hold:
+
+- the snapshots are adjacent modulo 2^32;
+- the oracle passed at least one case and recorded an output SHA-256;
+- completed work equals the workload's declared work count;
+- descriptor-rejection and watchdog deltas are zero;
+- configuration generation is unchanged during the workload;
+- elapsed cycles are non-zero and memory stalls do not exceed elapsed cycles.
+
+All 64-bit counter deltas use unsigned modular subtraction, including a wrap
+between snapshots. The initial objective is cycles per work item encoded as
+Q22.10, lower is better:
+
+```text
+fitness = ceil(delta_cycles * 1024 / delta_work)
+```
+
+The computation uses integer arithmetic only. A result outside uint32 is
+ineligible rather than silently truncated. Incorrect and unsafe trials carry
+fitness `0xffffffff` with the correctness flag clear, so better performance can
+never erase a failed oracle or safety event. Different objective IDs are never
+compared as though their numeric scores had the same meaning.
+
+The complete JSON evidence record is under `research/live-fpga/`; it preserves
+raw snapshots, exact rational metrics, rejection reasons, and the compact
+kernel evolution record. `tools/live_fitness.py` recomputes every derived field
+instead of trusting entered results. The freestanding C implementation uses the
+same rules and a bounded 64-by-32 divider, avoiding floating point and an
+implicit runtime-library dependency on RV32.
+
+```bash
+make fitness-check
+```
+
+This validates the JSON contract, hard-gate negative cases, counter wrap,
+host C implementation, callable code in every evolving RISC-V profile, and the
+exact 32 KiB Primer link/boot gate.
+
 ## Immutable boundary
 
 Telemetry, role isolation, reset, UART recovery, the watchdog, and the
@@ -70,11 +162,9 @@ rejected adaptive candidate.
 
 ## What this enables next
 
-The next Live FPGA item is a deterministic fitness record.  It will take two
-snapshots around a versioned workload, require its correctness oracle to pass,
-then derive cycles/work item, stall rate, rejection count, watchdog count, and
-generation identity.  Performance can rank correct candidates; it can never
-turn an incorrect candidate into an improvement.
+The next Live FPGA item is the L1 allow-listed selection policy. It can now
+evaluate reviewed alternatives with this record, explain why it proposed a
+switch, and still leave activation to the immutable management path.
 
 ## Evidence
 

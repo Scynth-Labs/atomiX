@@ -1,7 +1,6 @@
 include ../../mk/toolchain.mk
 PYTHON ?= python3
 KERNEL_CONFIG ?= ../../configs/kernel-default.json
-KERNEL_MODE ?= full
 BUILD_DIR ?= build
 # A profile may be outside this worktree; use its absolute location in the
 # generated filename so equal basenames cannot collide.
@@ -16,6 +15,10 @@ $(KERNEL_COMPONENT_MK): $(KERNEL_CONFIG) ../../tools/configure.py $(KERNEL_COMPO
 -include $(KERNEL_COMPONENT_MK)
 $(KERNEL_COMPONENT_MK): $(COMPONENT_SELECTED_MANIFESTS)
 
+# Compact/evolving profiles carry their intended kernel personality with the
+# profile. A command-line override still wins for controlled comparisons.
+KERNEL_MODE ?= $(if $(COMPONENT_SETTING_KERNEL_MODE),$(COMPONENT_SETTING_KERNEL_MODE),full)
+
 .DEFAULT_GOAL := all
 
 CC      := $(RISCV_PREFIX)gcc
@@ -23,6 +26,11 @@ OBJCOPY := $(RISCV_PREFIX)objcopy
 QEMU    ?= qemu-system-riscv32
 export QEMU
 RAM_BYTES ?= $(if $(COMPONENT_RAM_BYTES),$(COMPONENT_RAM_BYTES),131072)
+ifeq ($(KERNEL_MODE),monitor)
+RESIDENT_BUDGET ?= $(COMPONENT_EVOLUTION_RESIDENT_BUDGET)
+else
+RESIDENT_BUDGET ?= $(RAM_BYTES)
+endif
 EXTERNAL_MEMORY ?= 0
 CACHES ?= 0
 MAX_CYCLES ?= 100000
@@ -43,6 +51,12 @@ $(IRQ_MAP): $(SOC_TOP) ../../tools/gen_irq_map.py | $(BUILD_DIR)
 
 HOSTLINK ?= 0
 CPPFLAGS := -Iinclude -I$(BUILD_DIR) -DAXOS_SD=$(STORAGE) -DAXFS_BLOCK=$(FS_BLOCK)
+CPPFLAGS += -DAX_EVOLUTION_TIER=$(COMPONENT_EVOLUTION_TIER) \
+            -DAX_EVOLUTION_CAPABILITIES=$(COMPONENT_EVOLUTION_CAPABILITIES) \
+            -DAX_EVOLUTION_CAPACITY=$(COMPONENT_EVOLUTION_CAPACITY) \
+            -DAX_EVOLUTION_STATE_BUDGET=$(COMPONENT_EVOLUTION_STATE_BUDGET)
+CPPFLAGS += -DAX_FITNESS_ENABLED=$(COMPONENT_FITNESS_ENABLED) \
+            -DAX_FITNESS_OBJECTIVE=$(COMPONENT_FITNESS_OBJECTIVE)
 ifeq ($(KERNEL_MODE),monitor)
 CPPFLAGS += -DAXOS_MONITOR=1 -DAXOS_EMBED_USER=0
 else
@@ -69,6 +83,7 @@ ifeq ($(KERNEL_MODE),monitor)
 CFLAGS += -Os -ffunction-sections -fdata-sections
 endif
 LDFLAGS = -nostdlib -Wl,-T,link.ld -Wl,--defsym=AXOS_RAM_BYTES=$(RAM_BYTES) \
+          -Wl,--defsym=AXOS_RESIDENT_BUDGET=$(RESIDENT_BUDGET) \
           -Wl,--gc-sections -Wl,-Map,$(@:.elf=.map)
 
 USER_ELF := $(BUILD_DIR)/userprog/hello.elf
@@ -102,13 +117,15 @@ ifeq ($(KERNEL_MODE),monitor)
 # controller -- which is also why this personality selects shell.monitor rather
 # than shell.axsh, the shell that reads through the console driver.
 SOURCES := boot.S trap.S monitor.c role.c \
-           $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES)
+           $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES) \
+           $(COMPONENT_EVOLUTION_SOURCES) $(COMPONENT_FITNESS_SOURCES)
 else
 SOURCES := boot.S trap.S user.S kernel.c plic.c console.c role.c $(COMPONENT_SYSCALL_SOURCES) \
            $(COMPONENT_LOADER_SOURCES) \
            $(COMPONENT_ALLOCATOR_SOURCES) $(COMPONENT_SHELL_SOURCES) \
            $(COMPONENT_FILESYSTEM_SOURCES) $(COMPONENT_BLOCK_SOURCES) \
-           $(COMPONENT_SCHEDULER_SOURCES) $(COMPONENT_VM_SOURCES)
+           $(COMPONENT_SCHEDULER_SOURCES) $(COMPONENT_VM_SOURCES) \
+           $(COMPONENT_EVOLUTION_SOURCES) $(COMPONENT_FITNESS_SOURCES)
 endif
 ifeq ($(HOSTLINK),1)
 SOURCES += hostlink.c
@@ -117,7 +134,7 @@ endif
 all: $(ELF)
 images: $(BIN) $(HEX)
 
-$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) $(IRQ_MAP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/plic.h include/hostlink.h include/kernel_info.h include/process.h | $(BUILD_DIR)
+$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) $(IRQ_MAP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/plic.h include/hostlink.h include/kernel_info.h include/process.h include/evolution.h include/fitness.h | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
 
 $(BIN): $(ELF)
@@ -243,12 +260,69 @@ kernel-config: $(KERNEL_COMPONENT_MK)
 	@test -n "$(COMPONENT_SHELL_ID)" || { echo "$(KERNEL_CONFIG): select a shell component"; exit 2; }
 	@test -n "$(COMPONENT_FILESYSTEM_ID)" || { echo "$(KERNEL_CONFIG): select a filesystem component"; exit 2; }
 	@test -n "$(COMPONENT_BLOCK_ID)" || { echo "$(KERNEL_CONFIG): select a block component"; exit 2; }
+	@test -n "$(COMPONENT_EVOLUTION_ID)" || { echo "$(KERNEL_CONFIG): select an evolution component"; exit 2; }
+	@test -n "$(COMPONENT_FITNESS_ID)" || { echo "$(KERNEL_CONFIG): select a fitness component"; exit 2; }
 	@echo "[kernel] scheduler: $(COMPONENT_SCHEDULER_ID)"
 	@echo "[kernel] vm:        $(COMPONENT_VM_ID)"
 	@echo "[kernel] allocator: $(COMPONENT_ALLOCATOR_ID)"
 	@echo "[kernel] shell:     $(COMPONENT_SHELL_ID)"
 	@echo "[kernel] filesystem: $(COMPONENT_FILESYSTEM_ID)"
 	@echo "[kernel] block:     $(COMPONENT_BLOCK_ID)"
+	@echo "[kernel] evolution: $(COMPONENT_EVOLUTION_ID)"
+	@echo "[kernel] fitness:   $(COMPONENT_FITNESS_ID)"
+
+# The policy unit test checks exact capacity, correctness gating, deterministic
+# tie-breaking, and overflow behavior for every implementation. The profile
+# test then links every public kernel-evolve profile inside the Primer's exact
+# 32 KiB memory envelope, confirms its linked state allocation, and boots it on
+# the ISS.
+HOST_CC ?= cc
+EVOLUTION_CORE := ../../components/evolution/core/evolution.c
+EVOLUTION_TEST := check_evolution.c
+FITNESS_CORE := ../../components/fitness/core/fitness.c
+FITNESS_TEST := check_fitness.c
+
+evolution-policy-test: | $(BUILD_DIR)
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Iinclude \
+	  -DAX_EVOLUTION_TIER=0 -DAX_EVOLUTION_CAPABILITIES=0 \
+	  -DAX_EVOLUTION_CAPACITY=0 -DAX_EVOLUTION_STATE_BUDGET=0 \
+	  $(EVOLUTION_CORE) $(EVOLUTION_TEST) -o $(BUILD_DIR)/evolution-none-test
+	$(BUILD_DIR)/evolution-none-test
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Iinclude \
+	  -DAX_EVOLUTION_TIER=1 -DAX_EVOLUTION_CAPABILITIES=3 \
+	  -DAX_EVOLUTION_CAPACITY=4 -DAX_EVOLUTION_STATE_BUDGET=96 \
+	  $(EVOLUTION_CORE) $(EVOLUTION_TEST) -o $(BUILD_DIR)/evolution-small-test
+	$(BUILD_DIR)/evolution-small-test
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Iinclude \
+	  -DAX_EVOLUTION_TIER=2 -DAX_EVOLUTION_CAPABILITIES=3 \
+	  -DAX_EVOLUTION_CAPACITY=16 -DAX_EVOLUTION_STATE_BUDGET=336 \
+	  $(EVOLUTION_CORE) $(EVOLUTION_TEST) -o $(BUILD_DIR)/evolution-mid-test
+	$(BUILD_DIR)/evolution-mid-test
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Iinclude \
+	  -DAX_EVOLUTION_TIER=3 -DAX_EVOLUTION_CAPABILITIES=3 \
+	  -DAX_EVOLUTION_CAPACITY=64 -DAX_EVOLUTION_STATE_BUDGET=1296 \
+	  $(EVOLUTION_CORE) $(EVOLUTION_TEST) -o $(BUILD_DIR)/evolution-large-test
+	$(BUILD_DIR)/evolution-large-test
+
+fitness-policy-test: | $(BUILD_DIR)
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Iinclude \
+	  -DAX_FITNESS_ENABLED=0 -DAX_FITNESS_OBJECTIVE=0 \
+	  $(FITNESS_CORE) $(FITNESS_TEST) -o $(BUILD_DIR)/fitness-none-test
+	$(BUILD_DIR)/fitness-none-test
+	$(HOST_CC) -std=c11 -Wall -Wextra -Werror -Iinclude \
+	  -DAX_FITNESS_ENABLED=1 -DAX_FITNESS_OBJECTIVE=1 \
+	  $(FITNESS_CORE) $(FITNESS_TEST) -o $(BUILD_DIR)/fitness-cycles-test
+	$(BUILD_DIR)/fitness-cycles-test
+
+evolution-profile-images:
+	$(MAKE) images KERNEL_CONFIG=$(abspath ../../configs/kernel-primer-monitor.json) BUILD_DIR=build/evolution-none
+	$(MAKE) images KERNEL_CONFIG=$(abspath ../../configs/kernel-evolve-small.json) BUILD_DIR=build/evolution-small
+	$(MAKE) images KERNEL_CONFIG=$(abspath ../../configs/kernel-evolve-mid.json) BUILD_DIR=build/evolution-mid
+	$(MAKE) images KERNEL_CONFIG=$(abspath ../../configs/kernel-evolve-large.json) BUILD_DIR=build/evolution-large
+
+evolution-check: kernel-config-check-all evolution-policy-test fitness-policy-test evolution-profile-images
+	$(MAKE) -C ../../sim/axsim axsim
+	$(PYTHON) check_evolution_profiles.py
 
 kernel-config-check:
 	$(PYTHON) ../../tools/configure.py resolve --config "$(KERNEL_CONFIG)"
@@ -268,4 +342,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean

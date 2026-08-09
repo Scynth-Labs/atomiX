@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "id": "evolution.mid",
+  "kind": "evolution",
+  "title": "Primer-bounded medium evolution policy",
+  "sources": ["components/evolution/core/evolution.c"],
+  "make": {
+    "evolution_tier": 2,
+    "evolution_capabilities": 3,
+    "evolution_capacity": 16,
+    "evolution_state_budget": 336,
+    "evolution_resident_budget": 20480
+  },
+  "capabilities": [
+    "correctness-gated-records",
+    "deterministic-proposal",
+    "primer-32k-gated"
+  ]
+}

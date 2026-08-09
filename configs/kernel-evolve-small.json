@@ -1,17 +1,21 @@
 {
   "schema": 1,
-  "name": "kernel-cooperative",
+  "name": "kernel-evolve-small",
   "components": {
-    "scheduler": "scheduler.cooperative",
+    "scheduler": "scheduler.round-robin",
     "vm": "vm.sv32",
     "allocator": "allocator.free-list",
-    "shell": "shell.axsh",
+    "shell": "shell.monitor",
     "filesystem": "filesystem.axfs",
     "block": "block.spi-sd",
     "syscall": "syscall.linux-compat",
     "loader": "loader.elf32",
     "libc": "libc.axlibc",
-    "evolution": "evolution.none",
-    "fitness": "fitness.none"
+    "evolution": "evolution.small",
+    "fitness": "fitness.cycles-per-work"
+  },
+  "settings": {
+    "kernel_mode": "monitor",
+    "ram_bytes": 32768
   }
 }

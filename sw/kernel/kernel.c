@@ -7,6 +7,7 @@
 #include "page.h"
 #include "platform.h"
 #include "console.h"
+#include "evolution.h"
 #include "plic.h"
 #include "process.h"
 #include "role.h"
@@ -725,6 +726,9 @@ void kmain(void) {
   page_allocator_self_test();
   plic_init();
   role_init();
+#if AX_EVOLUTION_CAPABILITIES != 0
+  evolution_init();
+#endif
   /* Interrupt policy lives here rather than in the drivers: the kernel owns
    * the controller, so it decides that role completion is source 2 on its own
    * S-mode context.  With no controller (the ISS) or no accelerator, nothing

@@ -15,6 +15,8 @@ PHDRS {
 SECTIONS {
   .text : {
     *(.text.init)
+    KEEP(*(.text.evolution))
+    KEEP(*(.text.fitness))
     *(.text*)
   } > RAM :load
 
@@ -30,6 +32,7 @@ SECTIONS {
 
   .bss (NOLOAD) : {
     __bss_start = .;
+    KEEP(*(.bss.evolution))
     *(.bss*) *(.sbss*) *(COMMON)
     __bss_end = .;
   } > RAM
@@ -54,6 +57,8 @@ SECTIONS {
          "user payload must fit one mapped 4 KiB page")
   ASSERT(_end <= __stack_bottom,
          "kernel image, BSS, and noinit overlap the reserved stack")
+  ASSERT(_end - ORIGIN(RAM) <= AXOS_RESIDENT_BUDGET,
+         "kernel exceeds the selected evolution tier's resident budget")
 
   /DISCARD/ : { *(.comment) *(.note*) *(.riscv.attributes) }
 }
