@@ -93,8 +93,16 @@ module soc_top #(
   localparam int unsigned PLIC_CONTEXTS = 2;
 
   logic [PLIC_CONTEXTS-1:0] plic_irq;
-  logic uart_irq_rx, role_irq;
+  logic uart_irq_rx, role_irq, role_irq_raw, role_rst;
   logic i_role_valid, d_role_valid;
+  // Bus side of the role window terminates on the isolation fence, not on the
+  // role: `*_role_*` below is the fenced bus view, `*_rolei_*` the role's own.
+  logic i_shell_valid, d_shell_valid;
+  logic i_shell_ready, i_shell_err, d_shell_ready, d_shell_err;
+  logic [31:0] i_shell_rdata, d_shell_rdata;
+  logic i_rolei_valid, d_rolei_valid;
+  logic i_rolei_ready, i_rolei_err, d_rolei_ready, d_rolei_err;
+  logic [31:0] i_rolei_rdata, d_rolei_rdata;
   logic i_rom_ready, i_rom_err, i_ram_ready, i_ram_err, i_test_ready, i_test_err;
   logic i_clint_ready, i_clint_err, i_uart_ready, i_uart_err;
   logic i_spi_ready, i_spi_err, i_role_ready, i_role_err;
@@ -221,6 +229,7 @@ module soc_top #(
     .plic_valid(i_plic_valid), .plic_ready(i_plic_ready), .plic_rdata(i_plic_rdata), .plic_err(i_plic_err),
     .uart_valid(i_uart_valid), .uart_ready(i_uart_ready), .uart_rdata(i_uart_rdata), .uart_err(i_uart_err),
     .spi_valid(i_spi_valid), .spi_ready(i_spi_ready), .spi_rdata(i_spi_rdata), .spi_err(i_spi_err),
+    .shell_valid(i_shell_valid), .shell_ready(i_shell_ready), .shell_rdata(i_shell_rdata), .shell_err(i_shell_err),
     .role_valid(i_role_valid), .role_ready(i_role_ready), .role_rdata(i_role_rdata), .role_err(i_role_err)
   );
 
@@ -234,6 +243,7 @@ module soc_top #(
     .plic_valid(d_plic_valid), .plic_ready(d_plic_ready), .plic_rdata(d_plic_rdata), .plic_err(d_plic_err),
     .uart_valid(d_uart_valid), .uart_ready(d_uart_ready), .uart_rdata(d_uart_rdata), .uart_err(d_uart_err),
     .spi_valid(d_spi_valid), .spi_ready(d_spi_ready), .spi_rdata(d_spi_rdata), .spi_err(d_spi_err),
+    .shell_valid(d_shell_valid), .shell_ready(d_shell_ready), .shell_rdata(d_shell_rdata), .shell_err(d_shell_err),
     .role_valid(d_role_valid), .role_ready(d_role_ready), .role_rdata(d_role_rdata), .role_err(d_role_err)
   );
 
@@ -290,15 +300,40 @@ module soc_top #(
     .irq_rx(uart_irq_rx)
   );
 
+  // The role window's decoupling boundary.  Everything the bus sees of the
+  // role passes through here, so the shell can fence the window off before the
+  // fabric behind it is rewritten and no master can stall on a region that is
+  // mid-reconfiguration.  Out of reset it forwards transparently, so a profile
+  // that never writes its control register behaves exactly as it did before.
+  axroleiso u_roleiso (
+    .clk(clk), .rst(rst),
+    .i_valid(i_shell_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
+    .i_wstrb(i_bus_wstrb), .i_ready(i_shell_ready), .i_rdata(i_shell_rdata),
+    .i_err(i_shell_err),
+    .d_valid(d_shell_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata),
+    .d_wstrb(d_bus_wstrb), .d_ready(d_shell_ready), .d_rdata(d_shell_rdata),
+    .d_err(d_shell_err),
+    .bus_i_valid(i_role_valid), .bus_i_ready(i_role_ready),
+    .bus_i_rdata(i_role_rdata), .bus_i_err(i_role_err),
+    .bus_d_valid(d_role_valid), .bus_d_ready(d_role_ready),
+    .bus_d_rdata(d_role_rdata), .bus_d_err(d_role_err),
+    .role_i_valid(i_rolei_valid), .role_i_ready(i_rolei_ready),
+    .role_i_rdata(i_rolei_rdata), .role_i_err(i_rolei_err),
+    .role_d_valid(d_rolei_valid), .role_d_ready(d_rolei_ready),
+    .role_d_rdata(d_rolei_rdata), .role_d_err(d_rolei_err),
+    .role_rst(role_rst),
+    .role_irq_in(role_irq_raw), .role_irq_out(role_irq)
+  );
+
   // The selected role component fills the fixed 0x4000_0000 window.  The
   // shell is identical whichever role (or role.none) a profile selects; a
   // role only sees its window and never replaces shell devices.
   axrole u_role (
-    .clk(clk), .rst(rst), .i_valid(i_role_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
-    .i_wstrb(i_bus_wstrb), .i_ready(i_role_ready), .i_rdata(i_role_rdata), .i_err(i_role_err),
-    .d_valid(d_role_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata), .d_wstrb(d_bus_wstrb),
-    .d_ready(d_role_ready), .d_rdata(d_role_rdata), .d_err(d_role_err),
-    .irq(role_irq)
+    .clk(clk), .rst(role_rst), .i_valid(i_rolei_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
+    .i_wstrb(i_bus_wstrb), .i_ready(i_rolei_ready), .i_rdata(i_rolei_rdata), .i_err(i_rolei_err),
+    .d_valid(d_rolei_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata), .d_wstrb(d_bus_wstrb),
+    .d_ready(d_rolei_ready), .d_rdata(d_rolei_rdata), .d_err(d_rolei_err),
+    .irq(role_irq_raw)
   );
 
   // Device interrupts converge here, indexed by source id rather than

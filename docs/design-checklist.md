@@ -270,9 +270,39 @@ Use this for a substantive implementation or interface change:
   piece of the shell control plane, on which the host-link service will sit.
   Evidence: `make -C sw/kernel check-role-driver` (the `role` command discovers
   and drives `role.loopback` through the RTL shell).
+- [x] Role-window isolation, the decoupling boundary a live role swap needs.
+  `axroleiso` sits between the address decoders and the role, with its control
+  register at `0x1002_0000` — in *shell* space, because a register inside the
+  window it fences is unreachable at exactly the moment it is needed.
+  `ISO_CTRL.ISOLATE` holds `valid` low into the role, answers the bus with
+  ready/zero/no-error, and masks the role's completion line so fabric in an
+  unknown state cannot storm the PLIC with a level-sensitive source nothing
+  will clear; `ISO_CTRL.ROLE_RESET` holds the region in reset so rewritten
+  fabric starts defined.  Two decisions are load-bearing rather than
+  convenient.  Isolation is immediate and unconditional: the role it protects
+  against is the one that has stopped answering, so a fence that waits for an
+  in-flight transaction to retire deadlocks on the failure it exists to
+  contain — quiescing stays the driver's job one level up.  And an isolated
+  window reads as zero because zero is already `ROLE_ID`'s "no role present"
+  encoding, so an isolated role is indistinguishable from `role.none` and
+  re-running discovery after a swap needs no new software path.  Out of reset
+  the fence is transparent, so a profile that never writes the register behaves
+  exactly as it did before it existed.  Evidence: `make -C sim/unit
+  run-axroleiso`, whose central case holds a role's `ready` low forever — what
+  half-configured fabric looks like from the bus — and requires the bus to
+  complete anyway once fenced, plus the decode, IRQ-masking, reset, and
+  restore-after-de-isolation cases; `make -C sw/baremetal check-role` and
+  `check-role-irq` and `make -C sw/kernel check-role-driver` confirm the
+  unfenced path is unchanged.
 - [ ] Partial reconfiguration of the role region on a live bitstream —
   research staged in [partial-reconfig.md](partial-reconfig.md); no
-  capability claim before its stage-4 board evidence.
+  capability claim before its stage-4 board evidence.  Stage 1 (ECP5
+  place-and-route to a `.bit`) now passes at 28.42 MHz against the 25 MHz
+  constraint; it had never run before 2026-08-01 because the board `.lpf`
+  wrapped `SYSCONFIG` with a backslash continuation nextpnr does not accept.
+  The track runs on ULX3S/ECP5 and not the Primer already in hand because
+  `ecppack` ships `--delta` and `--background` while the open Gowin flow has no
+  partial path at all.
 - [x] Host-link control plane (base): a framed request/response protocol
   ([host-protocol.md](host-protocol.md)), an aXos host-link service that
   dispatches frames to the in-kernel role driver above, and the host-side

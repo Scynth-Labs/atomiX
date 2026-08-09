@@ -16,6 +16,11 @@ module axbus_mux #(
   parameter logic [31:0] UART_SIZE  = 32'h0000_1000,
   parameter logic [31:0] SPI_BASE   = 32'h1001_0000,
   parameter logic [31:0] SPI_SIZE   = 32'h0000_1000,
+  // Shell control: role-window isolation for live reconfiguration.  It sits in
+  // shell space rather than the role window because it must stay reachable
+  // while that window is being rewritten.
+  parameter logic [31:0] SHELL_BASE = 32'h1002_0000,
+  parameter logic [31:0] SHELL_SIZE = 32'h0000_1000,
   parameter logic [31:0] ROLE_BASE  = 32'h4000_0000,
   parameter logic [31:0] ROLE_SIZE  = 32'h0001_0000,
   parameter logic [31:0] RAM_BASE   = 32'h8000_0000,
@@ -55,6 +60,10 @@ module axbus_mux #(
   input  logic        spi_ready,
   input  logic [31:0] spi_rdata,
   input  logic        spi_err,
+  output logic        shell_valid,
+  input  logic        shell_ready,
+  input  logic [31:0] shell_rdata,
+  input  logic        shell_err,
   output logic        role_valid,
   input  logic        role_ready,
   input  logic [31:0] role_rdata,
@@ -67,6 +76,7 @@ module axbus_mux #(
   wire hit_plic  = m_addr >= PLIC_BASE  && m_addr - PLIC_BASE  < PLIC_SIZE;
   wire hit_uart  = m_addr >= UART_BASE  && m_addr - UART_BASE  < UART_SIZE;
   wire hit_spi   = m_addr >= SPI_BASE   && m_addr - SPI_BASE   < SPI_SIZE;
+  wire hit_shell = m_addr >= SHELL_BASE && m_addr - SHELL_BASE < SHELL_SIZE;
   wire hit_role  = m_addr >= ROLE_BASE  && m_addr - ROLE_BASE  < ROLE_SIZE;
 
   always_comb begin
@@ -77,6 +87,7 @@ module axbus_mux #(
     plic_valid  = m_valid && hit_plic;
     uart_valid  = m_valid && hit_uart;
     spi_valid   = m_valid && hit_spi;
+    shell_valid = m_valid && hit_shell;
     role_valid  = m_valid && hit_role;
     m_ready     = 1'b0;
     m_rdata     = 32'b0;
@@ -96,6 +107,8 @@ module axbus_mux #(
         m_ready = uart_ready; m_rdata = uart_rdata; m_err = uart_err;
       end else if (hit_spi) begin
         m_ready = spi_ready; m_rdata = spi_rdata; m_err = spi_err;
+      end else if (hit_shell) begin
+        m_ready = shell_ready; m_rdata = shell_rdata; m_err = shell_err;
       end else if (hit_role) begin
         m_ready = role_ready; m_rdata = role_rdata; m_err = role_err;
       end else begin

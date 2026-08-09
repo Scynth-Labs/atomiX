@@ -3,8 +3,11 @@
   "id": "soc.reference",
   "kind": "soc",
   "title": "QEMU-virt-aligned aXbus SoC shell",
-  "sources": ["components/soc/reference/soc_top.sv"],
+  "sources": [
+    "components/soc/reference/axroleiso.sv",
+    "components/soc/reference/soc_top.sv"
+  ],
   "stock_sim_module": "soc_top",
   "defaults": {"role": "role.none", "plic": "plic.qemu-virt"},
-  "capabilities": ["axbus", "qemu-virt-map", "rom", "clint", "plic", "spi", "uart", "role-window"]
+  "capabilities": ["axbus", "qemu-virt-map", "rom", "clint", "plic", "spi", "uart", "role-window", "role-isolation"]
 }
