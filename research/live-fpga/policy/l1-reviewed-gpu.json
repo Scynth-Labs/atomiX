@@ -1,5 +1,5 @@
 {
-  "schema": {"id": "org.atomix.live-l1-policy", "major": 1, "minor": 0},
+  "schema": {"id": "org.atomix.live-l1-policy", "major": 1, "minor": 1},
   "kind": "live-l1-policy",
   "id": "org.atomix.live-l1-policy.reviewed-gpu-programs",
   "revision": 1,
@@ -7,6 +7,7 @@
   "programs": [
     {
       "id": "org.atomix.gpu-program.saxpy-i32-v1",
+      "candidate": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
       "numeric_id": 1,
       "workload": {"id": "org.atomix.workload.saxpy-i32", "revision": 1},
       "role": "org.atomix.role.gpu-compute",
@@ -24,6 +25,7 @@
     },
     {
       "id": "org.atomix.gpu-program.polynomial-i32-v1",
+      "candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
       "numeric_id": 2,
       "workload": {"id": "org.atomix.workload.polynomial-i32", "revision": 1},
       "role": "org.atomix.role.gpu-compute",
@@ -68,7 +70,9 @@
   "result": {
     "action": "org.atomix.propose",
     "current": "org.atomix.gpu-program.polynomial-i32-v1",
+    "current_candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
     "proposed": "org.atomix.gpu-program.saxpy-i32-v1",
+    "proposed_candidate": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
     "reason": [
       "org.atomix.policy.current-incompatible",
       "org.atomix.policy.reviewed-workload-match"

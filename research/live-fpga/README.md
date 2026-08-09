@@ -18,6 +18,17 @@ the two runtime programs used by `axhost --fast-switch`. Its result can only be
 make policy-check
 ```
 
+`registry/reviewed-gpu.json` assigns each reviewed program an immutable
+`sha256:` identity over its artifact, source/profile hashes, tool versions, and
+lineage. Its evidence and deployment references are separately content
+addressed under `evidence/` and `deployments/`; adding a new observation does
+not rename the constructed candidate. The deployment record deliberately says
+`not-deployed` while the board is disconnected.
+
+```bash
+make registry-check
+```
+
 Run `make live-sim-check` for the complete hardware-free chain, ending in a
 closed-loop virtual FPGA that drives the actual bounded C fitness/evolution
 components through valid, incorrect, watchdog, canary-failure, and rollback

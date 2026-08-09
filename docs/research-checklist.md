@@ -196,10 +196,14 @@ and the later
   faster incorrect output, watchdog timeout, proposal-only authority, a failed
   activation canary, and manager-owned rollback to the baseline. Evidence:
   [closed-loop virtual FPGA](live-fpga.md) and `make live-sim-check`.
-- [ ] **No hardware — next:** create a content-addressed candidate registry containing
+- [x] **No hardware:** create a content-addressed candidate registry containing
   source/profile hash, tool versions, parent, mutation, test evidence, and
-  deployment outcome.
-- [ ] **No hardware:** implement L2 shadow evaluation: simulate each candidate,
+  deployment outcome. Candidate construction identity is immutable canonical
+  JSON; evidence and deployment records have separate hashes so new trials do
+  not rename the candidate. L1 proposals now carry both the logical program ID
+  and registry content ID. Evidence: [candidate registry](live-fpga.md),
+  `research/live-fpga/registry/`, and `make registry-check`.
+- [ ] **No hardware — next:** implement L2 shadow evaluation: simulate each candidate,
   run its oracle and safety checks, then produce a signed-off volatile test
   request rather than deploying automatically.
 - [ ] **No hardware:** add watchdog, canary workload, last-known-good selection,
@@ -238,9 +242,9 @@ injected failure.
 
 ## Immediate queue without hardware
 
-1. Create the content-addressed R3 candidate registry and connect its evidence
-   identity to L1 proposals.
-2. Generalise the R2 evidence identity into the shared record used by all three
+1. Implement L2 shadow evaluation and produce a signed-off volatile test
+   request without granting deployment authority.
+2. Generalise the candidate/evidence identity into the shared record used by all three
    research tracks.
 3. Implement the R2 morph fabric when L3 overlay adaptation needs it; L0/L1 can
    proceed independently.

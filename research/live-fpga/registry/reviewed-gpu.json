@@ -1,0 +1,109 @@
+{
+  "schema": {"id": "org.atomix.candidate-registry", "major": 1, "minor": 0},
+  "kind": "candidate-registry",
+  "id": "org.atomix.candidate-registry.reviewed-gpu",
+  "revision": 1,
+  "summary": "Content-addressed construction and lineage for reviewed GPU runtime candidates",
+  "hash": "org.atomix.sha256-canonical-json-v1",
+  "candidates": [
+    {
+      "content_id": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+      "identity": {
+        "id": "org.atomix.gpu-program.saxpy-i32-v1",
+        "numeric_id": 1,
+        "role": "org.atomix.role.gpu-compute",
+        "workload": {"id": "org.atomix.workload.saxpy-i32", "revision": 1},
+        "artifact": {
+          "format": "org.atomix.gpu-compute.words-le32",
+          "sha256": "e8b4950c5faf895fe87d70157bbb53a441d098d72e7543b58c88ab1003da2cf1"
+        },
+        "build": {
+          "source": {
+            "path": "sw/host/gpu_programs.py",
+            "sha256": "f300d360e785a7b94ee047d57a53ba515195882429805bd32a64889a626844be"
+          },
+          "profile": {
+            "path": "configs/sim-primer-runtime-gpu.json",
+            "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae"
+          },
+          "tools": [
+            {"id": "org.atomix.tool.gpu-program-encoder", "version": "1.0"},
+            {"id": "org.atomix.tool.axhost", "version": "1.0"}
+          ]
+        },
+        "lineage": {
+          "parent": null,
+          "mutation": {
+            "operator": "org.atomix.mutation.import-reviewed",
+            "seed": null,
+            "parameters": {"origin": "org.atomix.axhost.fast-switch"}
+          }
+        }
+      },
+      "records": {
+        "evidence": [
+          {
+            "content_id": "sha256:733f5d2c92caa2bd221c8b9657096358122c591e4830624c760888843b2969d6",
+            "path": "research/live-fpga/evidence/gpu-fast-switch-rtl.json"
+          }
+        ],
+        "deployments": [
+          {
+            "content_id": "sha256:c1a08d3cf1702c981447dc30729dbf64044387baaf850ac77527ab11be1fa5dd",
+            "path": "research/live-fpga/deployments/reviewed-gpu-not-deployed.json"
+          }
+        ]
+      }
+    },
+    {
+      "content_id": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+      "identity": {
+        "id": "org.atomix.gpu-program.polynomial-i32-v1",
+        "numeric_id": 2,
+        "role": "org.atomix.role.gpu-compute",
+        "workload": {"id": "org.atomix.workload.polynomial-i32", "revision": 1},
+        "artifact": {
+          "format": "org.atomix.gpu-compute.words-le32",
+          "sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254"
+        },
+        "build": {
+          "source": {
+            "path": "sw/host/gpu_programs.py",
+            "sha256": "f300d360e785a7b94ee047d57a53ba515195882429805bd32a64889a626844be"
+          },
+          "profile": {
+            "path": "configs/sim-primer-runtime-gpu.json",
+            "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae"
+          },
+          "tools": [
+            {"id": "org.atomix.tool.gpu-program-encoder", "version": "1.0"},
+            {"id": "org.atomix.tool.axhost", "version": "1.0"}
+          ]
+        },
+        "lineage": {
+          "parent": null,
+          "mutation": {
+            "operator": "org.atomix.mutation.import-reviewed",
+            "seed": null,
+            "parameters": {"origin": "org.atomix.axhost.fast-switch"}
+          }
+        }
+      },
+      "records": {
+        "evidence": [
+          {
+            "content_id": "sha256:733f5d2c92caa2bd221c8b9657096358122c591e4830624c760888843b2969d6",
+            "path": "research/live-fpga/evidence/gpu-fast-switch-rtl.json"
+          }
+        ],
+        "deployments": [
+          {
+            "content_id": "sha256:c1a08d3cf1702c981447dc30729dbf64044387baaf850ac77527ab11be1fa5dd",
+            "path": "research/live-fpga/deployments/reviewed-gpu-not-deployed.json"
+          }
+        ]
+      }
+    }
+  ],
+  "extensions": {}
+}

@@ -13,10 +13,12 @@ from pathlib import Path
 from typing import Any
 
 import personality_contract as pc
+import candidate_registry as cr
 
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_POLICY = ROOT / "research/live-fpga/policy/l1-reviewed-gpu.json"
+DEFAULT_REGISTRY = ROOT / "research/live-fpga/registry/reviewed-gpu.json"
 sys.path.insert(0, str(ROOT / "sw/host"))
 from gpu_programs import reviewed_fast_switch_programs  # noqa: E402
 
@@ -33,7 +35,7 @@ def u32(path: Path, value: Any, name: str, positive: bool = False) -> int:
 
 
 def artifact_hash(words: list[int]) -> str:
-    payload = b"".join(struct.pack("<I", word) for word in words)
+    payload = b"".join(struct.pack("<I", word & U32_MAX) for word in words)
     return hashlib.sha256(payload).hexdigest()
 
 
@@ -49,9 +51,10 @@ def validate_program(path: Path, value: Any, index: int) -> dict[str, Any]:
     program = pc.object_value(path, value, name)
     pc.exact_keys(
         path, program, name,
-        {"id", "numeric_id", "workload", "role", "artifact", "review"},
+        {"id", "candidate", "numeric_id", "workload", "role", "artifact", "review"},
     )
     pc.namespaced(path, program["id"], f"{name}.id")
+    cr.content_id_value(path, program["candidate"], f"{name}.candidate")
     u32(path, program["numeric_id"], f"{name}.numeric_id", positive=True)
     document_ref(path, program["workload"], f"{name}.workload")
     pc.namespaced(path, program["role"], f"{name}.role")
@@ -85,7 +88,8 @@ def validate_program(path: Path, value: Any, index: int) -> dict[str, Any]:
     return program
 
 
-def validate_document(path: Path, document: dict[str, Any]) -> None:
+def validate_document(path: Path, document: dict[str, Any],
+                      registry: dict[str, dict[str, Any]] | None = None) -> None:
     required = {
         "schema", "kind", "id", "revision", "summary", "programs",
         "request", "result", "extensions",
@@ -106,6 +110,25 @@ def validate_document(path: Path, document: dict[str, Any]) -> None:
             raise pc.error(path, "program IDs and numeric IDs must be unique")
         ids.add(program["id"])
         numeric_ids.add(program["numeric_id"])
+
+    if registry is not None:
+        registry_by_logical = {
+            candidate["identity"]["id"]: (candidate_id, candidate["identity"])
+            for candidate_id, candidate in registry.items()
+        }
+        for index, program in enumerate(programs):
+            name = f"programs[{index}]"
+            if program["id"] not in registry_by_logical:
+                raise pc.error(path, f"{name}.id is absent from the candidate registry")
+            candidate_id, identity = registry_by_logical[program["id"]]
+            if program["candidate"] != candidate_id:
+                raise pc.error(path, f"{name}.candidate does not resolve to its registry identity")
+            if program["numeric_id"] != identity["numeric_id"] or \
+                    program["role"] != identity["role"] or \
+                    program["workload"] != identity["workload"] or \
+                    program["artifact"]["format"] != identity["artifact"]["format"] or \
+                    program["artifact"]["sha256"] != identity["artifact"]["sha256"]:
+                raise pc.error(path, f"{name} disagrees with its immutable registry identity")
 
     request = pc.object_value(path, document["request"], "request")
     pc.exact_keys(
@@ -171,7 +194,10 @@ def derive(document: dict[str, Any]) -> dict[str, Any]:
         return {
             "action": "org.atomix.no-candidate",
             "current": current,
+            "current_candidate": programs[current]["candidate"]
+            if current is not None else None,
             "proposed": None,
+            "proposed_candidate": None,
             "reason": ["org.atomix.policy.no-eligible-reviewed-program"],
             "current_fitness": None,
             "best_fitness": None,
@@ -200,10 +226,15 @@ def derive(document: dict[str, Any]) -> dict[str, Any]:
         else:
             action = "org.atomix.hold"
             reasons = ["org.atomix.policy.improvement-below-threshold"]
+    proposed_program = best["program"] if action == "org.atomix.propose" else current
     return {
         "action": action,
         "current": current,
-        "proposed": best["program"] if action == "org.atomix.propose" else current,
+        "current_candidate": programs[current]["candidate"]
+        if current is not None else None,
+        "proposed": proposed_program,
+        "proposed_candidate": programs[proposed_program]["candidate"]
+        if proposed_program is not None else None,
         "reason": reasons,
         "current_fitness": by_program.get(current, {}).get("fitness"),
         "best_fitness": best["fitness"],
@@ -211,7 +242,8 @@ def derive(document: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def check_axhost_sync(path: Path, document: dict[str, Any]) -> None:
+def check_axhost_sync(path: Path, document: dict[str, Any],
+                      registry: dict[str, dict[str, Any]] | None = None) -> None:
     actual = {program["id"]: program for program in reviewed_fast_switch_programs()}
     declared = {
         program["id"]: program for program in document["programs"]
@@ -225,16 +257,35 @@ def check_axhost_sync(path: Path, document: dict[str, Any]) -> None:
                 entry["workload"]["id"] != runtime["workload"] or \
                 entry["workload"]["revision"] != runtime["revision"]:
             raise pc.error(path, f"{identity} differs from the axhost runtime program")
+        if registry is not None:
+            candidate_id = entry["candidate"]
+            expected_output = artifact_hash(runtime["expected"])
+            matching_evidence = False
+            for ref in registry[candidate_id]["records"]["evidence"]:
+                evidence_path = ROOT / ref["path"]
+                evidence = cr.load_json(evidence_path)
+                cr.validate_evidence(evidence_path, evidence)
+                for result in evidence["test"]["results"]:
+                    if result["candidate"] != candidate_id:
+                        continue
+                    matching_evidence = True
+                    if result["program_sha256"] != artifact_hash(runtime["words"]) or \
+                            result["output_sha256"] != expected_output:
+                        raise pc.error(
+                            path, f"{identity} evidence disagrees with runtime/oracle bytes")
+            if not matching_evidence:
+                raise pc.error(path, f"{identity} has no matching registry evidence")
 
 
 def load(path: Path) -> dict[str, Any]:
     return pc.load_document(path)
 
 
-def check(path: Path) -> int:
+def check(path: Path, registry_path: Path = DEFAULT_REGISTRY) -> int:
     document = load(path)
-    validate_document(path, document)
-    check_axhost_sync(path, document)
+    registry = cr.check(registry_path)
+    validate_document(path, document, registry)
+    check_axhost_sync(path, document, registry)
     print(
         f"live L1 policy: PASS ({len(document['programs'])} reviewed programs, "
         f"action={document['result']['action']})"
@@ -244,13 +295,15 @@ def check(path: Path) -> int:
 
 def self_test() -> int:
     policy = load(DEFAULT_POLICY)
-    validate_document(DEFAULT_POLICY, policy)
-    check_axhost_sync(DEFAULT_POLICY, policy)
+    registry_document = cr.load_json(DEFAULT_REGISTRY)
+    registry = cr.validate_registry(DEFAULT_REGISTRY, registry_document)
+    validate_document(DEFAULT_POLICY, policy, registry)
+    check_axhost_sync(DEFAULT_POLICY, policy, registry)
 
     faster_wrong_workload = copy.deepcopy(policy)
     faster_wrong_workload["request"]["fitness_records"][1]["fitness"] = 1
     faster_wrong_workload["result"] = derive(faster_wrong_workload)
-    validate_document(Path("<wrong-workload>"), faster_wrong_workload)
+    validate_document(Path("<wrong-workload>"), faster_wrong_workload, registry)
     if faster_wrong_workload["result"]["proposed"] != \
             "org.atomix.gpu-program.saxpy-i32-v1":
         raise pc.ContractError("wrong-workload program won by fitness")
@@ -258,7 +311,7 @@ def self_test() -> int:
     failed = copy.deepcopy(policy)
     failed["request"]["fitness_records"][0]["eligible"] = False
     failed["result"] = derive(failed)
-    validate_document(Path("<failed-oracle>"), failed)
+    validate_document(Path("<failed-oracle>"), failed, registry)
     if failed["result"]["action"] != "org.atomix.no-candidate":
         raise pc.ContractError("ineligible program was proposed")
 
@@ -266,7 +319,7 @@ def self_test() -> int:
     mixed["request"]["fitness_records"][0]["objective_id"] = 2
     mixed["result"] = derive(mixed)
     try:
-        validate_document(Path("<mixed-objective>"), mixed)
+        validate_document(Path("<mixed-objective>"), mixed, registry)
     except pc.ContractError:
         pass
     else:
@@ -275,11 +328,21 @@ def self_test() -> int:
     tampered = copy.deepcopy(policy)
     tampered["programs"][0]["artifact"]["words"][0] ^= 1
     try:
-        validate_document(Path("<tampered-program>"), tampered)
+        validate_document(Path("<tampered-program>"), tampered, registry)
     except pc.ContractError:
         pass
     else:
         raise pc.ContractError("tampered reviewed program was accepted")
+
+    anonymous = copy.deepcopy(policy)
+    anonymous["programs"][0]["candidate"] = anonymous["programs"][1]["candidate"]
+    anonymous["result"] = derive(anonymous)
+    try:
+        validate_document(Path("<wrong-candidate-identity>"), anonymous, registry)
+    except pc.ContractError:
+        pass
+    else:
+        raise pc.ContractError("program was allowed to borrow another candidate identity")
 
     print("live L1 policy: SELF-TEST PASS (allow-list, workload, gates, objectives)")
     return 0
@@ -290,10 +353,12 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     check_parser = subparsers.add_parser("check", help="validate an L1 policy record")
     check_parser.add_argument("path", nargs="?", type=Path, default=DEFAULT_POLICY)
+    check_parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     subparsers.add_parser("self-test", help="exercise selection safety gates")
     args = parser.parse_args()
     try:
-        return self_test() if args.command == "self-test" else check(args.path)
+        return self_test() if args.command == "self-test" else \
+            check(args.path, args.registry)
     except pc.ContractError as exc:
         print(f"live L1 policy: FAIL: {exc}", file=sys.stderr)
         return 1

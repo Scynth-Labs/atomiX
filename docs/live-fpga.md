@@ -104,13 +104,46 @@ This validates the JSON contract, hard-gate negative cases, counter wrap,
 host C implementation, callable code in every evolving RISC-V profile, and the
 exact 32 KiB Primer link/boot gate.
 
+## Content-addressed candidate registry
+
+The R3 registry under `research/live-fpga/registry/` separates three identities
+that must not be conflated:
+
+- the logical program ID used by people and workload contracts;
+- an immutable `sha256:` candidate ID computed from canonical JSON containing
+  the numeric ID, role/workload, artifact hash, exact source/profile hashes,
+  tool versions, parent, and mutation; and
+- separately hashed evidence and deployment documents referenced by that
+  candidate.
+
+This means another test run or deployment attempt adds a record without
+renaming the construction it tested. Changing the program, profile, source,
+toolchain declaration, parent, or mutation necessarily produces a different
+candidate ID. Repository file references are rehashed during validation, and
+lineage must resolve inside the registry without self-parenting or cycles.
+
+The first registry contains the reviewed SAXPY and polynomial GPU programs. A
+hashed RTL evidence document records the exact program/output hashes and cycle
+counts from `check-primer-runtime`. A separate deployment document explicitly
+records zero attempts and `org.atomix.not-deployed` while the Primer is
+disconnected; simulation is never upgraded into a physical claim.
+
+```bash
+make registry-check
+```
+
+Negative tests change candidate content without changing its ID, introduce an
+unknown parent, and alter a hashed evidence result. Each must be rejected.
+
 ## L1 reviewed-program selection
 
 The first selecting policy runs on the host and accepts only programs listed in
 the versioned L1 document under `research/live-fpga/policy/`. The initial list
 contains the exact SAXPY and polynomial word streams already exercised by
 `axhost --fast-switch`; the policy recomputes each little-endian program hash
-and checks that those words still match the runtime client.
+and checks that those words still match the runtime client. Each allow-list
+entry must also resolve to the registry identity with matching numeric ID,
+role, workload, format, and artifact hash.
 
 Selection is deliberately ordered:
 
@@ -123,7 +156,8 @@ Selection is deliberately ordered:
    two compatible programs.
 
 The output is `hold`, `propose`, or `no-candidate` plus namespaced reason codes,
-the current and best fitness when comparable, and
+the current and proposed content-addressed candidate IDs, the current and best
+fitness when comparable, and
 `actuation: org.atomix.not-authorized`. The tool never imports or calls the
 serial transport, `axhost` activation operations, FPGA programming tools, or
 kernel upload path. A proposal therefore records intent without gaining the
@@ -235,10 +269,10 @@ rejected adaptive candidate.
 
 ## What this enables next
 
-The next Live FPGA item is the content-addressed candidate registry. It will
-add source/profile hashes, tool versions, parent/mutation identity, test
-evidence, and deployment outcomes around the program hashes already used by
-L1 selection.
+The next Live FPGA item is L2 shadow evaluation. It will resolve a candidate
+through this registry, run its oracle and safety gates in simulation, and emit
+a signed-off volatile test request. Producing that request will remain separate
+from deployment authority.
 
 ## Evidence
 

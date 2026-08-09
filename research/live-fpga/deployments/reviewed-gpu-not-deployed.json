@@ -1,0 +1,36 @@
+{
+  "schema": {"id": "org.atomix.candidate-deployment", "major": 1, "minor": 0},
+  "kind": "candidate-deployment",
+  "id": "org.atomix.candidate-deployment.reviewed-gpu-not-deployed",
+  "revision": 1,
+  "summary": "Explicit absence of physical deployment while the Tang Primer is disconnected",
+  "content_id": "sha256:c1a08d3cf1702c981447dc30729dbf64044387baaf850ac77527ab11be1fa5dd",
+  "candidates": [
+    "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+    "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7"
+  ],
+  "environment": {
+    "board": "org.atomix.board.tang-primer-25k",
+    "device": "org.atomix.device.gowin-gw5a-lv25mg121",
+    "connected": false
+  },
+  "outcomes": [
+    {
+      "candidate": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+      "status": "org.atomix.not-deployed",
+      "attempts": 0,
+      "last_generation": null,
+      "volatile_only": true,
+      "reason": "org.atomix.reason.board-disconnected"
+    },
+    {
+      "candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+      "status": "org.atomix.not-deployed",
+      "attempts": 0,
+      "last_generation": null,
+      "volatile_only": true,
+      "reason": "org.atomix.reason.board-disconnected"
+    }
+  ],
+  "extensions": {}
+}

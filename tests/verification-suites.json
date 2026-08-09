@@ -31,6 +31,12 @@
       "timeout_seconds": 900,
       "requires": ["make", "verilator"]
     },
+    "candidate-registry": {
+      "label": "Content-addressed evolution candidates and record chains",
+      "command": ["make", "registry-check"],
+      "timeout_seconds": 300,
+      "requires": ["make", "python3"]
+    },
     "live-closed-loop": {
       "label": "Live FPGA policy, RV32 shadow evaluation, and rollback",
       "command": ["make", "live-sim-check"],
@@ -168,12 +174,14 @@
       "research-contracts",
       "axsim-directed",
       "live-rtl",
+      "candidate-registry",
       "live-closed-loop"
     ],
     "ci-quick": [
       "axsim-directed",
       "system-profiles",
       "kernel-profiles",
+      "candidate-registry",
       "cosim-directed"
     ],
     "ci-unit": [
@@ -194,6 +202,7 @@
       "axsim-directed",
       "cosim-directed",
       "live-rtl",
+      "candidate-registry",
       "live-closed-loop",
       "rtl-units",
       "component-composition",

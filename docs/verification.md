@@ -34,7 +34,8 @@ make nightly-integrated
 ```
 
 `smoke` is the practical local ladder: profiles, research contracts, golden
-ISS, Live FPGA RTL isolation, and the native/RV32 closed loop. The scheduled
+ISS, Live FPGA RTL isolation, candidate-registry integrity, and the native/RV32
+closed loop. The scheduled
 workflow additionally runs:
 
 - `nightly-integrated`: ordinary CI plus the Live FPGA loop, every RTL unit,
