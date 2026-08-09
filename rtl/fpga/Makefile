@@ -8,7 +8,6 @@ ECPPACK ?= ecppack
 NEXTPNR_HIMBAECHEL ?= nextpnr-himbaechel
 GOWIN_PACK ?= gowin_pack
 OPENFPGALOADER ?= openFPGALoader
-PNR_SEED ?= 1
 .DEFAULT_GOAL := all
 .DELETE_ON_ERROR:
 
@@ -23,6 +22,11 @@ $(COMPONENT_MK): $(COMPONENT_CONFIG) ../../tools/configure.py $(COMPONENT_MANIFE
 	python3 ../../tools/configure.py resolve --config $(COMPONENT_CONFIG) --output $@
 
 -include $(COMPONENT_MK)
+
+# Placement is profile-selectable but can still be overridden explicitly.
+# Seed-specific P&R outputs below prevent make from reusing a route produced
+# with a different seed while leaving the synthesized netlist reusable.
+PNR_SEED ?= $(or $(COMPONENT_SETTING_PNR_SEED),1)
 
 $(COMPONENT_MK): $(COMPONENT_SELECTED_MANIFESTS)
 
@@ -89,6 +93,7 @@ config: $(COMPONENT_MK)
 	@echo "  memory: $(COMPONENT_MEMORY_ID)"
 	@echo "  role:   $(COMPONENT_ROLE_ID)"
 	@echo "  board:  $(COMPONENT_BOARD_ID)"
+	@echo "  P&R seed: $(PNR_SEED)"
 	@if [ "$(COMPONENT_FPGA_FLOW)" = "gowin" ]; then echo "  payload: $(PROGRAM_HEX)"; fi
 
 $(BOOT_HEX):
@@ -116,10 +121,10 @@ FAMILY := $(COMPONENT_FPGA_FAMILY)
 SYNTH_FAMILY := $(or $(COMPONENT_FPGA_SYNTH_FAMILY),gw1n)
 CST ?= $(COMPONENT_FPGA_CST)
 PROG_BOARD := $(COMPONENT_FPGA_PROG_BOARD)
-PNR_JSON := $(CONFIG_BUILD)/$(TOP)_pnr.json
-PNR_REPORT := $(CONFIG_BUILD)/$(TOP)_timing.json
-BIT := $(CONFIG_BUILD)/$(TOP).fs
-EVIDENCE ?= $(CONFIG_BUILD)/evidence.json
+PNR_JSON := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED)_pnr.json
+PNR_REPORT := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED)_timing.json
+BIT := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED).fs
+EVIDENCE ?= $(CONFIG_BUILD)/evidence_seed$(PNR_SEED).json
 EVIDENCE_KERNEL ?=
 EVIDENCE_RUNTIME_GATE ?=
 
@@ -149,7 +154,7 @@ $(JSON): $(SYNTH_SV) $(PROGRAM_HEX) $(ROM_INIT_DEP) Makefile | $(CONFIG_BUILD)
 	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) $(PROGRAM_CHPARAM) $(ROM_CHPARAM) $(RESET_PC_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
 
 $(PNR_JSON): $(JSON) $(CST) | check-tools
-	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@ --report $(PNR_REPORT) --detailed-timing-report
+	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --seed $(PNR_SEED) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@ --report $(PNR_REPORT) --detailed-timing-report
 
 $(BIT): $(PNR_JSON)
 	$(GOWIN_PACK) $(COMPONENT_GOWIN_PACK_ARGS) -d $(FAMILY) -o $@ $(PNR_JSON)
@@ -160,6 +165,7 @@ $(BIT): $(PNR_JSON)
 gowin-evidence: all
 	python3 ../../tools/fpga_evidence.py \
 	  --config "$(COMPONENT_CONFIG)" --bitstream "$(BIT)" \
+	  --pnr-seed "$(PNR_SEED)" \
 	  --timing-report "$(PNR_REPORT)" --synth-log "$(CONFIG_BUILD)/synth.log" \
 	  --input "ram=$(PROGRAM_HEX)" \
 	  $(if $(ROM_INIT_DEP),--input "rom=$(ROM_INIT_DEP)") \
@@ -181,8 +187,8 @@ else
 # ---- ECP5 open flow (ULX3S): synth_ecp5 -> nextpnr-ecp5 -> ecppack.
 LPF ?= $(COMPONENT_FPGA_LPF)
 PROG_BOARD := ulx3s
-TEXTCFG := $(CONFIG_BUILD)/$(TOP).config
-BIT := $(CONFIG_BUILD)/$(TOP).bit
+TEXTCFG := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED).config
+BIT := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED).bit
 
 $(JSON): $(SYNTH_SV) $(BOOT_HEX) Makefile | $(CONFIG_BUILD)
 	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -lib +/ecp5/cells_sim.v; read_verilog -lib +/ecp5/cells_bb.v; read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); hierarchy -check -top $(TOP); synth_ecp5 -noabc9 -top $(TOP) -json $@'

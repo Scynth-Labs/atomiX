@@ -46,6 +46,14 @@ static void put_frame(uint8_t status, const uint8_t *data, uint16_t len) {
 }
 
 void host_service(void) {
+  /* AXOK is the ROM's integrity acknowledgement, not proof that aXos has
+   * finished page-table, allocator, and role initialization.  Announce the
+   * actual request-ready boundary so a physical host cannot overrun the tiny
+   * UART receive path by transmitting immediately after the ROM jumps. */
+  put_byte('A');
+  put_byte('X');
+  put_byte('R');
+  put_byte('D');
   for (;;) {
     /* Resynchronize to the next request frame. */
     while (get_byte() != HOSTLINK_REQ_SYNC) {}

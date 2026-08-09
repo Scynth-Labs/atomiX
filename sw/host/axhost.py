@@ -46,6 +46,7 @@ OP_GPU_LOAD = 0x13
 OP_GPU_EXEC = 0x14
 OP_BYE = 0x7F
 ST_OK = 0x00
+KERNEL_READY = b"AXRD"
 ROLE_ID_LOOPBACK = 0x4C4F4F50  # "LOOP"
 ROLE_ID_TPU = 0x5450554C       # "TPUL"
 ROLE_ID_GPU = 0x47505543       # "GPUC"
@@ -116,6 +117,8 @@ class SimPipe:
             raise SystemExit(f"axhost: simulation exit {result.returncode}")
         if booting and b"AXOK" not in result.stdout:
             raise SystemExit("axhost: UART bootloader did not acknowledge kernel")
+        if booting and KERNEL_READY not in result.stdout:
+            raise SystemExit("axhost: uploaded aXos never announced readiness")
         return result.stdout
 
 
@@ -127,8 +130,7 @@ class SerialPipe:
         self.baud = baud
         self.timeout = timeout
 
-    def exchange(self, request_bytes, expected_frames=None,
-                 expected_marker=None):
+    def _open(self):
         baud_const = getattr(termios, f"B{self.baud}", None)
         if baud_const is None:
             raise SystemExit(f"axhost: unsupported serial baud {self.baud}")
@@ -141,31 +143,64 @@ class SerialPipe:
             attrs[2] |= termios.CLOCAL | termios.CREAD
             termios.tcsetattr(fd, termios.TCSANOW, attrs)
             termios.tcflush(fd, termios.TCIOFLUSH)
+            return fd
+        except BaseException:
+            os.close(fd)
+            raise
 
-            sent = 0
-            while sent < len(request_bytes):
-                _, writable, _ = select.select([], [fd], [], self.timeout)
-                if not writable:
-                    raise SystemExit("axhost: serial write timeout")
-                sent += os.write(fd, request_bytes[sent:])
-            termios.tcdrain(fd)
+    def _exchange_fd(self, fd, request_bytes, expected_frames=None,
+                     expected_marker=None):
+        sent = 0
+        while sent < len(request_bytes):
+            _, writable, _ = select.select([], [fd], [], self.timeout)
+            if not writable:
+                raise SystemExit("axhost: serial write timeout")
+            sent += os.write(fd, request_bytes[sent:])
+        termios.tcdrain(fd)
 
-            data = bytearray()
-            deadline = time.monotonic() + self.timeout
-            while time.monotonic() < deadline:
-                readable, _, _ = select.select([fd], [], [], 0.05)
-                if readable:
-                    chunk = os.read(fd, 4096)
-                    if chunk:
-                        data.extend(chunk)
-                        if expected_marker:
-                            marker = data.find(expected_marker)
-                            if marker >= 0 and len(data) >= marker + 8:
-                                break
-                        if (expected_frames is not None and
-                                len(parse_responses(data)) >= expected_frames):
+        data = bytearray()
+        deadline = time.monotonic() + self.timeout
+        while time.monotonic() < deadline:
+            readable, _, _ = select.select([fd], [], [], 0.05)
+            if readable:
+                chunk = os.read(fd, 4096)
+                if chunk:
+                    data.extend(chunk)
+                    if expected_marker:
+                        marker = data.find(expected_marker)
+                        if marker >= 0 and \
+                                len(data) >= marker + len(expected_marker):
                             break
-            return bytes(data)
+                    if (expected_frames is not None and
+                            len(parse_responses(data)) >= expected_frames):
+                        break
+        return bytes(data)
+
+    def exchange(self, request_bytes, expected_frames=None,
+                 expected_marker=None):
+        fd = self._open()
+        try:
+            return self._exchange_fd(fd, request_bytes, expected_frames,
+                                     expected_marker)
+        finally:
+            os.close(fd)
+
+    def exchange_paced(self, requests):
+        """Exchange one frame at a time without toggling the serial port."""
+        fd = self._open()
+        try:
+            frames = []
+            for req in requests:
+                parsed = parse_responses(
+                    self._exchange_fd(fd, req, expected_frames=1))
+                if len(parsed) != 1:
+                    prior = [(status, len(payload))
+                             for status, payload in frames]
+                    raise SystemExit(
+                        f"axhost: no response to serial op 0x{req[1]:02x}; "
+                        f"prior responses={prior}")
+                frames.extend(parsed)
+            return frames
         finally:
             os.close(fd)
 
@@ -178,7 +213,7 @@ def kernel_upload_frame(binary):
 def upload_kernel(pipe, path):
     binary = Path(path).read_bytes()
     raw = pipe.exchange(kernel_upload_frame(binary),
-                        expected_marker=b"AXOK")
+                        expected_marker=KERNEL_READY)
     marker = raw.find(b"AXOK")
     if marker < 0 or marker + 8 > len(raw):
         raise SystemExit(f"axhost: kernel upload not acknowledged: {raw!r}")
@@ -186,7 +221,9 @@ def upload_kernel(pipe, path):
     if accepted != len(binary):
         raise SystemExit(
             f"axhost: loader accepted {accepted} bytes, expected {len(binary)}")
-    print(f"KERNEL -> uploaded {accepted} bytes, CRC32 verified, aXos started")
+    if KERNEL_READY not in raw:
+        raise SystemExit("axhost: kernel upload passed but aXos never became ready")
+    print(f"KERNEL -> uploaded {accepted} bytes, CRC32 verified, aXos ready")
 
 
 # Each builder returns (op, request_payload, expected_role_id, verify).  `verify`
@@ -328,10 +365,20 @@ def fast_switch(pipe, baud):
     if isinstance(pipe, SimPipe):
         stream += request(OP_BYE)
     wall_start = time.monotonic()
-    frames = parse_responses(pipe.exchange(stream, 6))
+    if isinstance(pipe, SerialPipe):
+        # The FPGA UART is a polled, minimal-buffer transport.  Wait for each
+        # response before sending the next request: while aXos is transmitting
+        # a response it is not draining RX, so a six-frame host burst can lose
+        # bytes even though the same byte stream is safe in the queued RTL
+        # harness.  This is protocol pacing, not an accelerator delay.
+        frames = pipe.exchange_paced(requests)
+    else:
+        frames = parse_responses(pipe.exchange(stream, 6))
     wall_ms = (time.monotonic() - wall_start) * 1000.0
     if len(frames) < 6:
-        raise SystemExit(f"axhost: expected >=6 responses, got {len(frames)}")
+        summary = [(status, len(payload)) for status, payload in frames]
+        raise SystemExit(
+            f"axhost: expected >=6 responses, got {len(frames)} {summary}")
     if frames[0] != (ST_OK, b"aXHL"):
         raise SystemExit(f"axhost: bad PING response {frames[0]!r}")
     if frames[1][0] != ST_OK or len(frames[1][1]) != 8:

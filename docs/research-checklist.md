@@ -123,9 +123,12 @@ throughput than separate CPU/GPU/TPU implementations?
   seeds.
 - [ ] **No hardware:** compare three alternatives before scaling: a composite
   hard GPU+TPU role, the unified morph fabric, and separate full images.
-- [!] Run switching, workload, and power/energy experiments on the Primer.
-  **Blocked:** connect the already-owned board and establish the measurement
-  method; latency can be measured before a power fixture exists.
+- [~] Run switching, workload, and power/energy experiments on the Primer.
+  The connected board now passes two live GPU program loads and executions in
+  one aXos session: load costs were 197/198 FPGA cycles, execute costs were
+  1,354/1,022 cycles, and the measured two-load/two-execute host round trip was
+  42.66 ms at 921600 baud. Power and energy remain pending until a measurement
+  fixture and method are selected.
 
 Provisional success targets for the first prototype are: one resident image;
 all three minimal workloads correct; personality replacement below 1 ms at the

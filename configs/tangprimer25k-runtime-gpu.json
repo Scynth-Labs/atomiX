@@ -18,6 +18,7 @@
   "settings": {
     "ram_bytes": 32768,
     "caches": false,
+    "pnr_seed": 3,
     "reset_pc": "0x00001000"
   },
   "parameters": {

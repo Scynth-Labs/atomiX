@@ -21,7 +21,66 @@ The open-flow device and packing flags follow apicula's
 - Use a data-capable USB-C cable on the Dock debugger port.
 - Do not run the persistent `flash` target during initial tests.
 
-## 2. Build tools and bitstream
+## 2. Attach the Dock to WSL2
+
+Windows owns newly connected USB devices, so a WSL2 development environment
+must attach the Dock explicitly with
+[`usbipd-win`](https://learn.microsoft.com/en-us/windows/wsl/connect-usb).
+Install it once from an Administrator PowerShell if it is not already present:
+
+```powershell
+winget install --interactive --exact dorssel.usbipd-win
+```
+
+Keep a WSL terminal open. In Administrator PowerShell, find the Dock and share
+it once (sharing persists across unplugging and reboots):
+
+```powershell
+usbipd list
+usbipd bind --busid <BUSID>
+```
+
+Identify the Dock by VID:PID `0403:6010` and the two interfaces named
+`USB Serial Converter A, USB Serial Converter B`; do not assume that its BUSID
+will remain the same after moving it to another Windows USB port. Then attach
+the shared device from an ordinary PowerShell:
+
+```powershell
+usbipd attach --wsl --busid <BUSID>
+usbipd list
+```
+
+Verify both the USB identity and serial interfaces inside WSL:
+
+```bash
+lsusb -d 0403:6010
+dmesg | tail -n 50
+ls -l /dev/ttyUSB* /dev/ttyACM* 2>/dev/null
+```
+
+The Dock's FT2232 debugger exposes channel A for JTAG and channel B for UART;
+on the verified setup they appeared as `/dev/ttyUSB0` and `/dev/ttyUSB1`,
+respectively. If the serial nodes are owned by group `dialout` and the current
+user is not in that group, grant access once and then fully exit and reopen the
+WSL distribution:
+
+```bash
+sudo usermod -aG dialout "$USER"
+```
+
+The attach is not persistent: repeat `usbipd attach` after unplugging the Dock,
+restarting Windows, or running `wsl --shutdown`. To return the device to
+Windows without unplugging it, run:
+
+```powershell
+usbipd detach --busid <BUSID>
+```
+
+Completed WSL/JTAG/UART observations belong in the
+[Tang Primer achievement record](achievements/tangprimer25k.md), not in this
+procedure.
+
+## 3. Build tools and bitstream
 
 Use a current matched OSS CAD Suite; GW5A support requires current Yosys,
 nextpnr-himbaechel, and apicula:
@@ -64,8 +123,9 @@ The first command executes the same image in an ISS with exactly 32,768 bytes
 of RAM and in RTL with a 32,768-byte synchronous-BRAM model. The preflight
 boots from ROM into blank RAM in simulation, uploads aXos, exercises two
 accelerator programs, performs synthesis/place-and-route, and records the
-exact source, inputs, tool versions, timing, utilisation, and bitstream hash in
-the generated `evidence.json` beside the `.fs` file. It never accesses the
+exact source, inputs, tool versions, placement seed, timing, utilisation, and
+bitstream hash in the generated seed-specific evidence manifest beside the
+`.fs` file. It never accesses the
 board. (`fpga-runtime-primer` and `fpga-kernel-primer` remain build-only
 compatibility targets.) Only after both simulations report `PASS` should the
 reversible SRAM image be loaded:
@@ -85,10 +145,11 @@ python3 sw/host/axhost.py --fast-switch \
   --serial /dev/ttyUSB1 --baud 921600
 ```
 
-Expect `AXOK` for the kernel upload followed by `FAST SWITCH PASS`. This kernel
-profile remains simulation-verified until that physical transcript is captured.
+Expect ROM acknowledgement `AXOK`, kernel-ready marker `AXRD`, and finally
+`FAST SWITCH PASS`. The verified physical result and preserved working pair are
+recorded in the [Tang Primer achievement record](achievements/tangprimer25k.md).
 
-## 3. Find the UART and program SRAM
+## 4. Find the UART and program SRAM
 
 Record serial devices before and after connecting the Dock so the correct UART
 is unambiguous:
@@ -112,7 +173,7 @@ The default payload prints its hello transcript. Press and release S1 to reset
 the SoC and confirm that the transcript restarts. There is no ordinary
 FPGA-driven user LED on this Dock; UART output is the bring-up verdict.
 
-## 4. Record the hardware evidence
+## 5. Record the hardware evidence
 
 Keep the following with the first successful run:
 
@@ -149,17 +210,6 @@ make fpga CONFIG=configs/tangprimer25k-tpu.json PROGRAM=tpu
 artifact directory key, so each profile/payload pair produces an independent
 netlist and bitstream. Use `PROGRAM=hello` for the initial UART smoke test.
 
-`tangprimer25k-ax2.json` selects the dual-issue AX2 core with a 2 KiB
-instruction cache and the largest fitting predictor, a 64-entry BTB. It maps
-to 20,893 LUT primitives.
-`tangprimer25k-gpu.json` pairs the minimal host with the verified 4-lane SIMT
-engine. Explicit GW5A multiplier decomposition maps its lanes to 12
-`MULTALU27X18` DSPs. It routes at 18,280/23,040 LUT primitives (79.3%) and
-38.47 MHz. Eight lanes overflowed at 109% LUT use; six lanes packed to 96% but
-could not be legally placed. `tangprimer25k-tpu.json` uses 24 int8 multipliers
-folded over three K phases and maps its buffers to 48 BSRAMs. It routes at
-17,345 LUT primitives and 32.65 MHz.
-
 Reproduce the board-independent comparisons with:
 
 ```bash
@@ -176,39 +226,10 @@ the complete UART transcript: matching the simulation checksum proves that the
 board ran the same workload and result, while the phase split shows whether
 the accelerator or the host/MMIO boundary dominates.
 
-The physical 4-lane GPU run measured 2,457 compute cycles for SAXPY and 3,029
-for the polynomial kernel at N=256. The folded TPU measured 189 compute cycles
-versus 42,995 CPU cycles for the same GEMM. The hardware payloads include
-upload, checked readback, and stable checksums, so these are functional
-measurements rather than unverified timing projections.
-
-At the target clocks, the current RTL/physical evidence compares as follows:
-
-| Workload | Tang Nano 20K | Tang Primer 25K | Primer wall-time speedup |
-|---|---:|---:|---:|
-| CPU, five measured windows | 42,978 cycles / 1,591.8 us | 25,729 cycles / 1,029.2 us | 1.55× |
-| GPU SAXPY, N=256, complete offload | 23,097 cycles / 855.4 us | 29,887 cycles / 1,195.5 us | 0.72× |
-| GPU polynomial, N=256, complete offload | 23,520 cycles / 871.1 us | 30,513 cycles / 1,220.5 us | 0.71× |
-| TPU 12x8x8 GEMM, complete offload | 5,257 cycles / 194.7 us | 6,893 cycles / 275.7 us | 0.71× |
-
-The CPU row remains the AX2 RTL comparison. The Primer GPU and TPU rows are
-physical UART measurements; their Nano counterparts are RTL measurements.
-Upload and checked readback dominate both complete offload boundaries.
-
-## Verified hardware result
-
-Physical bring-up completed on 2026-07-29 using volatile SRAM programming only:
-
-| Image | Routed resources | Routed fmax | UART verdict |
-|---|---|---:|---|
-| CPU `hello` | 12,179 LUT4, 2,699 FF, 36 BSRAM | 32.23 MHz | hello output observed; S1 reset confirmed |
-| GPU `gpu_perf` | 18,280 LUT4, 2,446 FF, 40 BSRAM, 12 DSP | 38.47 MHz | `gpu-perf: PASS`; N=256 checksums `0xf515cdf9` / `0xbe878696` |
-| TPU `tpu` | 17,345 LUT4, 3,696 FF, 48 BSRAM, 24 DSP | 32.65 MHz | `role tpu-lite: PASS`; checksum `0x8acb4a08` |
-
-The GPU transcript covers SAXPY and polynomial kernels at 32, 64, 128, and 256
-threads, checking every result against the on-core reference. The TPU
-transcript checks the folded int8 GEMM against its CPU reference. CPU, GPU, and
-TPU are separate profile bitstreams rather than simultaneous accelerators.
+Keep successful resource, timing, workload, and UART results in the
+[Tang Primer achievement record](achievements/tangprimer25k.md). The broader
+cross-board comparison remains in
+[hardware-capabilities.md](hardware-capabilities.md).
 
 ## Resident-kernel runtime switching
 
@@ -239,5 +260,7 @@ python3 sw/host/axhost.py --fast-switch \
   --serial /dev/ttyUSB1 --baud 921600
 ```
 
-This path is simulation-verified by `make runtime-primer`; do not add it to the
-physical evidence table until the command above passes on the board.
+This path is simulation-verified by `make runtime-primer` and physically
+verified on the Dock. Its exact results, remaining recovery tests, and preserved
+working artifacts are maintained in the
+[Tang Primer achievement record](achievements/tangprimer25k.md).

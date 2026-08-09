@@ -35,25 +35,24 @@ make primer-runtime-preflight
 
 It boots one exact 32 KiB aXos image, loads and executes SAXPY, loads a
 different polynomial program, executes it, verifies both results, builds the
-loader-only FPGA image, and writes a hashed `evidence.json` beside the
-bitstream. The same host command is ready for the board transport:
+loader-only FPGA image, and writes a hashed, seed-specific evidence manifest
+beside the bitstream. The same host command drives the board transport:
 
 ```bash
 python3 sw/host/axhost.py --fast-switch --serial /dev/ttyUSB1 --baud 921600 \
   --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin
 ```
 
-Do not run the hardware command until the
-`tangprimer25k-runtime-gpu` image has passed synthesis/P&R and has been
-programmed. Physical evidence remains separate from the simulation result.
-
-The current loader-only Primer image routes at 32.97 MHz against its 25 MHz
-constraint and uses 18,399/23,040 LUT4s, 3,308/23,040 DFFs, 44/56 BSRAMs, and
-3/28 `MULTALU27X18` DSPs. Its `.fs` SHA-256 is
-`1b60669ab39f78a1fab68ff8f5e0b947960d64c29fdf4661f520b13008774878`.
-This qualifies synthesis/P&R independently of whichever kernel is uploaded;
-it is build evidence only. A new physical claim still requires the serial
-regression on the board.
+The current loader-only Primer image uses profile-selected placement seed 3,
+routes at 29.30 MHz against its 25 MHz constraint, and uses 18,417/23,040
+LUT4s, 3,853/23,040 DFFs, 44/56 BSRAMs, and 3/28 `MULTALU27X18` DSPs. Its `.fs`
+SHA-256 is
+`62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6`.
+The physical run observed `AXOK`, waited for aXos's `AXRD` ready marker, loaded
+and executed both GPU programs, verified every result, and ended in
+`FAST SWITCH PASS`. The profile and exact release hashes are in the lightweight
+[Tang Primer release manifest](../artifacts/hardware/tangprimer25k/README.md);
+generated images and reports are intentionally not tracked.
 
 This overlay cannot change arbitrary FPGA topology. A TPU systolic array and a
 SIMT engine are still different physical datapaths. On the Primer, switching

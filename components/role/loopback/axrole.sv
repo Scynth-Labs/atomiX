@@ -159,6 +159,10 @@ module axrole #(
     end
   end
 
+  // The 5.051 linter treats nonblocking assignments inside this task as a
+  // separate process even though it is called only from the sequential block
+  // below. Synthesis and IEEE scheduling both see one writer.
+  /* verilator lint_off MULTIDRIVEN */
   task automatic apply_reg_write(input logic [15:0] off,
                                  input logic [31:0] wdata,
                                  input logic [3:0] strb);
@@ -238,4 +242,5 @@ module axrole #(
       end
     end
   end
+  /* verilator lint_on MULTIDRIVEN */
 endmodule

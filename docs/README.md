@@ -21,6 +21,8 @@ verifiable, and replaceable.
 - [tangprimer25k-bringup.md](tangprimer25k-bringup.md) — safe Tang Primer 25K
   Dock build, SRAM programming, and UART procedure.
 - [ulx3s-bringup.md](ulx3s-bringup.md) — safe ULX3S board procedure.
+- [achievements/](achievements/) — per-hardware record of completed physical
+  and board-independent evidence, open failures, and preserved working images.
 
 ## Architecture and composition
 

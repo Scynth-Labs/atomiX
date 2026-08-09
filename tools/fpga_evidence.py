@@ -69,7 +69,12 @@ def git_output(*args: str) -> str:
 
 
 def source_identity() -> dict[str, object]:
-    status = git_output("status", "--porcelain=v1")
+    # Preserve porcelain's two leading status columns. Using git_output()
+    # would strip the first line and corrupt its path (for example,
+    # `.gitignore` would be recorded as `gitignore`).
+    status = subprocess.check_output(
+        ["git", "status", "--porcelain=v1"], cwd=ROOT, text=True
+    ).rstrip("\n")
     diff = subprocess.check_output(["git", "diff", "--binary", "HEAD"], cwd=ROOT)
     return {
         "commit": git_output("rev-parse", "HEAD"),
@@ -116,6 +121,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, required=True)
     parser.add_argument("--bitstream", type=Path, required=True)
+    parser.add_argument("--pnr-seed", type=int, required=True)
     parser.add_argument("--timing-report", type=Path, required=True)
     parser.add_argument("--synth-log", type=Path, required=True)
     parser.add_argument(
@@ -129,6 +135,9 @@ def main() -> None:
     )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+
+    if args.pnr_seed < 0:
+        parser.error("P&R seed must be non-negative")
 
     timing_path = args.timing_report.resolve()
     if not timing_path.is_file():
@@ -160,6 +169,7 @@ def main() -> None:
             "source": source_identity(),
             "tools": tool_versions(),
             "config": file_identity(args.config),
+            "place_and_route": {"seed": args.pnr_seed},
             "inputs": inputs,
             "prerequisite_gates": {
                 label: result for label, result in args.gate

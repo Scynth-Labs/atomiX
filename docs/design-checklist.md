@@ -347,9 +347,10 @@ Use this for a substantive implementation or interface change:
   aXos personality. Evidence: `make -C sw/kernel check-uartboot` rejects
   corrupt/oversized uploads and boots the full kernel; `make runtime-primer`
   uploads the compact host-link kernel before its two-program accelerator test.
-  The current loader-only Primer image routes at 32.97 MHz for a 25 MHz
-  constraint (18,399 LUT4, 3,308 DFF, 44 BSRAM, 3 DSP); physical upload
-  evidence is still pending.
+  The deterministic seed-3 loader-only Primer image routes at 29.30 MHz for a
+  25 MHz constraint (18,417 LUT4, 3,853 DFF, 44 BSRAM, 3 DSP). Its immutable
+  ROM physically accepted the kernel and the resulting aXos session completed
+  the two-program `FAST SWITCH PASS` gate.
 - [x] Kernel-mediated userspace role ABI: `role_info`, token-returning
   `role_submit`, and retry-safe `role_wait`, using the same checked job
   encodings as the host link. The physical role window remains supervisor-only
@@ -583,11 +584,12 @@ is explicitly non-physical until hardware becomes available.
   blank-RAM/immutable-ROM Primer image, checks 25 MHz timing, and writes a
   hashed `evidence.json` beside the bitstream.  This is reproducible build
   evidence only; it does not claim that the image ran on the Dock.
-- [ ] Close the Primer resident-runtime hardware gate.  Program
-  `configs/tangprimer25k-runtime-gpu.json`, upload the compact aXos kernel over
-  the immutable UART loader, and record `AXOK` followed by `FAST SWITCH PASS`
-  from `python3 sw/host/axhost.py --fast-switch --upload-kernel
-  sw/kernel/build/primer-runtime/axos_boot.bin --serial <port> --baud 921600`.
+- [x] Close the Primer resident-runtime hardware gate. The immutable loader
+  emitted `AXOK`, the initialized aXos kernel emitted `AXRD`, and the physical
+  921600-baud run ended in `FAST SWITCH PASS`. SAXPY and polynomial programs
+  were loaded and executed in one aXos session, and every result matched the
+  host reference. Evidence and the preserved seed-3 image are linked from the
+  [Tang Primer achievement record](achievements/tangprimer25k.md).
 - [ ] Repeat the resident-runtime check after S1 reset and after a USB/power
   reconnect.  Confirm that a failed or interrupted kernel upload leaves the
   immutable loader recoverable without reflashing the FPGA.

@@ -81,6 +81,7 @@ static inline uint32_t csr_read_stval(void) {
   return value;
 }
 
+#ifndef AXOS_HOSTLINK
 static void clint_arm_timer(uint32_t delta) {
   volatile uint32_t *const mtimecmp =
       (volatile uint32_t *)(uintptr_t)(AX_CLINT_BASE + 0x4000u);
@@ -90,6 +91,7 @@ static void clint_arm_timer(uint32_t delta) {
   mtimecmp[0] = *mtime + delta;
   mtimecmp[1] = 0;
 }
+#endif
 
 void m_setup(void) {
   bootstrap_map();
@@ -97,8 +99,16 @@ void m_setup(void) {
   __asm__ volatile("csrw mtvec, %0" :: "r"((uint32_t)(uintptr_t)machine_timer_trap));
   __asm__ volatile("csrw medeleg, %0" :: "r"(1u << SCAUSE_LOAD_ACCESS_FAULT));
   __asm__ volatile("csrw mideleg, %0" :: "r"(1u << 1));
+#ifdef AXOS_HOSTLINK
+  /* The host-link personality polls a one-byte UART at high baud.  A periodic
+   * timer trap can occupy the hart for longer than one character and silently
+   * overrun RX, so this dedicated binary deliberately owns the byte pipe with
+   * MTIE disabled.  It has no scheduler or interactive uptime requirement. */
+  __asm__ volatile("csrw mie, %0" :: "r"(1u << 1));
+#else
   __asm__ volatile("csrw mie, %0" :: "r"((1u << 7) | (1u << 1)));
   clint_arm_timer(0x00100000u);
+#endif
   __asm__ volatile("csrw satp, %0" ::
                    "r"(SATP_MODE_SV32 |
                        ((uint32_t)(uintptr_t)root_pt >> 12)));
@@ -172,7 +182,9 @@ void kmain(void) {
   allocator_total_pages = page_free_count();
   allocator_self_test();
   role_init();
+#ifndef AXOS_HOSTLINK
   clint_arm_timer(2000u);
+#endif
 #ifdef AXOS_HOSTLINK
   host_service();
 #else

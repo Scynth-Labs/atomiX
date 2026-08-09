@@ -27,8 +27,11 @@ Before this protocol starts, kernel profiles reset into the immutable UART ROM.
 The host sends `"AXK1" · length(u32) · crc32(u32) · kernel[length]`; the ROM
 answers `"AXOK" · length(u32)`, executes `fence.i`, and starts aXos. `"AXER" ·
 code(u32)` reports a bad bound or CRC and leaves the ROM ready for another
-upload. This boot envelope is transport-level and independent of the aXos
-request frames below.
+upload. After page-table, allocator, and role initialization, aXos sends
+`"AXRD"`. The host must not send request frames between `AXOK` and `AXRD`:
+`AXOK` proves only that the ROM accepted the bytes, while `AXRD` is the request-
+ready boundary. This boot envelope is transport-level and independent of the
+aXos request frames below.
 
 ## Frames
 
