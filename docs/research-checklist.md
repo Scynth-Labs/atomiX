@@ -191,6 +191,11 @@ and the later
   applies a deterministic threshold, and emits a reasoned proposal with no
   actuation authority. Evidence: [L1 reviewed selection](live-fpga.md),
   `research/live-fpga/policy/`, and `make policy-check`.
+- [x] **No hardware:** run the real bounded fitness and evolution components in
+  a deterministic virtual FPGA loop. The model covers a valid improvement,
+  faster incorrect output, watchdog timeout, proposal-only authority, a failed
+  activation canary, and manager-owned rollback to the baseline. Evidence:
+  [closed-loop virtual FPGA](live-fpga.md) and `make live-sim-check`.
 - [ ] **No hardware — next:** create a content-addressed candidate registry containing
   source/profile hash, tool versions, parent, mutation, test evidence, and
   deployment outcome.

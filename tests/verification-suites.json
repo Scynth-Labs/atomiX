@@ -1,0 +1,226 @@
+{
+  "schema": "org.atomix.verification-suites.v1",
+  "stages": {
+    "axsim-directed": {
+      "label": "Golden ISS smoke and trap tests",
+      "command": ["make", "-C", "sim/axsim", "test"],
+      "timeout_seconds": 300,
+      "requires": ["make"]
+    },
+    "system-profiles": {
+      "label": "Resolve every supplied system profile",
+      "command": ["make", "config-check-all"],
+      "timeout_seconds": 300,
+      "requires": ["make", "python3"]
+    },
+    "kernel-profiles": {
+      "label": "Resolve every supplied kernel profile",
+      "command": ["make", "-C", "sw/kernel", "kernel-config-check-all"],
+      "timeout_seconds": 300,
+      "requires": ["make", "python3"]
+    },
+    "research-contracts": {
+      "label": "Personality and comparison research contracts",
+      "command": ["make", "comparison-check"],
+      "timeout_seconds": 300,
+      "requires": ["make", "python3"]
+    },
+    "live-rtl": {
+      "label": "Immutable Live FPGA monitor and isolation RTL",
+      "command": ["make", "live-check"],
+      "timeout_seconds": 900,
+      "requires": ["make", "verilator"]
+    },
+    "live-closed-loop": {
+      "label": "Live FPGA policy, RV32 shadow evaluation, and rollback",
+      "command": ["make", "live-sim-check"],
+      "timeout_seconds": 900,
+      "requires": ["make", "python3"]
+    },
+    "cosim-directed": {
+      "label": "Directed ISS/RTL lock-step cosimulation",
+      "command": ["make", "-C", "sim/cosim", "test"],
+      "timeout_seconds": 1200,
+      "requires": ["make", "verilator"]
+    },
+    "rtl-units": {
+      "label": "All RTL units, core-directed tests, and parameter suites",
+      "command": ["make", "-C", "sim/unit", "test"],
+      "timeout_seconds": 7200,
+      "requires": ["make", "verilator"]
+    },
+    "component-composition": {
+      "label": "Component composition across supplied profiles",
+      "command": ["make", "component-test"],
+      "timeout_seconds": 5400,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "baremetal-peripherals": {
+      "label": "Bare-metal SPI and SD paths on RTL",
+      "command": ["make", "-C", "sw/baremetal", "check-spi", "check-sd"],
+      "timeout_seconds": 2400,
+      "requires": ["make", "verilator"]
+    },
+    "baremetal-role": {
+      "label": "Bare-metal role window and interrupt path on RTL",
+      "command": ["make", "-C", "sw/baremetal", "check-role", "check-role-irq"],
+      "timeout_seconds": 2400,
+      "requires": ["make", "verilator"]
+    },
+    "baremetal-accelerators": {
+      "label": "GPU, TPU, scalable GPU, and performance workloads on RTL",
+      "command": ["make", "-C", "sw/baremetal", "check-tpu", "check-gpu", "check-gpu-perf", "check-gpu1", "check-cpu-perf"],
+      "timeout_seconds": 10800,
+      "requires": ["make", "verilator"]
+    },
+    "architecture-suites": {
+      "label": "Minimal-host and dual-issue composed architecture suites",
+      "command": ["make", "-C", "sw/baremetal", "check-suite-minimal", "check-suite-ax2"],
+      "timeout_seconds": 10800,
+      "requires": ["make", "verilator"]
+    },
+    "kernel-shell": {
+      "label": "aXos shell, role driver, interrupt, and host-link",
+      "command": ["make", "-C", "sw/kernel", "check-shell", "check-role-driver", "check-role-irq", "check-hostlink"],
+      "timeout_seconds": 5400,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "kernel-runtime-switch": {
+      "label": "Primer host-managed runtime switching",
+      "command": ["make", "-C", "sw/kernel", "check-primer-runtime"],
+      "timeout_seconds": 5400,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "kernel-primer-ci": {
+      "label": "Primer 32 KiB boot and UART kernel upload",
+      "command": ["make", "-C", "sw/kernel", "check-primer", "check-uartboot"],
+      "timeout_seconds": 3600,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "kernel-storage-mutation": {
+      "label": "aXos filesystem writes and SD boot",
+      "command": ["make", "-C", "sw/kernel", "check-storage-write", "check-sdboot"],
+      "timeout_seconds": 7200,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "kernel-storage-ci": {
+      "label": "aXos on external memory with caches",
+      "command": ["make", "-C", "sw/kernel", "check-storage"],
+      "timeout_seconds": 3600,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "randomized-fuzz": {
+      "label": "Deterministic randomized M-mode instruction campaign",
+      "command": ["make", "-C", "sim/testgen", "fuzz"],
+      "timeout_seconds": 7200,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "randomized-paging": {
+      "label": "Deterministic randomized Sv32 paging campaign",
+      "command": ["make", "-C", "sim/testgen", "paging"],
+      "timeout_seconds": 7200,
+      "requires": ["make", "verilator", "python3"]
+    },
+    "isa-build": {
+      "label": "Build official RV32UI, RV32MI, and RV32UM suites",
+      "command": ["./tests/build-isa.sh", "rv32ui", "rv32mi", "rv32um"],
+      "timeout_seconds": 2400,
+      "requires": ["make"]
+    },
+    "isa-iss": {
+      "label": "Official ISA suites against the golden ISS",
+      "command": ["./tests/run-riscv-tests.sh", "rv32ui", "rv32mi", "rv32um"],
+      "timeout_seconds": 5400,
+      "requires": ["make"]
+    },
+    "isa-cosim-build": {
+      "label": "Build the RTL lock-step ISA harness",
+      "command": ["make", "-C", "sim/cosim", "axcosim"],
+      "timeout_seconds": 2400,
+      "requires": ["make", "verilator"]
+    },
+    "isa-cosim": {
+      "label": "Official ISA suites against RTL in lock-step",
+      "command": ["./tests/run-riscv-tests.sh", "rv32ui", "rv32mi", "rv32um"],
+      "timeout_seconds": 10800,
+      "requires": ["make", "verilator"],
+      "env": {
+        "SIM": "{root}/sim/cosim/obj_dir/axcosim"
+      }
+    },
+    "three-platform-baremetal": {
+      "label": "Bare-metal agreement across ISS, QEMU, and RTL",
+      "command": ["make", "-C", "sw/baremetal", "check-hello", "check-timer", "check-preempt", "check-fencei"],
+      "timeout_seconds": 10800,
+      "requires": ["make", "verilator", "qemu-system-riscv32"]
+    },
+    "three-platform-kernel": {
+      "label": "aXos scheduler profiles across ISS, QEMU, and RTL",
+      "command": ["make", "-C", "sw/kernel", "kernel-component-test"],
+      "timeout_seconds": 10800,
+      "requires": ["make", "verilator", "qemu-system-riscv32"]
+    }
+  },
+  "suites": {
+    "smoke": [
+      "system-profiles",
+      "kernel-profiles",
+      "research-contracts",
+      "axsim-directed",
+      "live-rtl",
+      "live-closed-loop"
+    ],
+    "ci-quick": [
+      "axsim-directed",
+      "system-profiles",
+      "kernel-profiles",
+      "cosim-directed"
+    ],
+    "ci-unit": [
+      "rtl-units"
+    ],
+    "ci-integration": [
+      "component-composition",
+      "baremetal-peripherals",
+      "baremetal-role",
+      "kernel-shell",
+      "kernel-primer-ci",
+      "kernel-storage-ci"
+    ],
+    "nightly-integrated": [
+      "system-profiles",
+      "kernel-profiles",
+      "research-contracts",
+      "axsim-directed",
+      "cosim-directed",
+      "live-rtl",
+      "live-closed-loop",
+      "rtl-units",
+      "component-composition",
+      "baremetal-peripherals",
+      "baremetal-role",
+      "baremetal-accelerators",
+      "architecture-suites",
+      "kernel-shell",
+      "kernel-primer-ci",
+      "kernel-runtime-switch",
+      "kernel-storage-ci",
+      "kernel-storage-mutation"
+    ],
+    "randomized": [
+      "randomized-fuzz",
+      "randomized-paging"
+    ],
+    "isa": [
+      "isa-build",
+      "axsim-directed",
+      "isa-iss",
+      "isa-cosim-build",
+      "isa-cosim"
+    ],
+    "three-platform": [
+      "three-platform-baremetal",
+      "three-platform-kernel"
+    ]
+  }
+}

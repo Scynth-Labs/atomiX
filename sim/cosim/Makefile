@@ -1,8 +1,16 @@
 # Lock-step ISS/RTL cosimulation.  The harness links aXsim directly into the
 # Verilator executable, so it compares each architectural event without any
 # file-based trace parsing.
+include ../../mk/toolchain.mk
 VERILATOR ?= verilator
 VFLAGS    := -Wall --cc -O2
+# Shared component packages intentionally expose operations that a selected
+# implementation may not consume. Verilator 5 reports those package constants
+# as UNUSEDPARAM and makes them fatal under -Wall; match the SoC runner's
+# version-gated policy without weakening any functional warning.
+ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
+VFLAGS += -Wno-UNUSEDPARAM
+endif
 
 CORE_COMPONENT := ../../components/core/pipeline5
 COMPONENTS := ../../components

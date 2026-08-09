@@ -23,8 +23,8 @@ subject:
 
 | Workflow | Trigger | Covers | Tier needed |
 |---|---|---|---|
-| `ci.yml` | push, PR | ISS, profile resolution, cosim, unit testbenches, `component-test`, QEMU-free aXos checks | Core |
-| `nightly.yml` | 03:17 UTC daily | randomized fuzzing and paging, official ISA suite on ISS + RTL, three-platform and aXos checks | Core + Kernel |
+| `ci.yml` | push, PR | manifest-defined ISS, profile, cosim, unit, component, and QEMU-free aXos suites | Core |
+| `nightly.yml` | 03:17 UTC daily | full integrated CI replay, Live FPGA faults, accelerator/architecture paths, randomized campaigns, official ISA, and three-platform checks | Core + Kernel |
 | `formal.yml` | Sundays 04:23 UTC | bounded riscv-formal instruction proofs, both cores | Formal |
 
 The split follows the tier table above: `ci.yml` needs only the Core tier, so
@@ -183,6 +183,20 @@ local run reports. Details and measurements are in
 
 Run the narrowest check that covers a change, then the composition suite before
 declaring a component or profile ready.
+
+The shared suite manifest is the preferred integrated entry point. It is also
+what CI and the scheduled workflows invoke, so local and hosted stage ordering,
+timeouts, and logs cannot drift:
+
+```bash
+python3 tools/verify.py list
+make verify-smoke
+make nightly-integrated
+```
+
+See [verification.md](verification.md) for the coverage ladder and result
+format. The individual commands below remain useful for focused development;
+the manifest composes these targets and does not replace their Makefiles.
 
 ### 3.1 Core / fast
 ```bash

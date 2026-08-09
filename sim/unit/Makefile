@@ -2,6 +2,12 @@
 # `make` runs them all; `make run-<module>` runs one.
 include ../../mk/toolchain.mk
 VFLAGS    := -Wall --cc -O2
+# Some unit tops elaborate only part of the shared operation package. Suppress
+# Verilator 5's package-level UNUSEDPARAM diagnostic just as sim/soc does;
+# older releases do not recognize the warning name.
+ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
+VFLAGS += -Wno-UNUSEDPARAM
+endif
 
 CORE_COMPONENT := ../../components/core/pipeline5
 COMPONENTS := ../../components

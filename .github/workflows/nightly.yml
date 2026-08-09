@@ -13,6 +13,34 @@ permissions:
   contents: read
 
 jobs:
+  integrated:
+    name: Full integrated software and RTL ladder
+    runs-on: ubuntu-22.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/setup-atomix
+        with:
+          cache-key: nightly-integrated
+
+      # This is the union of the ordinary CI suites plus research contracts,
+      # Live FPGA closed-loop faults, accelerator workloads, and architecture
+      # variants. Stages run sequentially to avoid shared-build races; the
+      # heavyweight campaign jobs below remain parallel shards.
+      - name: Integrated verification suite
+        run: python3 tools/verify.py run nightly-integrated --keep-going
+
+      - name: Preserve the complete stage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-nightly-integrated
+          path: build/verification/nightly-integrated
+          if-no-files-found: error
+          retention-days: 14
+
   randomized:
     name: Randomized generation and fuzzing
     runs-on: ubuntu-22.04
@@ -23,11 +51,17 @@ jobs:
         with:
           cache-key: randomized
 
-      - name: Randomized M-mode instruction fuzzing
-        run: make -C sim/testgen fuzz
+      - name: Randomized verification suite
+        run: python3 tools/verify.py run randomized --keep-going
 
-      - name: Randomized Sv32 user-mode paging
-        run: make -C sim/testgen paging
+      - name: Preserve the complete stage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-nightly-randomized
+          path: build/verification/randomized
+          if-no-files-found: error
+          retention-days: 14
 
   isa-suite:
     name: Official RISC-V ISA suite
@@ -43,22 +77,17 @@ jobs:
         with:
           cache-key: isa-suite
 
-      # Shared with sim/unit, which needs the same binaries for its core ISA
-      # suites; the target-name logic lives in the script so the two cannot
-      # drift apart.
-      - name: Build the suite binaries
-        run: ./tests/build-isa.sh rv32ui rv32mi rv32um
+      - name: Official ISA verification suite
+        run: python3 tools/verify.py run isa --keep-going
 
-      - name: Against the golden ISS
-        run: |
-          make -C sim/axsim axsim
-          ./tests/run-riscv-tests.sh rv32ui rv32mi rv32um
-
-      - name: Against the RTL in lock-step
-        run: |
-          make -C sim/cosim axcosim
-          SIM="$PWD/sim/cosim/obj_dir/axcosim" \
-            ./tests/run-riscv-tests.sh rv32ui rv32mi rv32um
+      - name: Preserve the complete stage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-nightly-isa
+          path: build/verification/isa
+          if-no-files-found: error
+          retention-days: 14
 
   three-platform:
     name: ISS / QEMU / RTL agreement
@@ -109,11 +138,14 @@ jobs:
       - name: Confirm the QEMU version
         run: qemu-system-riscv32 --version
 
-      - name: Bare-metal image agrees on ISS, QEMU, and RTL
-        run: make -C sw/baremetal check-hello check-timer check-preempt check-fencei
+      - name: Three-platform verification suite
+        run: python3 tools/verify.py run three-platform --keep-going
 
-      # Both scheduler policies must preserve the same shell/fork semantics.
-      - name: aXos boots under both scheduler components
-        run: |
-          make -C sw/kernel kernel-component-test \
-            QEMU="$HOME/.local/bin/qemu-system-riscv32"
+      - name: Preserve the complete stage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-nightly-three-platform
+          path: build/verification/three-platform
+          if-no-files-found: error
+          retention-days: 14

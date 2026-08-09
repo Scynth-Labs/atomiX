@@ -8,6 +8,7 @@ and enforced (DESIGN.md §6).
 |---|---|
 | [axsim/](axsim/) | `aXsim` — our instruction-set simulator, the golden model |
 | [cosim/](cosim/) | Verilator harness comparing RTL against aXsim per retired instruction |
+| [livefpga/](livefpga/) | Closed-loop virtual FPGA exercising the real fitness/evolution components and fault gates |
 | [soc/](soc/) | Complete `soc_top` runner with `$readmemh`-initialized RAM |
 | [testgen/](testgen/) | Random RISC-V instruction-stream generator for cosim fuzzing |
 | [unit/](unit/) | Directed RTL block and SoC integration tests |

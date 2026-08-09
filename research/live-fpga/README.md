@@ -17,3 +17,9 @@ the two runtime programs used by `axhost --fast-switch`. Its result can only be
 ```bash
 make policy-check
 ```
+
+Run `make live-sim-check` for the complete hardware-free chain, ending in a
+closed-loop virtual FPGA that drives the actual bounded C fitness/evolution
+components through valid, incorrect, watchdog, canary-failure, and rollback
+scenarios. The simulator cannot actuate real hardware; its manager boundary is
+explicit and deterministic.

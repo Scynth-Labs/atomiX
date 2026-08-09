@@ -1,5 +1,22 @@
 # tests/ — test suites
 
+`verification-suites.json` is the shared, versioned orchestration manifest for
+local checks, per-change CI, and scheduled verification. `tools/verify.py`
+validates it, runs each stage with an explicit timeout, streams output while
+preserving a separate log, and writes a machine-readable suite summary under
+`build/verification/`.
+
+```bash
+python3 tools/verify.py list
+make verify-smoke
+make nightly-integrated
+```
+
+The manifest contains commands and composition only; subsystem Makefiles still
+own how each test is built. Heavy randomized, ISA, and QEMU suites remain
+separate nightly shards so they can run concurrently without racing over shared
+build directories.
+
 - `riscv-tests/` — the official RISC-V ISA test suite (git submodule). The
   industry-standard correctness baseline: rv32ui (base ISA), rv32mi (M-mode
   traps), rv32um (M extension), and rv32si (S-mode). Run against **both**

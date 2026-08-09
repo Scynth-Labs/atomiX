@@ -140,6 +140,36 @@ faster wrong-workload program.
 make policy-check
 ```
 
+## Closed-loop virtual FPGA
+
+`sim/livefpga` links the same freestanding `fitness.c` and `evolution.c` used by
+the `kernel-evolve-small` image into a deterministic virtual shell. The model
+produces adjacent L0 snapshots for a baseline, a correct improvement, a faster
+incorrect candidate, and a watchdog-failing candidate. It then fault-injects
+the selected candidate's activation canary.
+
+The test requires the real kernel components to reject the unsafe candidates,
+select the correct improvement, leave the active configuration unchanged when
+merely proposing it, invalidate it after the failed canary, and propose the
+known correct baseline. A separate simulated immutable manager performs both
+activation and rollback, preserving the same authority boundary intended for
+hardware.
+
+The scenario runs first as a verbose native executable and then as a
+freestanding RV32 image in aXsim with the Primer's exact 32 KiB RAM size. The
+second leg executes target-compiled component code and catches RV32 ABI,
+arithmetic, and instruction-set differences.
+
+```bash
+make live-sim-check
+```
+
+This behavioural layer runs quickly and deterministically, so it is suitable
+for every change to fitness or evolution logic. It complements rather than
+replaces aXsim boot tests and Verilator RTL tests: it does not model Gowin frame
+timing, clocks, metastability, routing, power, or electrical failure. Those
+remain RTL, timing-analysis, and physical-Primer gates.
+
 ## Immutable boundary
 
 Telemetry, role isolation, reset, UART recovery, the watchdog, and the

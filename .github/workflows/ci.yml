@@ -36,17 +36,17 @@ jobs:
         with:
           cache-key: quick
 
-      - name: Golden ISS and directed traps
-        run: make -C sim/axsim test
+      - name: Quick verification suite
+        run: python3 tools/verify.py run ci-quick
 
-      - name: Every supplied system profile resolves
-        run: make config-check-all
-
-      - name: Every supplied kernel profile resolves
-        run: make -C sw/kernel kernel-config-check-all
-
-      - name: Directed lock-step cosimulation
-        run: make -C sim/cosim test
+      - name: Preserve verification logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-ci-quick
+          path: build/verification/ci-quick
+          if-no-files-found: error
+          retention-days: 7
 
   unit:
     name: RTL unit testbenches
@@ -67,8 +67,17 @@ jobs:
       # One Verilator build+run per module, then the directed core programs
       # (interrupt/commit collisions, M/S/U routing, end-to-end Sv32) and the
       # gpu1 and ax2 suites.
-      - name: Per-module testbenches and directed core programs
-        run: make -C sim/unit test
+      - name: RTL unit verification suite
+        run: python3 tools/verify.py run ci-unit
+
+      - name: Preserve verification logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-ci-unit
+          path: build/verification/ci-unit
+          if-no-files-found: error
+          retention-days: 7
 
   integration:
     name: Composed systems and aXos
@@ -80,22 +89,14 @@ jobs:
         with:
           cache-key: integration
 
-      - name: Component composition across profiles
-        run: make component-test
+      - name: Composed-system verification suite
+        run: python3 tools/verify.py run ci-integration
 
-      - name: Bare-metal peripheral paths on RTL
-        run: make -C sw/baremetal check-spi check-sd
-
-      # Role completion both ways: polled (check-role) and delivered through
-      # the PLIC as a machine external interrupt (check-role-irq).
-      - name: Role window and its interrupt path on RTL
-        run: make -C sw/baremetal check-role check-role-irq
-
-      - name: aXos shell, role driver, and host-link
-        run: make -C sw/kernel check-shell check-role-driver check-role-irq check-hostlink
-
-      - name: aXos 32 KiB primer image and UART kernel upload
-        run: make -C sw/kernel check-primer check-uartboot
-
-      - name: aXos on external memory with caches
-        run: make -C sw/kernel check-storage
+      - name: Preserve verification logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verification-ci-integration
+          path: build/verification/ci-integration
+          if-no-files-found: error
+          retention-days: 7
