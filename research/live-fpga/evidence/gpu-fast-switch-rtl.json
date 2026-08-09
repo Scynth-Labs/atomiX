@@ -2,9 +2,9 @@
   "schema": {"id": "org.atomix.candidate-evidence", "major": 1, "minor": 0},
   "kind": "candidate-evidence",
   "id": "org.atomix.candidate-evidence.gpu-fast-switch-rtl",
-  "revision": 1,
+  "revision": 2,
   "summary": "RTL host-link load, execute, and exact-output observation for both reviewed GPU programs",
-  "content_id": "sha256:733f5d2c92caa2bd221c8b9657096358122c591e4830624c760888843b2969d6",
+  "content_id": "sha256:9c3d659ece369531ce193e149e9349d3962301ee840374991a39c3dab75f7b91",
   "candidates": [
     "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
     "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7"
@@ -47,7 +47,7 @@
     },
     {
       "id": "org.atomix.artifact.axhost-driver",
-      "sha256": "74c1b51999d4a6f2d9de170b7b5f62d8307b7fd262cc2e0c8e9fddae86571ad6",
+      "sha256": "f3dd4b63d7c42188eb8dae5cd3d4a97ca6b9bb00cd52a0c0a4d60f85f0e9c76f",
       "path": "sw/host/axhost.py"
     },
     {

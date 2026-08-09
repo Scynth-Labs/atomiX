@@ -40,10 +40,8 @@ __pycache__/
 *.asc
 *.bit
 *.svf
-# Lab images may be retained locally for a board session, but generated FPGA
-# artifacts never belong in Git. Release identity is recorded as hashes in the
-# hardware achievement/manifest documentation instead.
-artifacts/local/
+# Generated FPGA artifacts never belong in Git. Release identity is recorded
+# as hashes in the hardware achievement documentation instead.
 
 # Browser bundle. The page sources in sim/web/public/ are tracked; the compiled
 # machine and the payload staged beside them are build products of

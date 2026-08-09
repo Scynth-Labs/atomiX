@@ -124,9 +124,10 @@ lineage must resolve inside the registry without self-parenting or cycles.
 
 The first registry contains the reviewed SAXPY and polynomial GPU programs. A
 hashed RTL evidence document records the exact program/output hashes and cycle
-counts from `check-primer-runtime`. A separate deployment document explicitly
-records zero attempts and `org.atomix.not-deployed` while the Primer is
-disconnected; simulation is never upgraded into a physical claim.
+counts from `check-primer-runtime`. Separate physical evidence and deployment
+documents record 30 exact-output executions per candidate on Tang Primer 25K,
+the volatile image identities, benchmark sample, and reset/recovery coverage.
+Simulation and physical claims remain distinct content-addressed records.
 
 ```bash
 make registry-check

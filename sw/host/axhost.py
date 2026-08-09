@@ -13,7 +13,9 @@ the serial backend uses the same frames on a physical board.
 every response, which is what `make -C sw/kernel check-hostlink` invokes.
 `--upload-kernel` installs aXos through the immutable ROM before the host-link
 session. `--fast-switch` then loads and runs two GPU programs without restarting
-aXos or rebuilding/reloading the FPGA.
+aXos or rebuilding/reloading the FPGA. On a physical serial transport,
+`--repeat N` repeats that verified switch sequence in the same resident session
+and reports latency spread.
 """
 import argparse
 import os
@@ -226,6 +228,42 @@ def upload_kernel(pipe, path):
     print(f"KERNEL -> uploaded {accepted} bytes, CRC32 verified, aXos ready")
 
 
+def test_loader_recovery(pipe, path):
+    """Prove the ROM rejects bounded failures and still accepts a valid image."""
+    binary = Path(path).read_bytes()
+    cases = [
+        ("oversized length", b"AXK1" + struct.pack("<II", 0xFFFFFFFF, 0), 1),
+    ]
+    corrupt = bytearray(kernel_upload_frame(binary))
+    corrupt[8] ^= 1  # Alter only the transmitted CRC, never the kernel payload.
+    cases.append(("bad CRC", bytes(corrupt), 2))
+    for label, frame, code in cases:
+        expected = b"AXER" + struct.pack("<I", code)
+        raw = pipe.exchange(frame, expected_marker=expected)
+        if expected not in raw:
+            raise SystemExit(
+                f"axhost: loader did not reject {label} with AXER/{code}: {raw!r}")
+        print(f"LOADER -> rejected {label} with AXER/{code}; retry ready")
+    upload_kernel(pipe, path)
+    print("axhost: LOADER RECOVERY PASS (two rejections, then valid aXos boot)")
+
+
+def send_interrupted_upload(pipe, path, payload_bytes):
+    """Leave the ROM waiting on a deliberately incomplete, valid-size frame."""
+    binary = Path(path).read_bytes()
+    if payload_bytes < 1 or payload_bytes >= len(binary):
+        raise SystemExit(
+            f"axhost: interrupted upload byte count must be 1..{len(binary) - 1}")
+    partial = kernel_upload_frame(binary)[:12 + payload_bytes]
+    raw = pipe.exchange(partial)
+    if any(marker in raw for marker in (b"AXOK", b"AXER", KERNEL_READY)):
+        raise SystemExit(
+            f"axhost: incomplete upload produced an unexpected response: {raw!r}")
+    print(f"KERNEL -> intentionally interrupted after {payload_bytes}/{len(binary)} "
+          "payload bytes; loader is waiting for the remainder")
+    print("axhost: press S1 to reset into the immutable loader before retrying")
+
+
 # Each builder returns (op, request_payload, expected_role_id, verify).  `verify`
 # takes the job response payload, raises on mismatch, and returns a summary
 # line.  The reference result is computed here on the host, so the role RTL is
@@ -418,6 +456,21 @@ def fast_switch(pipe, baud):
         print(f"measured two-load/two-exec host round trip: {wall_ms:.2f} ms")
     print("axhost: FAST SWITCH PASS "
           "(two accelerator programs, one resident aXos/FPGA image, no synthesis)")
+    return results, wall_ms
+
+
+def print_repeat_summary(samples):
+    """Summarize repeated physical runs without weakening per-run checks."""
+    wall_times = [wall_ms for _, wall_ms in samples]
+    print(f"repeat summary: {len(samples)} verified runs, "
+          f"host round trip min/mean/max="
+          f"{min(wall_times):.2f}/{sum(wall_times) / len(wall_times):.2f}/"
+          f"{max(wall_times):.2f} ms")
+    for index, (name, _, _, _) in enumerate(samples[0][0]):
+        loads = [results[index][1] for results, _ in samples]
+        execs = [results[index][2] for results, _ in samples]
+        print(f"  {name:10s} LOAD min/max={min(loads)}/{max(loads)} cycles, "
+              f"EXEC min/max={min(execs)}/{max(execs)} cycles")
 
 
 def main():
@@ -426,6 +479,8 @@ def main():
                         help="run PING/INFO and a job against the selected role")
     parser.add_argument("--fast-switch", action="store_true",
                         help="load/run two GPU programs in one live session")
+    parser.add_argument("--repeat", type=int, default=1, metavar="N",
+                        help="repeat a physical --fast-switch session N times")
     parser.add_argument("--role", choices=sorted(BUILDERS), default="loopback",
                         help="which role the SoC profile selects")
     parser.add_argument("--image", help="aXos host-link hex image (simulation)")
@@ -434,12 +489,28 @@ def main():
                         help="UART boot ROM hex image (boot simulation)")
     parser.add_argument("--upload-kernel", metavar="BIN",
                         help="upload this aXos binary before the requested action")
+    parser.add_argument("--test-loader-recovery", action="store_true",
+                        help="reject oversized/bad-CRC uploads before valid boot")
+    parser.add_argument("--interrupt-upload-at", type=int, metavar="BYTES",
+                        help="send an incomplete kernel frame; requires S1 reset")
     parser.add_argument("--serial", metavar="TTY",
                         help="physical transport, e.g. /dev/ttyUSB1")
     parser.add_argument("--baud", type=int, default=115200)
     parser.add_argument("--timeout", type=float, default=5.0)
     parser.add_argument("--max-cycles", type=int, default=800000)
     args = parser.parse_args()
+
+    if args.repeat < 1:
+        parser.error("--repeat must be at least 1")
+    if args.repeat != 1 and (not args.serial or not args.fast_switch):
+        parser.error("--repeat requires physical --serial and --fast-switch")
+    if args.test_loader_recovery and (not args.serial or not args.upload_kernel):
+        parser.error("--test-loader-recovery requires --serial and --upload-kernel")
+    if args.interrupt_upload_at is not None:
+        if not args.serial or not args.upload_kernel:
+            parser.error("--interrupt-upload-at requires --serial and --upload-kernel")
+        if args.demo or args.fast_switch or args.test_loader_recovery:
+            parser.error("--interrupt-upload-at must be used by itself")
 
     if args.serial:
         pipe = SerialPipe(args.serial, args.baud, args.timeout)
@@ -453,11 +524,23 @@ def main():
         pipe = SimPipe(args.image, args.config, args.max_cycles,
                        args.boot_rom, args.upload_kernel)
     if args.serial and args.upload_kernel:
-        upload_kernel(pipe, args.upload_kernel)
+        if args.interrupt_upload_at is not None:
+            send_interrupted_upload(
+                pipe, args.upload_kernel, args.interrupt_upload_at)
+        elif args.test_loader_recovery:
+            test_loader_recovery(pipe, args.upload_kernel)
+        else:
+            upload_kernel(pipe, args.upload_kernel)
     if args.demo:
         demo(pipe, args.role)
     elif args.fast_switch:
-        fast_switch(pipe, args.baud)
+        samples = []
+        for run in range(args.repeat):
+            if args.repeat > 1:
+                print(f"repeat run {run + 1}/{args.repeat}")
+            samples.append(fast_switch(pipe, args.baud))
+        if args.repeat > 1:
+            print_repeat_summary(samples)
     elif args.upload_kernel:
         if not args.serial:
             parser.error("boot simulation needs --demo or --fast-switch")

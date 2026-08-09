@@ -50,9 +50,9 @@ SHA-256 is
 `62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6`.
 The physical run observed `AXOK`, waited for aXos's `AXRD` ready marker, loaded
 and executed both GPU programs, verified every result, and ended in
-`FAST SWITCH PASS`. The profile and exact release hashes are in the lightweight
-[Tang Primer release manifest](../artifacts/hardware/tangprimer25k/README.md);
-generated images and reports are intentionally not tracked.
+`FAST SWITCH PASS`. The profile and exact release hashes are recorded in the
+[Tang Primer achievement ledger](achievements/tangprimer25k.md); generated
+images and reports are intentionally not tracked.
 
 This overlay cannot change arbitrary FPGA topology. A TPU systolic array and a
 SIMT engine are still different physical datapaths. On the Primer, switching

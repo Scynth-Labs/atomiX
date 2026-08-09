@@ -53,6 +53,17 @@ def main() -> None:
     print("[uartboot] oversized image rejection: PASS")
 
     kernel = KERNEL.read_bytes()
+    recovered = run(frame(b"bad kernel", crc=0) + frame(kernel) + b"exit\n",
+                    8000000)
+    recovery_error = b"AXER" + struct.pack("<I", 2)
+    recovery_ack = b"AXOK" + struct.pack("<I", len(kernel))
+    recovery_tail = b"aXos: shell online\naXos> exit\n"
+    if (recovery_error not in recovered or recovery_ack not in recovered or
+            not recovered.endswith(recovery_tail)):
+        raise SystemExit(
+            f"[uartboot] retry after corrupt upload failed: {recovered!r}")
+    print("[uartboot] corrupt upload followed by valid retry: PASS")
+
     output = run(frame(kernel) + b"exit\n", 8000000)
     ack = b"AXOK" + struct.pack("<I", len(kernel))
     expected_tail = b"aXos: shell online\naXos> exit\n"

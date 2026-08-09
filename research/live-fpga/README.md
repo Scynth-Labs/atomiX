@@ -22,8 +22,9 @@ make policy-check
 `sha256:` identity over its artifact, source/profile hashes, tool versions, and
 lineage. Its evidence and deployment references are separately content
 addressed under `evidence/` and `deployments/`; adding a new observation does
-not rename the constructed candidate. The deployment record deliberately says
-`not-deployed` while the board is disconnected.
+not rename the constructed candidate. The physical evidence and deployment
+records capture 30 exact-output passes on Tang Primer 25K, recovery coverage,
+and the exact volatile runtime and kernel hashes without storing build output.
 
 ```bash
 make registry-check

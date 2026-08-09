@@ -43,14 +43,18 @@
       "records": {
         "evidence": [
           {
-            "content_id": "sha256:733f5d2c92caa2bd221c8b9657096358122c591e4830624c760888843b2969d6",
+            "content_id": "sha256:9c3d659ece369531ce193e149e9349d3962301ee840374991a39c3dab75f7b91",
             "path": "research/live-fpga/evidence/gpu-fast-switch-rtl.json"
+          },
+          {
+            "content_id": "sha256:8fc9dc4db0f14e11d57db880d1c78ab891666ae6b4751dc388c4225c26ab5de2",
+            "path": "research/live-fpga/evidence/gpu-fast-switch-primer.json"
           }
         ],
         "deployments": [
           {
-            "content_id": "sha256:c1a08d3cf1702c981447dc30729dbf64044387baaf850ac77527ab11be1fa5dd",
-            "path": "research/live-fpga/deployments/reviewed-gpu-not-deployed.json"
+            "content_id": "sha256:51f5dd572695fa3afbad8d9383161da9e0628babc89954938c217cde02b34e9a",
+            "path": "research/live-fpga/deployments/reviewed-gpu-primer-physical.json"
           }
         ]
       }
@@ -92,14 +96,18 @@
       "records": {
         "evidence": [
           {
-            "content_id": "sha256:733f5d2c92caa2bd221c8b9657096358122c591e4830624c760888843b2969d6",
+            "content_id": "sha256:9c3d659ece369531ce193e149e9349d3962301ee840374991a39c3dab75f7b91",
             "path": "research/live-fpga/evidence/gpu-fast-switch-rtl.json"
+          },
+          {
+            "content_id": "sha256:8fc9dc4db0f14e11d57db880d1c78ab891666ae6b4751dc388c4225c26ab5de2",
+            "path": "research/live-fpga/evidence/gpu-fast-switch-primer.json"
           }
         ],
         "deployments": [
           {
-            "content_id": "sha256:c1a08d3cf1702c981447dc30729dbf64044387baaf850ac77527ab11be1fa5dd",
-            "path": "research/live-fpga/deployments/reviewed-gpu-not-deployed.json"
+            "content_id": "sha256:51f5dd572695fa3afbad8d9383161da9e0628babc89954938c217cde02b34e9a",
+            "path": "research/live-fpga/deployments/reviewed-gpu-primer-physical.json"
           }
         ]
       }

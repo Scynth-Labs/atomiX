@@ -1,0 +1,94 @@
+{
+  "schema": {"id": "org.atomix.candidate-evidence", "major": 1, "minor": 0},
+  "kind": "candidate-evidence",
+  "id": "org.atomix.candidate-evidence.gpu-fast-switch-primer",
+  "revision": 1,
+  "summary": "Exact-output and recovery evidence for reviewed GPU programs on Tang Primer 25K hardware",
+  "content_id": "sha256:8fc9dc4db0f14e11d57db880d1c78ab891666ae6b4751dc388c4225c26ab5de2",
+  "candidates": [
+    "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+    "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7"
+  ],
+  "environment": {
+    "level": "org.atomix.physical-tang-primer-25k",
+    "timestamp_utc": "2026-08-09T21:32:51Z",
+    "tools": [
+      {"id": "org.atomix.tool.openfpgaloader", "version": "1.1.1"},
+      {"id": "org.atomix.tool.axhost", "version": "1.0"}
+    ]
+  },
+  "test": {
+    "id": "org.atomix.test.primer-runtime-physical-fast-switch",
+    "command": [
+      "python3", "sw/host/axhost.py", "--test-loader-recovery",
+      "--upload-kernel", "sw/kernel/build/primer-runtime/axos_boot.bin",
+      "--fast-switch", "--repeat", "10", "--serial", "/dev/ttyUSB1",
+      "--baud", "921600"
+    ],
+    "status": "org.atomix.pass",
+    "oracle": "org.atomix.oracle.exact-output-le32",
+    "results": [
+      {
+        "candidate": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+        "program_sha256": "e8b4950c5faf895fe87d70157bbb53a441d098d72e7543b58c88ab1003da2cf1",
+        "output_sha256": "936e2398cff26b6925c19c4c59f95073b250e73086686ca62e5733e729a0f209",
+        "load_cycles": 198,
+        "execute_cycles": 1354
+      },
+      {
+        "candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+        "program_sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254",
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "load_cycles": 198,
+        "execute_cycles": 1022
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "org.atomix.artifact.primer-runtime-profile",
+      "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae",
+      "path": "configs/sim-primer-runtime-gpu.json"
+    },
+    {
+      "id": "org.atomix.artifact.axhost-driver",
+      "sha256": "f3dd4b63d7c42188eb8dae5cd3d4a97ca6b9bb00cd52a0c0a4d60f85f0e9c76f",
+      "path": "sw/host/axhost.py"
+    },
+    {
+      "id": "org.atomix.artifact.primer-runtime-bitstream",
+      "sha256": "62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6",
+      "path": null
+    },
+    {
+      "id": "org.atomix.artifact.primer-runtime-kernel",
+      "sha256": "0d161fbe0a04599817f5f6c321fb3448594863d3fc0187b9a8bc7d71804a4473",
+      "path": null
+    }
+  ],
+  "extensions": {
+    "org.atomix.physical-run": {
+      "board_usb_serial": "2025030317",
+      "jtag_idcode": "0x1281b",
+      "uart_baud": 921600,
+      "verified_switch_runs_total": 30,
+      "power_cycle_sample": {
+        "runs": 10,
+        "host_round_trip_ms": {"min": 41.60, "mean": 46.01, "max": 57.19},
+        "saxpy_load_cycles": {"min": 197, "max": 198},
+        "saxpy_execute_cycles": {"min": 1354, "max": 1354},
+        "polynomial_load_cycles": {"min": 198, "max": 198},
+        "polynomial_execute_cycles": {"min": 1022, "max": 1022}
+      },
+      "recovery": [
+        "org.atomix.recovery.usbip-reattach",
+        "org.atomix.recovery.loader-oversize-retry",
+        "org.atomix.recovery.loader-bad-crc-retry",
+        "org.atomix.recovery.s1-kernel-reset",
+        "org.atomix.recovery.s1-interrupted-upload",
+        "org.atomix.recovery.power-cycle-sram-reload"
+      ],
+      "persistent_flash_written": false
+    }
+  }
+}

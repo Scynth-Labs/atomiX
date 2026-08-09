@@ -76,6 +76,12 @@ Windows without unplugging it, run:
 usbipd detach --busid <BUSID>
 ```
 
+The verified power-cycle recovery sequence is: unplug/reconnect the Dock,
+repeat `usbipd attach`, confirm both `/dev/ttyUSB*` nodes and
+`openFPGALoader --detect`, reload the chosen image with `program` (SRAM only),
+then rerun its UART regression. Do not expect a volatile runtime to survive a
+power cycle; the board first restores its previously stored flash image.
+
 Completed WSL/JTAG/UART observations belong in the
 [Tang Primer achievement record](achievements/tangprimer25k.md), not in this
 procedure.
@@ -146,8 +152,8 @@ python3 sw/host/axhost.py --fast-switch \
 ```
 
 Expect ROM acknowledgement `AXOK`, kernel-ready marker `AXRD`, and finally
-`FAST SWITCH PASS`. The verified physical result and preserved working pair are
-recorded in the [Tang Primer achievement record](achievements/tangprimer25k.md).
+`FAST SWITCH PASS`. The verified physical result and release hashes are recorded
+in the [Tang Primer achievement record](achievements/tangprimer25k.md).
 
 ## 4. Find the UART and program SRAM
 
@@ -261,6 +267,24 @@ python3 sw/host/axhost.py --fast-switch \
 ```
 
 This path is simulation-verified by `make runtime-primer` and physically
-verified on the Dock. Its exact results, remaining recovery tests, and preserved
-working artifacts are maintained in the
+verified on the Dock. Its exact results, release hashes, and remaining recovery
+tests are maintained in the
 [Tang Primer achievement record](achievements/tangprimer25k.md).
+
+For repeatability and bounded loader recovery, the physical host supports:
+
+```bash
+python3 sw/host/axhost.py --test-loader-recovery \
+  --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin \
+  --fast-switch --repeat 10 --serial /dev/ttyUSB1 --baud 921600
+```
+
+The destructive diagnostic below deliberately leaves the ROM waiting for the
+rest of a frame. Run it only when S1 is accessible, then press and release S1
+before attempting the normal complete upload again:
+
+```bash
+python3 sw/host/axhost.py --interrupt-upload-at 2048 \
+  --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin \
+  --serial /dev/ttyUSB1 --baud 921600 --timeout 0.5
+```

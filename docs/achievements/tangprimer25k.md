@@ -11,10 +11,9 @@
   to configuration flash.
 
 The safe procedure remains in
-[tangprimer25k-bringup.md](../tangprimer25k-bringup.md). Release profiles,
-physical verdicts, and image hashes are in the lightweight
-[Tang Primer release manifest](../../artifacts/hardware/tangprimer25k/README.md);
-generated binaries are intentionally not tracked.
+[tangprimer25k-bringup.md](../tangprimer25k-bringup.md). Generated binaries and
+reports are intentionally not tracked; the release identities below are pinned
+by profile and SHA-256 instead.
 
 ## Successfully completed
 
@@ -38,6 +37,11 @@ All three were loaded into volatile SRAM and verified through the Dock UART:
 | CPU `hello` | 12,179 LUT4, 2,699 FF, 36 BSRAM | 32.23 MHz | hello output observed; S1 reset confirmed |
 | GPU `gpu_perf` | 18,280 LUT4, 2,446 FF, 40 BSRAM, 12 DSP | 38.47 MHz | `gpu-perf: PASS`; N=256 checksums `0xf515cdf9` / `0xbe878696` |
 | TPU `tpu` | 17,345 LUT4, 3,696 FF, 48 BSRAM, 24 DSP | 32.65 MHz | `role tpu-lite: PASS`; checksum `0x8acb4a08` |
+
+Release `.fs` SHA-256 values are CPU
+`bb9ab409ec8f0c0da834672b0c4a6116fb6e18471dba22e285476b78b2065e55`,
+GPU `a361173ba4a5a82fc98ce4b8445620e9463c891686e33ac508135e2d84a9500b`,
+and TPU `8cbc19c6902f5daf3fb896bc689058c4ae1dff225cdc735ece08912804a70104`.
 
 The GPU transcript covered SAXPY and polynomial kernels at 32, 64, 128, and
 256 threads and checked every result against the on-core reference. At N=256,
@@ -80,11 +84,33 @@ passed its workloads.
   host result. The two-load/two-execute host round trip measured 42.66 ms at
   921600 baud and ended in `FAST SWITCH PASS` without FPGA reload, aXos reboot,
   or resynthesis.
+- The resident session survived a complete Windows USB/IP detach and reattach.
+  Without FPGA programming or kernel upload, the first request rediscovered
+  `GPUC` and both workloads passed with all outputs intact.
+- Ten consecutive two-program runs in that same aXos session all passed. FPGA
+  counts were invariant: SAXPY load/execute 198/1,354 cycles and polynomial
+  198/1,022 cycles. Host round-trip latency was 36.86/38.62/42.16 ms
+  min/mean/max at 921600 baud.
+- After a fresh volatile SRAM load, the immutable ROM rejected an oversized
+  image with `AXER/1`, rejected a full bad-CRC image with `AXER/2`, then accepted
+  the untouched kernel and emitted `AXOK`/`AXRD`. Three subsequent workload
+  runs passed; this proves bounded upload failures are retryable without FPGA
+  reprogramming.
+- S1 reset returned a running aXos session to the immutable loader without
+  reloading FPGA SRAM. A new kernel upload produced `AXOK`/`AXRD`, followed by
+  three passing two-program runs.
+- An upload intentionally stopped after 2,048 of 4,829 declared payload bytes
+  produced no false response and left the ROM waiting. S1 recovered it; the
+  subsequent complete upload and three further workload runs passed. This
+  closes the interrupted-upload recovery gate without an FPGA reload.
+- A full USB power cycle returned the Dock as FT2232 serial `2025030317`; JTAG
+  rediscovered GW5A-25 IDCODE `0x1281b`. The verified runtime image was then
+  reloaded into volatile SRAM, both bounded loader errors were retried, and a
+  valid kernel plus ten consecutive two-program runs passed. The post-cycle
+  host round trip was 41.60/46.01/57.19 ms min/mean/max; no flash was written.
 
 ## Pending and failed
 
-- [ ] Repeat live-runtime recovery after S1 reset, interrupted upload, USB
-  reconnect, and power cycle.
 - [ ] Physically test the AX2 CPU profile; it currently has synthesis and RTL
   evidence only.
 - [ ] Decide whether persistent configuration is useful only after the runtime

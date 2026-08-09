@@ -1,0 +1,45 @@
+{
+  "schema": {"id": "org.atomix.candidate-deployment", "major": 1, "minor": 0},
+  "kind": "candidate-deployment",
+  "id": "org.atomix.candidate-deployment.reviewed-gpu-primer-physical",
+  "revision": 1,
+  "summary": "Volatile physical deployment of reviewed GPU programs on Tang Primer 25K",
+  "content_id": "sha256:51f5dd572695fa3afbad8d9383161da9e0628babc89954938c217cde02b34e9a",
+  "candidates": [
+    "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+    "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7"
+  ],
+  "environment": {
+    "board": "org.atomix.board.tang-primer-25k",
+    "device": "org.atomix.device.gowin-gw5a-lv25mg121",
+    "connected": true
+  },
+  "outcomes": [
+    {
+      "candidate": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
+      "status": "org.atomix.deployed-pass",
+      "attempts": 30,
+      "last_generation": null,
+      "volatile_only": true,
+      "reason": "org.atomix.reason.physical-output-verified"
+    },
+    {
+      "candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+      "status": "org.atomix.deployed-pass",
+      "attempts": 30,
+      "last_generation": null,
+      "volatile_only": true,
+      "reason": "org.atomix.reason.physical-output-verified"
+    }
+  ],
+  "extensions": {
+    "org.atomix.deployment-scope": {
+      "runtime_image": "sha256:62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6",
+      "kernel_image": "sha256:0d161fbe0a04599817f5f6c321fb3448594863d3fc0187b9a8bc7d71804a4473",
+      "volatile_sram_only": true,
+      "persistent_flash_written": false,
+      "recovered_after_power_cycle": true,
+      "evidence": "org.atomix.candidate-evidence.gpu-fast-switch-primer"
+    }
+  }
+}

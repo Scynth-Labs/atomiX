@@ -588,11 +588,15 @@ is explicitly non-physical until hardware becomes available.
   emitted `AXOK`, the initialized aXos kernel emitted `AXRD`, and the physical
   921600-baud run ended in `FAST SWITCH PASS`. SAXPY and polynomial programs
   were loaded and executed in one aXos session, and every result matched the
-  host reference. Evidence and the preserved seed-3 image are linked from the
+  host reference. Release hashes and results are recorded in the
   [Tang Primer achievement record](achievements/tangprimer25k.md).
-- [ ] Repeat the resident-runtime check after S1 reset and after a USB/power
-  reconnect.  Confirm that a failed or interrupted kernel upload leaves the
-  immutable loader recoverable without reflashing the FPGA.
+- [x] Repeat resident-runtime recovery checks. A complete USB/IP detach/attach
+  preserved the running FPGA/aXos session; fresh-ROM tests rejected oversized
+  and bad-CRC uploads before accepting a valid retry; and S1 recovered both a
+  running kernel and a deliberately interrupted 2,048/4,829-byte upload. A
+  physical power cycle restored the prior flash image; JTAG detection, an
+  SRAM-only runtime reload, loader-error retries, valid kernel boot, and ten
+  exact-output switch rounds all passed afterward.
 - [ ] Capture a reproducible Primer evidence bundle: exact core/Dock revision,
   OSS CAD Suite and programmer versions, bitstream/profile identity, timing
   and utilisation summary, serial-device identity, and complete UART

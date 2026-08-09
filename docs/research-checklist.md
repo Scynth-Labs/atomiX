@@ -124,11 +124,14 @@ throughput than separate CPU/GPU/TPU implementations?
 - [ ] **No hardware:** compare three alternatives before scaling: a composite
   hard GPU+TPU role, the unified morph fabric, and separate full images.
 - [~] Run switching, workload, and power/energy experiments on the Primer.
-  The connected board now passes two live GPU program loads and executions in
-  one aXos session: load costs were 197/198 FPGA cycles, execute costs were
-  1,354/1,022 cycles, and the measured two-load/two-execute host round trip was
-  42.66 ms at 921600 baud. Power and energy remain pending until a measurement
-  fixture and method are selected.
+  The connected board passed ten consecutive two-program iterations in one
+  resident session after USB/IP reconnect. Loads were invariant at 198 cycles,
+  executes at 1,354/1,022 cycles, and the complete host round trip measured
+  36.86/38.62/42.16 ms min/mean/max at 921600 baud. Oversized and bad-CRC
+  uploads were rejected before a valid retry; S1 recovered both a normal
+  kernel reset and an upload stopped at 2,048/4,829 bytes. Each recovery was
+  followed by three further passing runs. Power and energy measurement remain
+  pending until a fixture is selected.
 
 Provisional success targets for the first prototype are: one resident image;
 all three minimal workloads correct; personality replacement below 1 ms at the
@@ -211,8 +214,11 @@ and the later
   request rather than deploying automatically.
 - [ ] **No hardware:** add watchdog, canary workload, last-known-good selection,
   and rollback tests using fault-injected candidates.
-- [!] Run volatile L1/L2 A/B trials on the Primer and confirm reset/power-cycle
-  recovery.  **Blocked:** board connection.
+- [~] Run volatile L1/L2 A/B trials on the Primer. The reviewed SAXPY and
+  polynomial candidates now have 30 exact-output hardware passes, including
+  USB/IP reconnect, loader-error retry, S1 reset, interrupted-upload recovery,
+  and power-cycle/SRAM-reload recovery. L2 shadow evaluation and comparative
+  A/B candidate trials remain.
 - [ ] After R2's morph fabric passes, encode its operations/routes as a bounded
   L3 genome and compare search strategies on deterministic workloads.
 - [!] Explore L4 LUT/frame mutation only after R1 proves frame confinement,

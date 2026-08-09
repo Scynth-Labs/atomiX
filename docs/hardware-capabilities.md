@@ -107,6 +107,43 @@ measurements; the Nano and Primer AX2 figures remain RTL measurements. The
 verified Primer GPU uses four lanes rather than the Nano profile's six, and
 transfer plus checked readback dominate the full offload boundary.
 
+### Live-runtime repeatability
+
+The seed-3 resident runtime was sampled for ten consecutive verified runs in
+one aXos/FPGA session after a complete USB/IP detach and reattach. Every output
+word matched the host oracle, with no FPGA reload or kernel reboot:
+
+| Operation | FPGA cycles, min/max | Time at 25 MHz |
+|---|---:|---:|
+| SAXPY program load | 198 / 198 | 7.92 us |
+| SAXPY execute | 1,354 / 1,354 | 54.16 us |
+| Polynomial program load | 198 / 198 | 7.92 us |
+| Polynomial execute | 1,022 / 1,022 | 40.88 us |
+
+The complete host round trip—PING, INFO, two loads, two executions, checked
+responses, and six paced USB serial exchanges—measured 36.86/38.62/42.16 ms
+min/mean/max at 921600 baud. The 38-byte program switch frame itself occupies
+about 0.46 ms on the UART wire; therefore host USB/serial transaction latency,
+not FPGA reconfiguration or execution, dominates this control path.
+
+A separate fresh-loader run rejected oversized and bad-CRC uploads, accepted a
+valid retry, and then passed three more workload iterations. This is physical
+recovery evidence, not simulator projection.
+
+S1 recovery was also exercised twice. A normal S1 reset accepted a fresh
+kernel and passed three runs. A second experiment stopped a correctly declared
+4,829-byte upload after 2,048 payload bytes; the ROM correctly remained silent
+and waited for the missing data. S1 restored the immutable loader, after which
+the complete upload and three more checked runs passed. No FPGA SRAM reload was
+needed for either reset recovery.
+
+A full power cycle was also recovered without writing flash: WSL rediscovered
+the FT2232/JTAG device, the hashed runtime image was reloaded into SRAM, loader
+error retries and valid boot passed, and ten further exact-output switch rounds
+completed. That post-cycle sample measured 41.60/46.01/57.19 ms host round-trip
+min/mean/max. Across all recovery sessions, both reviewed candidates now have
+30 verified physical executions recorded in the content-addressed registry.
+
 ## ULX3S-85F (Lattice ECP5) — the large part
 
 | Configuration | Profile | LUT4 | Flip-flops | Block RAM | DSP | Verdict |
