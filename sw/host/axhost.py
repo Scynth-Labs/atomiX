@@ -151,13 +151,16 @@ class SerialPipe:
             raise
 
     def _exchange_fd(self, fd, request_bytes, expected_frames=None,
-                     expected_marker=None):
+                     expected_marker=None, inter_byte_delay=0.0):
         sent = 0
         while sent < len(request_bytes):
             _, writable, _ = select.select([], [fd], [], self.timeout)
             if not writable:
                 raise SystemExit("axhost: serial write timeout")
-            sent += os.write(fd, request_bytes[sent:])
+            end = sent + 1 if inter_byte_delay else len(request_bytes)
+            sent += os.write(fd, request_bytes[sent:end])
+            if inter_byte_delay:
+                time.sleep(inter_byte_delay)
         termios.tcdrain(fd)
 
         data = bytearray()
@@ -184,6 +187,17 @@ class SerialPipe:
         try:
             return self._exchange_fd(fd, request_bytes, expected_frames,
                                      expected_marker)
+        finally:
+            os.close(fd)
+
+    def exchange_text_paced(self, request_bytes, expected_marker=None,
+                            inter_byte_delay=0.001):
+        """Send interactive text slowly enough for the one-byte FPGA UART."""
+        fd = self._open()
+        try:
+            return self._exchange_fd(
+                fd, request_bytes, expected_marker=expected_marker,
+                inter_byte_delay=inter_byte_delay)
         finally:
             os.close(fd)
 

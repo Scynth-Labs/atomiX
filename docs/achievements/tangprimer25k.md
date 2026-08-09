@@ -108,6 +108,18 @@ passed its workloads.
   reloaded into volatile SRAM, both bounded loader errors were retried, and a
   valid kernel plus ten consecutive two-program runs passed. The post-cycle
   host round trip was 41.60/46.01/57.19 ms min/mean/max; no flash was written.
+- A reproducible ten-run benchmark then measured SRAM configuration at
+  3,548.127/3,604.614/3,693.355 ms, kernel upload-to-`AXRD` at
+  65.971/68.152/72.395 ms, and checked live switching at
+  37.694/39.949/45.752 ms (min/mean/max). Five physical boots each of the
+  none/small/mid/large kernel-evolve tiers also passed. Full samples are in the
+  [Tang Primer benchmark](../benchmarks/tangprimer25k.md).
+- The live evolution policy then passed on physical hardware for the small,
+  mid, and large tiers: each evaluated two eligible candidates plus invalid
+  oracle evidence, deterministically selected candidate 2 at fitness 10,240,
+  rejected a mixed objective, and reported one rejected record. The `none`
+  tier remained a true predetermined negative control with no `evolve`
+  command. Matching simulator runs passed all tier budgets inside 32 KiB RAM.
 
 ## Pending and failed
 
@@ -118,5 +130,6 @@ passed its workloads.
 - [ ] Optional expansion work: SDRAM module, USB host, PMODs, and removable
   storage, each behind its own profile and evidence item.
 
-The board currently holds the physically passing runtime image in volatile
-SRAM. A power cycle restores whatever configuration was already in flash.
+The board holds the physically passing runtime FPGA image and the last-tested
+kernel-evolve-large monitor in volatile SRAM. A power cycle restores whatever
+configuration was already in flash.

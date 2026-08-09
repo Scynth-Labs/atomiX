@@ -90,9 +90,17 @@ def main() -> None:
             capture_output=True,
             timeout=30,
         )
+        capacities = {"small": 4, "mid": 16, "large": 64}
+        interaction = "sh: command not found: evolve\n" if tier == "none" else (
+            f"evolution: {tier} capacity={capacities[tier]} "
+            f"state={state_bytes}\n"
+            "evolution selftest: PASS best=2 fitness=10240 rejected=1\n"
+        )
         expected = (
             "aXos: Primer monitor (32 KiB)\n"
             "aXos: monitor shell online\n"
+            "aXos> evolve\n"
+            f"{interaction}"
             "aXos> exit\n"
         )
         if result.returncode != 0 or result.stdout != expected:

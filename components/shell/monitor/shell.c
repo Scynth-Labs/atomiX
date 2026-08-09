@@ -1,5 +1,7 @@
 #include <stdint.h>
 
+#include "evolution.h"
+#include "fitness.h"
 #include "kernel_info.h"
 #include "page.h"
 #include "platform.h"
@@ -86,13 +88,81 @@ static void command_role(void) {
                                             : "role: copy FAIL\n");
 }
 
+#if AX_EVOLUTION_CAPACITY > 0
+static int command_evolve(void) {
+  struct evolution_status status;
+  struct evolution_record proposal;
+  struct fitness_trial trial;
+  struct fitness_result result;
+  volatile uint32_t *word = (volatile uint32_t *)(void *)&trial;
+  for (uint32_t i = 0; i < sizeof(trial) / sizeof(*word); ++i) word[i] = 0;
+  word = (volatile uint32_t *)(void *)&result;
+  for (uint32_t i = 0; i < sizeof(result) / sizeof(*word); ++i) word[i] = 0;
+  trial.candidate_id = 1;
+  trial.evidence_generation = 7;
+  trial.expected_work = 10;
+  trial.oracle_pass = 1;
+  trial.oracle_cases = 1;
+  trial.before.sequence = 10;
+  trial.before.cycles = 1000;
+  trial.before.work_completed = 100;
+  trial.before.configuration_generation = 3;
+  trial.after.sequence = 11;
+  trial.after.cycles = 1200;
+  trial.after.work_completed = 110;
+  trial.after.configuration_generation = 3;
+
+  evolution_init();
+  evolution_get_status(&status);
+  uart_puts("evolution: ");
+  uart_puts(evolution_tier_name());
+  uart_puts(" capacity=");
+  put_u32(status.capacity);
+  uart_puts(" state=");
+  put_u32(status.state_bytes);
+  uart_puts("\n");
+
+  if (fitness_evaluate(&trial, &result) != FITNESS_ELIGIBLE ||
+      result.record.fitness != 20480u ||
+      evolution_record_candidate(&result.record) != EVOLUTION_OK)
+    return -1;
+  trial.candidate_id = 2;
+  trial.after.cycles = 1100;
+  if (fitness_evaluate(&trial, &result) != FITNESS_ELIGIBLE ||
+      result.record.fitness != 10240u ||
+      evolution_record_candidate(&result.record) != EVOLUTION_OK)
+    return -1;
+  trial.candidate_id = 3;
+  trial.oracle_pass = 0;
+  if (fitness_evaluate(&trial, &result) != FITNESS_INELIGIBLE ||
+      evolution_record_candidate(&result.record) != EVOLUTION_OK ||
+      evolution_propose(&proposal) != EVOLUTION_OK ||
+      proposal.candidate_id != 2 || proposal.fitness != 10240u)
+    return -1;
+  result.record.candidate_id = 4;
+  result.record.objective_id = FITNESS_OBJECTIVE_CYCLES_PER_WORK_Q10 + 1u;
+  if (evolution_record_candidate(&result.record) !=
+      EVOLUTION_OBJECTIVE_MISMATCH)
+    return -1;
+  evolution_get_status(&status);
+  if (status.records != 3 || status.rejected != 1 || status.overflows != 0)
+    return -1;
+  uart_puts("evolution selftest: PASS best=2 fitness=10240 rejected=1\n");
+  return 0;
+}
+#endif
+
 static void dispatch(char *line) {
   line = skip_space(line);
   char *const arg = argument(line);
 
   if (!*line) return;
   if (streq(line, "help")) {
+#if AX_EVOLUTION_CAPACITY > 0
+    uart_puts("commands: help clear uname uptime free ps echo role evolve shutdown exit\n");
+#else
     uart_puts("commands: help clear uname uptime free ps echo role shutdown exit\n");
+#endif
   } else if (streq(line, "clear")) {
     uart_puts("\033[2J\033[H");
   } else if (streq(line, "uname")) {
@@ -113,6 +183,10 @@ static void dispatch(char *line) {
     uart_puts("\n");
   } else if (streq(line, "role")) {
     command_role();
+#if AX_EVOLUTION_CAPACITY > 0
+  } else if (streq(line, "evolve")) {
+    if (command_evolve() != 0) uart_puts("evolution selftest: FAIL\n");
+#endif
   } else if (streq(line, "shutdown") || streq(line, "exit")) {
     test_finish(0);
   } else {

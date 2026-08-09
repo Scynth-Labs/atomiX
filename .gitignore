@@ -35,6 +35,8 @@ __pycache__/
 # Live FPGA records are checked research inputs/evidence, not synthesis output.
 !research/live-fpga/*.json
 !research/live-fpga/**/*.json
+# Compact benchmark observations are tracked evidence, not tool output.
+!research/benchmarks/*.json
 # Verification manifests are source inputs, not generated tool output.
 !tests/verification-suites.json
 *.asc

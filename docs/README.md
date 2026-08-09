@@ -23,6 +23,8 @@ verifiable, and replaceable.
 - [ulx3s-bringup.md](ulx3s-bringup.md) — safe ULX3S board procedure.
 - [achievements/](achievements/) — per-hardware record of completed physical
   and board-independent evidence, release hashes, and open failures.
+- [benchmarks/tangprimer25k.md](benchmarks/tangprimer25k.md) — physical runtime,
+  kernel-tier, and fresh synthesis measurements for the available board.
 
 ## Architecture and composition
 

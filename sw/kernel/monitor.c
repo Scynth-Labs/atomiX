@@ -1,5 +1,6 @@
 #include <stdint.h>
 
+#include "evolution.h"
 #include "kernel_info.h"
 #include "hostlink.h"
 #include "page.h"
@@ -182,6 +183,9 @@ void kmain(void) {
   allocator_total_pages = page_free_count();
   allocator_self_test();
   role_init();
+#if AX_EVOLUTION_CAPACITY > 0
+  evolution_init();
+#endif
 #ifndef AXOS_HOSTLINK
   clint_arm_timer(2000u);
 #endif

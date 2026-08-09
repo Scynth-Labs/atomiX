@@ -39,6 +39,6 @@
 - Program FPGA SRAM only. Never run `make flash` or `openFPGALoader -f` without
   explicit user approval in the current turn.
 - Preserve user changes. Avoid destructive Git operations.
-- Work directly on `main`, commit and push only when requested, and do not open
-  PRs or create feature branches unless the user changes this policy.
-
+- Work directly on `main`. Never commit or push unless the user explicitly asks
+  in the current turn; earlier authorization is one-time only. Do not open PRs
+  or create feature branches unless the user changes this policy.

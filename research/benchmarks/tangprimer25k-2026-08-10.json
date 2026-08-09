@@ -1,0 +1,195 @@
+{
+  "schema": 1,
+  "id": "org.atomix.benchmark.tang-primer-25k.2026-08-10",
+  "board": {
+    "id": "org.atomix.board.tang-primer-25k",
+    "device": "Gowin GW5A-25",
+    "jtag_idcode": "0x1281b",
+    "debugger_usb_serial": "2025030317"
+  },
+  "tools": {
+    "yosys": "0.67+102 (07a615a28)",
+    "nextpnr_himbaechel": "nextpnr-0.10-105-g77e1f19f",
+    "apycula": "0.33.dev19+gdfb3c8702",
+    "openfpgaloader": "1.1.1"
+  },
+  "host": {
+    "os": "WSL2 Linux 5.15.167.4",
+    "cpu": "11th Gen Intel Core i5-11320H",
+    "logical_cpus_available": 2
+  },
+  "physical_runtime": {
+    "generated_at_utc": "2026-08-09T21:50:19.595728+00:00",
+    "method": "ten independent SRAM configurations, UART kernel boots, and exact-output two-program runs",
+    "flash_written": false,
+    "transport_baud": 921600,
+    "bitstream": {
+      "bytes": 7124126,
+      "sha256": "62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6"
+    },
+    "kernel": {
+      "bytes": 4829,
+      "framed_bytes": 4841,
+      "sha256": "0d161fbe0a04599817f5f6c321fb3448594863d3fc0187b9a8bc7d71804a4473",
+      "theoretical_wire_ms": 52.528
+    },
+    "configure_sram_ms": [3648.826, 3597.126, 3600.738, 3643.569, 3578.247, 3548.127, 3568.847, 3568.849, 3693.355, 3598.461],
+    "kernel_upload_to_ready_ms": [67.006, 67.899, 66.476, 66.500, 72.395, 66.252, 67.020, 70.756, 71.245, 65.971],
+    "fast_switch_round_trip_ms": [38.266, 38.085, 38.291, 37.981, 40.498, 37.694, 45.752, 41.879, 43.268, 37.771],
+    "summary": {
+      "configure_sram_ms": {"min": 3548.127, "mean": 3604.614, "max": 3693.355},
+      "kernel_upload_to_ready_ms": {"min": 65.971, "mean": 68.152, "max": 72.395},
+      "fast_switch_round_trip_ms": {"min": 37.694, "mean": 39.949, "max": 45.752},
+      "effective_kernel_payload_kib_s": 69.196,
+      "uart_wire_fraction_percent": 77.075
+    },
+    "programs": {
+      "saxpy": {"load_cycles": [197, 198], "execute_cycles": [1354, 1354]},
+      "polynomial": {"load_cycles": [198, 198], "execute_cycles": [1022, 1022]}
+    }
+  },
+    "kernel_evolve_physical": {
+    "generated_at_utc": "2026-08-09T21:53:27.814909+00:00",
+    "method": "five independent SRAM configurations and UART boots per profile; ready boundary is the Primer monitor banner",
+    "flash_written": false,
+    "profiles": {
+      "none": {
+        "binary_bytes": 4080,
+        "resident_bytes": 8220,
+        "pre_stack_headroom_bytes": 20452,
+        "sha256": "50166e2c058bee43fce6bf989b48b8e105e7fba1fb47186658dd1b602b761e03",
+        "theoretical_wire_ms": 44.401,
+        "upload_to_ready_ms": [58.754, 58.454, 58.417, 59.103, 57.880],
+        "summary_ms": {"min": 57.880, "mean": 58.522, "max": 59.103}
+      },
+      "small": {
+        "binary_bytes": 5478,
+        "resident_bytes": 12412,
+        "pre_stack_headroom_bytes": 16260,
+        "sha256": "7f294bfb8bb90937df9eaa586acc9f58bcb6dcdef4fa016bd0f016882907ba9a",
+        "theoretical_wire_ms": 59.570,
+        "upload_to_ready_ms": [68.678, 72.650, 72.462, 72.350, 69.537],
+        "summary_ms": {"min": 68.678, "mean": 71.135, "max": 72.650}
+      },
+      "mid": {
+        "binary_bytes": 5476,
+        "resident_bytes": 12652,
+        "pre_stack_headroom_bytes": 16020,
+        "sha256": "a97e50b0c0615e839ec857bb16103aed62a129977f4d5fc827145e018fce3b62",
+        "theoretical_wire_ms": 59.549,
+        "upload_to_ready_ms": [73.256, 70.615, 72.511, 69.263, 74.053],
+        "summary_ms": {"min": 69.263, "mean": 71.940, "max": 74.053}
+      },
+      "large": {
+        "binary_bytes": 5474,
+        "resident_bytes": 13612,
+        "pre_stack_headroom_bytes": 15060,
+        "sha256": "1c8b6c020a43bebb0f12dc324a8f249834011b1ae9161a059280adb963122b39",
+        "theoretical_wire_ms": 59.527,
+        "upload_to_ready_ms": [72.721, 72.952, 72.194, 74.079, 69.918],
+        "summary_ms": {"min": 69.918, "mean": 72.373, "max": 74.079}
+      }
+        }
+    },
+    "kernel_evolve_selftest_physical": {
+        "generated_at_utc": "2026-08-09T22:49:55.785652+00:00",
+        "method": "one volatile SRAM configuration and one UART evolution-policy self-test per profile",
+        "flash_written": false,
+        "expected_policy_result": {
+            "eligible_fitness": [20480, 10240],
+            "selected_candidate": 2,
+            "selected_fitness": 10240,
+            "records": 3,
+            "rejected": 1,
+            "overflows": 0,
+            "mixed_objective": "rejected"
+        },
+        "profiles": {
+            "none": {
+                "result": "PASS-predetermined-negative-control",
+                "binary_bytes": 4080,
+                "resident_bytes": 8220,
+                "pre_stack_headroom_bytes": 20452,
+                "sha256": "50166e2c058bee43fce6bf989b48b8e105e7fba1fb47186658dd1b602b761e03",
+                "configure_sram_ms": 3581.528,
+                "upload_to_ready_ms": 59.093
+            },
+            "small": {
+                "result": "PASS",
+                "binary_bytes": 6266,
+                "resident_bytes": 12412,
+                "pre_stack_headroom_bytes": 16260,
+                "sha256": "2e32530b56f082b496831977820a65531f5344ef138f2db4003b13609d0dbe92",
+                "configure_sram_ms": 3579.331,
+                "upload_to_ready_ms": 86.848
+            },
+            "mid": {
+                "result": "PASS",
+                "binary_bytes": 6264,
+                "resident_bytes": 12652,
+                "pre_stack_headroom_bytes": 16020,
+                "sha256": "270941283d683881bbae0c993342729f87bc89a2069f1a1b9e482669d1dc9a8e",
+                "configure_sram_ms": 3569.807,
+                "upload_to_ready_ms": 83.331
+            },
+            "large": {
+                "result": "PASS",
+                "binary_bytes": 6262,
+                "resident_bytes": 13612,
+                "pre_stack_headroom_bytes": 15060,
+                "sha256": "ed49343be5dc2af88d35e6dce02376ea030e91b929bf2a5c85963928c36ad42e",
+                "configure_sram_ms": 3562.187,
+                "upload_to_ready_ms": 82.352
+            }
+        }
+    },
+    "fresh_synthesis": {
+    "method": "isolated single-process builds; stage wall times derived from output timestamps because the run was stopped before final report emission",
+    "status": "stopped-after-request",
+    "profiles": {
+      "cpu": {
+        "synthesis": "PASS",
+        "place_route_pack": "PASS",
+        "synthesis_tool_s": 26.73,
+        "total_wall_s": 443.307,
+        "fmax_mhz": 33.815,
+        "resources": {"lut4": 14326, "dff": 3138, "bsram": 36, "alu": 1924},
+        "bitstream_bytes": 6963614,
+        "bitstream_sha256": "7c2f055a69bec2a5bb4ead5f243ad9065352a03f56386d9ce9d033c8bb9a6a6b"
+      },
+      "ax2": {
+        "synthesis": "PASS",
+        "place_route_pack": "FAIL",
+        "synthesis_tool_s": 44.62,
+        "total_wall_s": 299.657,
+        "synthesized_cells": {"lut1": 8816, "lut2": 2110, "lut3": 4447, "lut4": 6039, "mux2_lut5": 6206, "dffre": 4980, "dffse": 77, "dpb": 32, "sdpx9b": 6},
+        "bitstream": null
+      },
+      "gpu": {
+        "synthesis": "PASS",
+        "place_route_pack": "PASS",
+        "synthesis_tool_s": 34.64,
+        "total_wall_s": 890.594,
+        "fmax_mhz": 34.119,
+        "resources": {"lut4": 17782, "dff": 3015, "bsram": 40, "multalu27x18": 12, "alu": 2746},
+        "bitstream_bytes": 7017166,
+        "bitstream_sha256": "854a6781d8ca777cdd6129549cbeb3e7ad570a7984c6e080de99792e7b7dd05d"
+      },
+      "tpu": {
+        "synthesis": "PASS",
+        "place_route_pack": "FAIL",
+        "synthesis_tool_s": 43.40,
+        "total_wall_s": 427.576,
+        "synthesized_cells": {"lut1": 6319, "lut2": 1221, "lut3": 4359, "lut4": 5193, "mux2_lut5": 4974, "dffre": 4164, "dffse": 101, "dpb": 32, "dpx9b": 8, "sdpx9b": 4, "mult12x12": 24},
+        "bitstream": null
+      },
+      "runtime-gpu": {
+        "synthesis": "PASS",
+        "place_route_pack": "INTERRUPTED",
+        "synthesis_tool_s": 40.30,
+        "synthesized_cells": {"lut1": 5937, "lut2": 1272, "lut3": 3299, "lut4": 5517, "mux2_lut5": 4312, "dffre": 3751, "dffse": 102, "dpb": 32, "sdpx9b": 6, "multalu27x18": 3},
+        "bitstream": null
+      }
+    }
+  }
+}

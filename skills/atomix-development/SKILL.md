@@ -49,5 +49,5 @@ otherwise leave it to scheduled CI.
 - Content-address candidates, evidence, and deployments; run
   `make registry-check` after changing any referenced file or digest.
 - Record release SHA-256 identities instead of committing generated images.
-- Commit/push only when asked, following the root direct-to-`main` policy.
-
+- Commit or push only after an explicit request in the current turn, following
+  the root direct-to-`main` policy. Never reuse earlier authorization.
