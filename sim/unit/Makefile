@@ -22,6 +22,7 @@ SPI_REFERENCE := $(COMPONENTS)/spi/polling_mode0
 FINISHER_REFERENCE := $(COMPONENTS)/finisher/sifive-test
 ROLE_REFERENCE := $(COMPONENTS)/role/none
 SOC_REFERENCE := $(COMPONENTS)/soc/reference
+LIVE_MONITOR := $(SOC_REFERENCE)/axlivemon.sv
 HARNESS_SDRAM := $(COMPONENTS)/harness/verilator-sdram
 BOARD_ULX3S := $(COMPONENTS)/board/ulx3s_85f
 
@@ -57,9 +58,9 @@ SOC_SVS := $(CORE_SOURCES) \
   $(UART_REFERENCE)/uart.sv \
   $(SPI_REFERENCE)/axspi.sv $(FINISHER_REFERENCE)/test_finisher.sv \
   $(ROLE_REFERENCE)/axrole.sv \
-  $(SOC_REFERENCE)/axroleiso.sv $(SOC_REFERENCE)/soc_top.sv
+  $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv $(SOC_REFERENCE)/soc_top.sv
 
-test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axroleiso run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
+test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
 
 # The alternate muldiv component passes the identical latency-agnostic
 # testbench; a swapped unit earns the same evidence as the reference.
@@ -219,7 +220,12 @@ run-axspi: $(SPI_REFERENCE)/axspi.sv tb_axspi.cpp
 	  --exe --build -o tb_axspi $^ >/dev/null
 	./obj_dir_axspi/tb_axspi
 
-run-axroleiso: $(SOC_REFERENCE)/axroleiso.sv tb_axroleiso.cpp
+run-axlivemon: $(LIVE_MONITOR) tb_axlivemon.cpp
+	$(VERILATOR) $(VFLAGS) --top-module axlivemon --Mdir obj_dir_axlivemon \
+	  --exe --build -o tb_axlivemon $^ >/dev/null
+	./obj_dir_axlivemon/tb_axlivemon
+
+run-axroleiso: $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv tb_axroleiso.cpp
 	$(VERILATOR) $(VFLAGS) --top-module axroleiso --Mdir obj_dir_axroleiso \
 	  --exe --build -o tb_axroleiso $^ >/dev/null
 	./obj_dir_axroleiso/tb_axroleiso
@@ -239,7 +245,7 @@ run-soc-timer: $(SOC_SVS) tb_soc_timer.cpp data/soc_timer.hex
 clean:
 	rm -rf obj_dir_* build
 
-.PHONY: test clean run-muldiv-fastmul run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-soc run-soc-timer
+.PHONY: test clean run-muldiv-fastmul run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-soc run-soc-timer
 
 # ---------------------------------------------------------------------------
 # gpu1 and ax2 suites.  Both are SUITES rather than per-component checks: one

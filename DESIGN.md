@@ -104,7 +104,7 @@ bug" from "hardware bug".
 | `0x0C00_0000` | 4 MB | PLIC (reserved; implemented when we have >1 interrupt source) |
 | `0x1000_0000` | 4 KB | UART0 (16550-compatible subset) |
 | `0x1001_0000` | 4 KB | SPI0 (polling mode-0 controller for SD card) |
-| `0x1002_0000` | 4 KB | Shell control: role-window isolation (`SHELL_ID`/`ISO_CTRL`/`ISO_STATUS`). In shell space, not the role window, because it must stay reachable while that window is being rewritten |
+| `0x1002_0000` | 4 KB | Shell control: role-window isolation plus Live FPGA telemetry at offset `0x100`; in shell space, not the role window, because both must stay reachable while that window is being rewritten |
 | `0x4000_0000` | 64 KB | Role window (`ROLE_ID`/`VERSION`/`DOORBELL`/`STATUS` header, then role-defined; `ROLE_ID` reads zero when no role is selected) |
 | `0x8000_0000` | 128 KB → 32 MB | RAM (BRAM in v1; 32 MiB x16 SDRAM on ULX3S). Kernel loads at `0x8000_0000` |
 

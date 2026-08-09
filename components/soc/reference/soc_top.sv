@@ -322,7 +322,8 @@ module soc_top #(
     .role_d_valid(d_rolei_valid), .role_d_ready(d_rolei_ready),
     .role_d_rdata(d_rolei_rdata), .role_d_err(d_rolei_err),
     .role_rst(role_rst),
-    .role_irq_in(role_irq_raw), .role_irq_out(role_irq)
+    .role_irq_in(role_irq_raw), .role_irq_out(role_irq),
+    .role_reject_event(1'b0), .watchdog_event(1'b0)
   );
 
   // The selected role component fills the fixed 0x4000_0000 window.  The

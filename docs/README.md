@@ -35,6 +35,8 @@ verifiable, and replaceable.
   personality, workload, capability-negotiation, and reconfiguration contract.
 - [comparison-contract.md](comparison-contract.md) — correctness-gated R2
   comparison matrix and machine-readable evidence rules.
+- [live-fpga.md](live-fpga.md) — adaptive-reconfiguration safety model and the
+  immutable L0 telemetry schema.
 
 Keep a specification and its implementation change together whenever a
 documented interface changes.

@@ -16,10 +16,24 @@ static constexpr uint32_t kBase = 0x10020000u;
 static constexpr uint32_t kShellId = kBase + 0x0;
 static constexpr uint32_t kIsoCtrl = kBase + 0x4;
 static constexpr uint32_t kIsoStatus = kBase + 0x8;
+static constexpr uint32_t kLiveId = kBase + 0x100;
+static constexpr uint32_t kLiveVersion = kBase + 0x104;
+static constexpr uint32_t kLiveCommand = kBase + 0x108;
+static constexpr uint32_t kLiveSequence = kBase + 0x10c;
+static constexpr uint32_t kLiveCycles = kBase + 0x110;
+static constexpr uint32_t kLiveWork = kBase + 0x118;
+static constexpr uint32_t kLiveStalls = kBase + 0x120;
+static constexpr uint32_t kLiveRejections = kBase + 0x128;
+static constexpr uint32_t kLiveWatchdogs = kBase + 0x130;
+static constexpr uint32_t kLiveGeneration = kBase + 0x138;
 
 static constexpr uint32_t kMagic = 0x61585348u;  // "aXSH"
 static constexpr uint32_t kIsolate = 1u << 0;
 static constexpr uint32_t kRoleReset = 1u << 1;
+static constexpr uint32_t kLiveMagic = 0x61584c56u;  // "aXLV"
+static constexpr uint32_t kLiveVersion10 = 0x00010000u;
+static constexpr uint32_t kLiveSnapshot = 1u;
+static constexpr uint32_t kLiveActivate = 2u;
 
 static int failures = 0;
 
@@ -50,8 +64,8 @@ static void set_role(Vaxroleiso* top, bool ready, uint32_t rdata, bool err) {
   top->role_d_err = err;
 }
 
-static void write_ctrl(Vaxroleiso* top, uint32_t value) {
-  top->d_addr = kIsoCtrl;
+static void write_reg(Vaxroleiso* top, uint32_t address, uint32_t value) {
+  top->d_addr = address;
   top->d_wdata = value;
   top->d_wstrb = 0xf;
   top->d_valid = 1;
@@ -61,6 +75,10 @@ static void write_ctrl(Vaxroleiso* top, uint32_t value) {
   top->d_valid = 0;
   top->d_wstrb = 0;
   top->eval();
+}
+
+static void write_ctrl(Vaxroleiso* top, uint32_t value) {
+  write_reg(top, kIsoCtrl, value);
 }
 
 static uint32_t read_reg(Vaxroleiso* top, uint32_t address) {
@@ -73,6 +91,11 @@ static uint32_t read_reg(Vaxroleiso* top, uint32_t address) {
   top->d_valid = 0;
   top->eval();
   return value;
+}
+
+static uint64_t read_reg64(Vaxroleiso* top, uint32_t address) {
+  const uint64_t low = read_reg(top, address);
+  return low | (static_cast<uint64_t>(read_reg(top, address + 4)) << 32);
 }
 
 int main(int argc, char** argv) {
@@ -92,6 +115,8 @@ int main(int argc, char** argv) {
   top.bus_i_valid = 0;
   top.bus_d_valid = 0;
   top.role_irq_in = 0;
+  top.role_reject_event = 0;
+  top.watchdog_event = 0;
   set_role(&top, true, 0xdeadbeefu, false);
   tick(&top);
   top.rst = 0;
@@ -101,6 +126,58 @@ int main(int argc, char** argv) {
   check(read_reg(&top, kIsoCtrl) == 0, "ISO_CTRL resets clear");
   check(read_reg(&top, kIsoStatus) == 0, "role is not isolated out of reset");
   check(top.role_rst == 0, "role reset is released out of reset");
+
+  // Live FPGA telemetry is in the same immutable shell page, not in the role.
+  check(read_reg(&top, kLiveId) == kLiveMagic, "LIVE_ID reads \"aXLV\"");
+  check(read_reg(&top, kLiveVersion) == kLiveVersion10,
+        "LIVE_VERSION reports schema 1.0");
+  check(read_reg(&top, kLiveSequence) == 0, "no telemetry snapshot after reset");
+
+  top.role_reject_event = 1;
+  top.watchdog_event = 1;
+  top.role_irq_in = 1;
+  tick(&top);
+  top.role_reject_event = 0;
+  top.watchdog_event = 0;
+  top.role_irq_in = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveActivate);
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg(&top, kLiveSequence) == 1, "snapshot command advances sequence");
+  check(read_reg64(&top, kLiveCycles) != 0, "shell cycle counter advances");
+  check(read_reg64(&top, kLiveWork) == 1, "completion rising edge is counted");
+  check(read_reg64(&top, kLiveRejections) == 1,
+        "explicit descriptor rejection is counted");
+  check(read_reg64(&top, kLiveWatchdogs) == 1,
+        "explicit watchdog event is counted");
+  check(read_reg64(&top, kLiveGeneration) == 1,
+        "verified activation command advances generation");
+
+  // The fence owns the observation point, so it can count a role-window stall
+  // even when the changing role never responds.
+  set_role(&top, false, 0, false);
+  top.bus_d_valid = 1;
+  tick(&top);
+  top.bus_d_valid = 0;
+  set_role(&top, true, 0xdeadbeefu, false);
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveStalls) == 1,
+        "one waiting role-window cycle is one memory stall");
+
+  // An unknown command is an error and must not manufacture a generation.
+  top.d_addr = kLiveCommand;
+  top.d_wdata = 99;
+  top.d_wstrb = 0xf;
+  top.d_valid = 1;
+  top.eval();
+  check(top.d_ready && top.d_err, "unknown LIVE_COMMAND reports an access error");
+  tick(&top);
+  top.d_valid = 0;
+  top.d_wstrb = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveGeneration) == 1,
+        "rejected live command does not advance generation");
 
   // Transparent by default: a profile that never touches this register must
   // see exactly the window it saw before the fence existed.

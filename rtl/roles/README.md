@@ -71,6 +71,9 @@ Role swapping today means selecting a different `role` component (one profile
 line) or, at runtime, reloading role programs/descriptors through the window.
 Swapping the fabric of a live board without a full bitstream reload is the
 research track in [docs/partial-reconfig.md](../../docs/partial-reconfig.md).
+The shell-owned `axlivemon` observes completion, stalls, rejection, watchdog,
+and verified activation events across those changes; its versioned contract is
+the [Live FPGA track](../../docs/live-fpga.md).
 
 A role must never require shell RTL changes; if it seems to, the role
 interface spec is what gets amended.

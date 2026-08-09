@@ -113,7 +113,7 @@ throughput than separate CPU/GPU/TPU implementations?
   physical measurement becomes available.  Evidence: the
   [comparison contract](comparison-contract.md), versioned six-candidate R2
   plan, explicit non-evidence template, and `make comparison-check`.
-- [ ] **No hardware — next:** implement the smallest morph-fabric RTL prototype:
+- [ ] **No hardware:** implement the smallest morph-fabric RTL prototype:
   configurable processing elements, local routing, state/register storage,
   and a bounded configuration memory behind the existing role ABI.
 - [ ] **No hardware:** simulate all three personalities from the same bitstream
@@ -141,7 +141,7 @@ Open decisions to settle from evidence:
 - primary objective: switch latency, throughput, area, energy, or fault
   tolerance.
 
-## R3 — Adaptive logic: a “living FPGA”
+## R3 — Live FPGA: adaptive logic
 
 The safe first interpretation is a closed loop that measures itself, chooses
 between bounded configurations, verifies a candidate, deploys it temporarily,
@@ -168,11 +168,13 @@ and the later
 | L3 Adapt an overlay | optimizer changes a bounded PE/route genome at runtime | morph fabric only |
 | L4 Mutate FPGA frames | native LUT/routing bits change in a partial region | requires R1 isolation and recovery proof |
 
-- [ ] **No hardware:** define the L0 telemetry schema and add deterministic
+- [x] **No hardware:** define the L0 telemetry schema and add deterministic
   counters for cycles, work completed, memory stalls, descriptor rejection,
-  watchdog events, and configuration generation.
-- [ ] **No hardware:** define a deterministic fitness function with correctness
-  as a hard gate; performance or energy can rank only correct candidates.
+  watchdog events, and configuration generation.  Evidence: the shell-owned
+  [Live FPGA monitor and schema](live-fpga.md) and `make live-check`.
+- [ ] **No hardware — next:** define a deterministic fitness function with
+  correctness as a hard gate; performance or energy can rank only correct
+  candidates.
 - [ ] **No hardware:** build an L1 host policy that selects among existing,
   reviewed GPU programs or tunable schedules and records why it switched.
 - [ ] **No hardware:** create a content-addressed candidate registry containing
@@ -217,8 +219,9 @@ injected failure.
 
 ## Immediate queue without hardware
 
-1. Implement the smallest R2 morph-fabric RTL prototype behind the role ABI.
-2. Generalise the R2 evidence identity into the shared record used by all three
+1. Define the R3 deterministic fitness record over two Live FPGA snapshots.
+2. Build the R3/L1 allow-listed selection policy over existing GPU programs.
+3. Generalise the R2 evidence identity into the shared record used by all three
    research tracks.
-3. Continue R1 ECP5-85F frame-address validation independently of board access.
-4. Add R3/L0 telemetry only after its schema and fitness consumers are agreed.
+4. Implement the R2 morph fabric when L3 overlay adaptation needs it; L0/L1 can
+   proceed independently.
