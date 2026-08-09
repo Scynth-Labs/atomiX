@@ -1,0 +1,4 @@
+interface:
+  display_name: "Tang Primer Lab"
+  short_description: "Safely test atomiX on Tang Primer 25K"
+  default_prompt: "Use $tang-primer-lab to run and record a safe Tang Primer hardware test."

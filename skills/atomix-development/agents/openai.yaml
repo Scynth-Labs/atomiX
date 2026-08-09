@@ -1,0 +1,4 @@
+interface:
+  display_name: "atomiX Development"
+  short_description: "Build and verify reconfigurable atomiX changes"
+  default_prompt: "Use $atomix-development to implement and verify the next atomiX checklist item."
