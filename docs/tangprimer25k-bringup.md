@@ -57,15 +57,18 @@ build the loader-only bitstream with:
 
 ```bash
 make kernel-primer
-make fpga-kernel-primer
+make primer-runtime-preflight
 ```
 
 The first command executes the same image in an ISS with exactly 32,768 bytes
-of RAM and in RTL with a 32,768-byte synchronous-BRAM model. The second is a
-compatibility name for `fpga-runtime-primer`: it boots from ROM into blank RAM,
-uploads aXos, exercises two accelerator programs, and only then performs
-synthesis/place-and-route. Neither command programs the board. Only after both
-simulations report `PASS` should the reversible SRAM image be loaded:
+of RAM and in RTL with a 32,768-byte synchronous-BRAM model. The preflight
+boots from ROM into blank RAM in simulation, uploads aXos, exercises two
+accelerator programs, performs synthesis/place-and-route, and records the
+exact source, inputs, tool versions, timing, utilisation, and bitstream hash in
+the generated `evidence.json` beside the `.fs` file. It never accesses the
+board. (`fpga-runtime-primer` and `fpga-kernel-primer` remain build-only
+compatibility targets.) Only after both simulations report `PASS` should the
+reversible SRAM image be loaded:
 
 ```bash
 make -C rtl/fpga program \

@@ -82,16 +82,33 @@ only for the 45k device; the ULX3S-85F may need fuzzing work.
    does not accept, so the flow failed at parse before reaching placement.
    Board evidence — program SRAM, boot aXos, keep a UART session up — still
    requires a physical ULX3S and remains the gate for stage 4.
-2. **Delta measurement (no live reconfig yet)**: build `shell + role.none`
-   and `shell + role.loopback` with identical seeds; run
-   `ecppack --delta` between them; count differing frames and check how many
-   fall outside any plausible role region.  Expectation: without placement
-   locking the delta touches shell frames all over the die.
-3. **Shell locking experiment**: use the nextpnr Python API to pin every
-   shell cell to the BELs of a reference run and confine role cells to
-   reserved columns; iterate until the delta touches only role-region
-   frames.  Routing divergence is the expected hard part; measure it, don't
-   assume it.
+2. **Delta measurement (complete; no live reconfig yet).**
+   `make -C rtl/fpga pr-delta` builds `shell + role.none` and
+   `shell + role.loopback` with explicit nextpnr seed 1.  Both route against
+   the 25 MHz constraint (28.59 MHz and 26.74 MHz respectively); the loopback
+   buffer consumes four `DP16KD` blocks rather than overflowing the device as
+   flip-flops.  The result confirms the expected bad baseline decisively:
+   **8,603 of 13,294 CRAM frames (64.7%) change**, spanning all 126
+   106-frame groups.  At the tile level 4,816 configured tiles change, appear,
+   or disappear (95.9% of the two builds' union), across all 125 interior
+   columns and 94 rows.  The machine-readable result is
+   `rtl/fpga/build/pr-delta-seed1/report.json`.
+
+   The experiment also found a stricter tool blocker than the earlier
+   documentation implied.  Current Project Trellis `ecppack --delta` computes
+   the changed-frame set, then refuses to encode it for this device with
+   `FIXME: partial bitstreams only supported for ECP5-45k`; its address map is
+   hard-coded for 45F.  The target records that diagnostic in
+   `ecppack-delta.log`.  `tools/pr_delta.py` obtains the 85F count by decoding
+   both full compressed bitstreams with the same prefix-free frame format and
+   comparing CRAM frames directly; it does not claim that the unavailable 85F
+   partial stream can be loaded.
+3. **85F address mapping and shell locking experiment**: first extend or
+   validate Trellis's partial-frame address encoder for the 85F.  Then use the
+   nextpnr Python API to pin every shell cell to the BELs of a reference run
+   and confine role cells to reserved columns; iterate until the delta touches
+   only role-region frames.  Routing divergence is the expected hard part;
+   measure it, don't assume it.
 4. **Live-load experiment (SRAM only, board at hand)**: set
    `BACKGROUND_RECONFIG`, quiesce the role, send the JTAG preamble plus the
    delta bitstream, re-run discovery.  Success = aXos never stops running

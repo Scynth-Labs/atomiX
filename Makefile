@@ -35,6 +35,7 @@ help:
 	@echo "  make -C sw/kernel check-uartboot # upload full aXos into blank RAM"
 	@echo "  make fpga-kernel-primer  # compatibility alias for loader-only image"
 	@echo "  make fpga-runtime-primer # fast-switch gate, then build once"
+	@echo "  make primer-runtime-preflight # simulation + bitstream evidence, no board"
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make component-test"
 	@echo "  make web                 # boot the machine in a browser (needs emcc)"
@@ -137,6 +138,16 @@ fpga-runtime-primer: runtime-primer
 	  RAM_INIT_FILE="$(abspath sw/bootrom/blank.hex)" \
 	  ROM_INIT_FILE="$(abspath sw/bootrom/build/uart-ram32768/bootrom.hex)"
 
+# Finish every gate that does not need the Dock.  The generated evidence JSON
+# identifies the exact volatile image to program when the hardware is attached.
+primer-runtime-preflight: runtime-primer
+	$(MAKE) -C rtl/fpga gowin-evidence \
+	  COMPONENT_CONFIG="$(abspath configs/tangprimer25k-runtime-gpu.json)" \
+	  RAM_INIT_FILE="$(abspath sw/bootrom/blank.hex)" \
+	  ROM_INIT_FILE="$(abspath sw/bootrom/build/uart-ram32768/bootrom.hex)" \
+	  EVIDENCE_KERNEL="$(abspath sw/kernel/build/primer-runtime/axos_boot.bin)" \
+	  EVIDENCE_RUNTIME_GATE=PASS
+
 # Kept for scripts that used the old name.  This now produces the same
 # loader-only image; no aXos kernel is synthesized into FPGA memory.
 fpga-kernel-primer: fpga-runtime-primer
@@ -192,4 +203,4 @@ component-test: config-check-all
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help doctor component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer component-test web web-check web-bench
+.PHONY: help doctor component-list component-show config-check config-check-all sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

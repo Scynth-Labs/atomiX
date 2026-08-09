@@ -36,7 +36,9 @@ Implemented roles:
   Ties its `irq` line low.
 - `role.loopback` — copies buffers inside its window; proves the framework
   (evidence: `make -C sw/baremetal check-role` polled, and
-  `check-role-irq` interrupt-driven).
+  `check-role-irq` interrupt-driven).  Buffer accesses while `STATUS.BUSY` is
+  set return a bus error, enforcing the ownership rule that also lets FPGA
+  synthesis map its 4 KiB buffer to block RAM.
 - `role.tpu-lite` — the first real accelerator: an int8 weight-stationary
   8×8 systolic GEMM engine with 32-bit accumulation, an accumulate mode for
   K > 8 tiling, and a ReLU output stage (evidence:

@@ -30,12 +30,13 @@ GPU/TPU-overlay work.
 Run the simulation-first proof:
 
 ```bash
-make -C sw/kernel check-primer-runtime
+make primer-runtime-preflight
 ```
 
 It boots one exact 32 KiB aXos image, loads and executes SAXPY, loads a
-different polynomial program, executes it, and verifies both results. The same
-host command is ready for the board transport:
+different polynomial program, executes it, verifies both results, builds the
+loader-only FPGA image, and writes a hashed `evidence.json` beside the
+bitstream. The same host command is ready for the board transport:
 
 ```bash
 python3 sw/host/axhost.py --fast-switch --serial /dev/ttyUSB1 --baud 921600 \
@@ -46,10 +47,10 @@ Do not run the hardware command until the
 `tangprimer25k-runtime-gpu` image has passed synthesis/P&R and has been
 programmed. Physical evidence remains separate from the simulation result.
 
-The loader-only Primer image routes at 32.75 MHz against its 25 MHz constraint
-and uses 16,532/23,040 LUT4s, 3,284/23,040 DFFs, 44/56 BSRAMs, and 3/28
-`MULTALU27X18` DSPs. Its `.fs` SHA-256 is
-`3a1ec495878c14f6f6b8f72624feae741480736bc8e835aa2b1498f36503d8b3`.
+The current loader-only Primer image routes at 32.97 MHz against its 25 MHz
+constraint and uses 18,399/23,040 LUT4s, 3,308/23,040 DFFs, 44/56 BSRAMs, and
+3/28 `MULTALU27X18` DSPs. Its `.fs` SHA-256 is
+`1b60669ab39f78a1fab68ff8f5e0b947960d64c29fdf4661f520b13008774878`.
 This qualifies synthesis/P&R independently of whichever kernel is uploaded;
 it is build evidence only. A new physical claim still requires the serial
 regression on the board.

@@ -409,12 +409,24 @@ CPU, GPU, and TPU profiles cannot reuse a sibling profile's artifact.
 make fpga CONFIG=configs/ulx3s-85f.json     # top-level wrapper (ECP5), or:
 make fpga CONFIG=configs/tangnano20k.json   # Gowin/Tang Nano
 make fpga CONFIG=configs/tangprimer25k.json # Gowin/Tang Primer 25K
+make primer-runtime-preflight               # exact Primer runtime image + evidence; no board access
 make -C rtl/fpga config COMPONENT_CONFIG=$PWD/configs/tangnano20k.json  # print resolved selection
 ```
 The P&R tool (`nextpnr-ecp5` / `nextpnr-himbaechel`) prints utilisation and
 timing at the end; the board clock target (25 MHz ULX3S, 27 MHz Tang Nano,
 25 MHz Tang Primer) must pass. Do not program a bitstream from a failed or
 unconstrained P&R run.
+
+The reproducible stage-2 partial-reconfiguration measurement uses explicit
+matching placement seeds and writes a JSON frame/tile report:
+
+```bash
+make -C rtl/fpga pr-delta
+```
+
+It is a research measurement, not a programming target.  On the ULX3S 85F it
+also records the expected current Trellis diagnostic that delta address
+encoding is implemented only for 45F; see [partial-reconfig.md](partial-reconfig.md).
 
 ### 4.4 Program the board
 ```bash

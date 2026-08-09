@@ -122,8 +122,13 @@ module axrole #(
   // two-port block RAM.
   wire d_buf_hit   = d_valid && d_in_range && buf_offset(d_off) &&
                      d_addr[1:0] == 2'b00;
-  wire d_buf_write = d_buf_hit && d_wstrb == 4'hf;
-  wire d_buf_read  = d_buf_hit && d_wstrb == 4'b0;
+  // The programming contract already forbids software from touching the
+  // buffer while the copy engine owns it.  Enforce that rule in hardware as
+  // well: besides making an accidental access fail cleanly, the mutually
+  // exclusive enables let FPGA synthesis combine the two logical ports into
+  // a block-RAM implementation instead of expanding 4 KiB into flip-flops.
+  wire d_buf_write = d_buf_hit && !busy_q && d_wstrb == 4'hf;
+  wire d_buf_read  = d_buf_hit && !busy_q && d_wstrb == 4'b0;
 
   // Completion interrupt: level-sensitive, held while DONE stands.  The
   // handler deasserts it by clearing DONE, which is the same write the

@@ -8,6 +8,7 @@ ECPPACK ?= ecppack
 NEXTPNR_HIMBAECHEL ?= nextpnr-himbaechel
 GOWIN_PACK ?= gowin_pack
 OPENFPGALOADER ?= openFPGALoader
+PNR_SEED ?= 1
 .DEFAULT_GOAL := all
 .DELETE_ON_ERROR:
 
@@ -118,6 +119,9 @@ PROG_BOARD := $(COMPONENT_FPGA_PROG_BOARD)
 PNR_JSON := $(CONFIG_BUILD)/$(TOP)_pnr.json
 PNR_REPORT := $(CONFIG_BUILD)/$(TOP)_timing.json
 BIT := $(CONFIG_BUILD)/$(TOP).fs
+EVIDENCE ?= $(CONFIG_BUILD)/evidence.json
+EVIDENCE_KERNEL ?=
+EVIDENCE_RUNTIME_GATE ?=
 
 # BRAM-only Tang bring-up bakes the selected bare-metal program into on-chip
 # block RAM at synthesis time. Build that exact payload first and specialize
@@ -150,6 +154,19 @@ $(PNR_JSON): $(JSON) $(CST) | check-tools
 $(BIT): $(PNR_JSON)
 	$(GOWIN_PACK) $(COMPONENT_GOWIN_PACK_ARGS) -d $(FAMILY) -o $@ $(PNR_JSON)
 
+# A build artifact is not board evidence by itself, but this manifest pins the
+# exact source state, payloads, tool versions, timing result, and bitstream hash
+# that a later physical transcript must refer to.
+gowin-evidence: all
+	python3 ../../tools/fpga_evidence.py \
+	  --config "$(COMPONENT_CONFIG)" --bitstream "$(BIT)" \
+	  --timing-report "$(PNR_REPORT)" --synth-log "$(CONFIG_BUILD)/synth.log" \
+	  --input "ram=$(PROGRAM_HEX)" \
+	  $(if $(ROM_INIT_DEP),--input "rom=$(ROM_INIT_DEP)") \
+	  $(if $(EVIDENCE_KERNEL),--input "kernel=$(EVIDENCE_KERNEL)") \
+	  $(if $(EVIDENCE_RUNTIME_GATE),--gate "runtime-fast-switch=$(EVIDENCE_RUNTIME_GATE)") \
+	  --output "$(EVIDENCE)"
+
 check-tools:
 	@command -v $(YOSYS) >/dev/null || { echo "missing: $(YOSYS)"; exit 2; }
 	@command -v $(NEXTPNR_HIMBAECHEL) >/dev/null || { echo "missing: $(NEXTPNR_HIMBAECHEL) (Gowin nextpnr; from apicula/OSS CAD Suite)"; exit 2; }
@@ -171,7 +188,7 @@ $(JSON): $(SYNTH_SV) $(BOOT_HEX) Makefile | $(CONFIG_BUILD)
 	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -lib +/ecp5/cells_sim.v; read_verilog -lib +/ecp5/cells_bb.v; read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); hierarchy -check -top $(TOP); synth_ecp5 -noabc9 -top $(TOP) -json $@'
 
 $(TEXTCFG): $(JSON) $(LPF) | check-tools
-	$(NEXTPNR_ECP5) $(COMPONENT_NEXTPNR_ARGS) --json $(JSON) --lpf $(LPF) --textcfg $@
+	$(NEXTPNR_ECP5) $(COMPONENT_NEXTPNR_ARGS) --seed $(PNR_SEED) --json $(JSON) --lpf $(LPF) --textcfg $@
 
 $(BIT): $(TEXTCFG)
 	$(ECPPACK) $(COMPONENT_ECPPACK_ARGS) $(TEXTCFG) $@
@@ -186,7 +203,52 @@ toolchain-report: check-tools
 	@$(NEXTPNR_ECP5) --version
 	@$(ECPPACK) --version
 	@if command -v $(OPENFPGALOADER) >/dev/null; then $(OPENFPGALOADER) --version; else echo "openFPGALoader: not found (programming only)"; fi
+
+gowin-evidence:
+	@echo "gowin-evidence requires a Gowin board profile"; exit 2
 endif
+
+# Stage 2 of docs/partial-reconfig.md.  Build two machines whose only selected
+# component difference is the role, with an explicit shared placement seed,
+# then measure both tile spread and exact CRAM-frame churn.  Upstream Trellis
+# currently refuses to encode partial frame addresses for the 85F, so the
+# final ecppack invocation is an intentional capability probe: the known 45F-
+# only diagnostic is recorded without discarding the completed measurement.
+PR_REFERENCE_CONFIG ?= ../../configs/ulx3s-85f.json
+PR_CANDIDATE_CONFIG ?= ../../configs/ulx3s-85f-loopback.json
+PR_BUILD := $(abspath $(BUILD)/pr-delta-seed$(PNR_SEED))
+PR_REFERENCE_TEXTCFG := $(PR_BUILD)/reference.config
+PR_CANDIDATE_TEXTCFG := $(PR_BUILD)/candidate.config
+PR_REFERENCE_BIT := $(PR_BUILD)/reference.bit
+PR_CANDIDATE_BIT := $(PR_BUILD)/candidate.bit
+PR_DELTA_BIT := $(PR_BUILD)/candidate.delta.bit
+PR_REPORT := $(PR_BUILD)/report.json
+PR_ECPPACK_LOG := $(PR_BUILD)/ecppack-delta.log
+
+pr-delta: check-tools
+	mkdir -p $(PR_BUILD)
+	$(MAKE) --no-print-directory COMPONENT_CONFIG=$(PR_REFERENCE_CONFIG) \
+	  PNR_SEED=$(PNR_SEED) TEXTCFG=$(PR_REFERENCE_TEXTCFG) \
+	  BIT=$(PR_REFERENCE_BIT) all
+	$(MAKE) --no-print-directory COMPONENT_CONFIG=$(PR_CANDIDATE_CONFIG) \
+	  PNR_SEED=$(PNR_SEED) TEXTCFG=$(PR_CANDIDATE_TEXTCFG) \
+	  BIT=$(PR_CANDIDATE_BIT) all
+	python3 ../../tools/pr_delta.py \
+	  $(PR_REFERENCE_TEXTCFG) $(PR_CANDIDATE_TEXTCFG) \
+	  --reference-bit $(PR_REFERENCE_BIT) \
+	  --candidate-bit $(PR_CANDIDATE_BIT) --json $(PR_REPORT)
+	@if $(ECPPACK) $(COMPONENT_ECPPACK_ARGS) $(PR_CANDIDATE_TEXTCFG) \
+	    $(PR_DELTA_BIT) --delta $(PR_REFERENCE_TEXTCFG) \
+	    >$(PR_ECPPACK_LOG) 2>&1; then \
+	  echo "delta bitstream: $(PR_DELTA_BIT)"; \
+	elif grep -q "partial bitstreams only supported for ECP5-45k" \
+	    $(PR_ECPPACK_LOG); then \
+	  echo "delta bitstream: blocked by Trellis's 45F-only address encoder"; \
+	  echo "packer log: $(PR_ECPPACK_LOG)"; \
+	else \
+	  cat $(PR_ECPPACK_LOG); \
+	  exit 1; \
+	fi
 
 # BIT is selected inside the board-flow branch above, so define the aggregate
 # target only after that branch has been parsed.
@@ -207,4 +269,4 @@ flash: $(BIT)
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all synth config check-tools toolchain-report program flash clean
+.PHONY: all synth config check-tools toolchain-report gowin-evidence pr-delta program flash clean

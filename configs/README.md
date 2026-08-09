@@ -58,6 +58,7 @@ custom component may define its own knobs without changing the common resolver.
 | `sim-hello.json` | reference BRAM machine plus selectable bare-metal payload |
 | `sim-axos.json` | reference SDRAM machine plus selectable aXos SD-boot payload |
 | `ulx3s-85f.json` | ULX3S/ECP5 board implementation and constraints |
+| `ulx3s-85f-loopback.json` | ULX3S shell plus the loopback role for partial-reconfiguration delta measurement |
 | `ulx3s-85f-gpu.json` | ULX3S with a minimal host and the SIMT GPU role |
 | `ulx3s-85f-tpu.json` | ULX3S with the reference CPU and the TPU-lite role |
 | `tangnano20k.json` | Tang Nano 20K/GW2A BRAM-only board target |

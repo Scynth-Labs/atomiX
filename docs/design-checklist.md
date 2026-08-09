@@ -10,6 +10,13 @@ Status legend:
 - `[~]` Implemented and simulation/synthesis tested; physical-board evidence is pending.
 - `[ ]` Planned or intentionally deferred.
 
+Current lab hardware is one Tang Primer 25K core board on its Dock.  It is the
+only purchased and physically verified target.  ULX3S-85F and Tang Nano 20K
+remain supported build/research targets, but synthesis, place-and-route, and
+generated bitstreams for them must not be described as physical-board evidence.
+Near-term hardware work therefore targets the Primer unless another board is
+explicitly acquired or borrowed.
+
 The architectural contract remains [DESIGN.md](../DESIGN.md); component
 contracts and selections are in [components/](../components/).
 
@@ -300,9 +307,18 @@ Use this for a substantive implementation or interface change:
   place-and-route to a `.bit`) now passes at 28.42 MHz against the 25 MHz
   constraint; it had never run before 2026-08-01 because the board `.lpf`
   wrapped `SYSCONFIG` with a backslash continuation nextpnr does not accept.
-  The track runs on ULX3S/ECP5 and not the Primer already in hand because
-  `ecppack` ships `--delta` and `--background` while the open Gowin flow has no
-  partial path at all.
+  Stage 2 is also measured: `make -C rtl/fpga pr-delta` builds `role.none` and
+  `role.loopback` at the same seed and finds 8,603/13,294 CRAM frames changed
+  across every one of the 85F's 126 frame groups, proving unconstrained P&R
+  perturbs the whole shell rather than a plausible role region.  The same run
+  exposed the next prerequisite: upstream `ecppack --delta` has a hard-coded
+  45F address encoder and refuses to emit an 85F partial bitstream, so stage 3
+  now includes validating the 85F frame-address map before shell locking.
+  The track runs on ULX3S/ECP5 and not the Primer in hand because `ecppack`
+  ships `--delta` and `--background` while the open Gowin flow has no partial
+  path at all.  Stage-3 tool research can continue without hardware, but the
+  stage-4 live-load gate is deliberately deferred until an ULX3S is acquired
+  or temporarily available; it is not part of the current Primer board plan.
 - [x] Host-link control plane (base): a framed request/response protocol
   ([host-protocol.md](host-protocol.md)), an aXos host-link service that
   dispatches frames to the in-kernel role driver above, and the host-side
@@ -327,8 +343,9 @@ Use this for a substantive implementation or interface change:
   aXos personality. Evidence: `make -C sw/kernel check-uartboot` rejects
   corrupt/oversized uploads and boots the full kernel; `make runtime-primer`
   uploads the compact host-link kernel before its two-program accelerator test.
-  The loader-only Primer image routes at 32.75 MHz for a 25 MHz constraint
-  (16,532 LUT4, 44 BSRAM, 3 DSP); physical upload evidence is still pending.
+  The current loader-only Primer image routes at 32.97 MHz for a 25 MHz
+  constraint (18,399 LUT4, 3,308 DFF, 44 BSRAM, 3 DSP); physical upload
+  evidence is still pending.
 - [x] Kernel-mediated userspace role ABI: `role_info`, token-returning
   `role_submit`, and retry-safe `role_wait`, using the same checked job
   encodings as the host link. The physical role window remains supervisor-only
@@ -529,20 +546,12 @@ Staged so each step has its own evidence rather than landing as one large jump:
 ## Final physical FPGA gate
 
 Hardware availability is intentionally not a blocker for the simulation and
-component work above.  It is the final platform-evidence gate.
+component work above.  It is the final platform-evidence gate.  The Tang Primer
+25K Dock is the only board currently in the lab; every other board entry below
+is explicitly non-physical until hardware becomes available.
 
-- [~] ULX3S-85F board component, constraints, SDRAM/UART RTL, and synthesis
-  preflight exist.  Evidence: `make fpga CONFIG=configs/ulx3s-85f.json` with
-  the matched OSS CAD Suite environment.
-- [~] Tang Nano 20K (Gowin GW2A-18C) board component, constraints, and Gowin
-  flow exist; the design synthesises and fits.  Evidence:
-  `make -C rtl/fpga synth COMPONENT_CONFIG=$PWD/configs/tangnano20k.json`
-  produces a Yosys netlist in which the 32 KB main memory maps to 32 `DPB`
-  block-RAM cells (not flip-flops) — the BRAM-only bring-up needs registered
-  reads (`axram` `SYNC_READ=1`), verified functionally by `make -C sim/soc run
-  CONFIG=configs/sim-bram.json SYNC_READ=1` (hello prints, one wait state per
-  access).  Fit on the GW2A-18C: 32 DPB, ~2.7k FF, ~11k LUT4.  P&R and
-  bitstream await the apicula tools (`nextpnr-himbaechel`, `gowin_pack`).
+### Tang Primer 25K — current hardware priority
+
 - [x] Tang Primer 25K Dock (Gowin GW5A-25A) board component, official
   clock/UART/S1 pins, GW5A open-flow flags, and a BRAM-only profile exist.
   Evidence: `make -C rtl/fpga synth
@@ -561,6 +570,52 @@ component work above.  It is the final platform-evidence gate.
   `tangprimer25k-tpu` folds K=8 over 24 MACs and makes its C buffer infer
   BSRAM: 17,345 LUT4, 24 DSPs, and 189 compute cycles versus 42,995 on CPU.
   It routes at 32.65 MHz and ended in `role tpu-lite: PASS` on the board.
+- [x] Use volatile SRAM configuration for board development and confirm the
+  recovery controls: the baseline UART transcript appears, S1 restarts the
+  SoC, and no persistent flash write is needed for CPU/GPU/TPU testing.
+- [x] Complete the no-hardware resident-runtime preflight.  `make
+  primer-runtime-preflight` boots the UART loader, uploads the compact aXos
+  kernel, switches and verifies two GPU programs in RTL, builds the exact
+  blank-RAM/immutable-ROM Primer image, checks 25 MHz timing, and writes a
+  hashed `evidence.json` beside the bitstream.  This is reproducible build
+  evidence only; it does not claim that the image ran on the Dock.
+- [ ] Close the Primer resident-runtime hardware gate.  Program
+  `configs/tangprimer25k-runtime-gpu.json`, upload the compact aXos kernel over
+  the immutable UART loader, and record `AXOK` followed by `FAST SWITCH PASS`
+  from `python3 sw/host/axhost.py --fast-switch --upload-kernel
+  sw/kernel/build/primer-runtime/axos_boot.bin --serial <port> --baud 921600`.
+- [ ] Repeat the resident-runtime check after S1 reset and after a USB/power
+  reconnect.  Confirm that a failed or interrupted kernel upload leaves the
+  immutable loader recoverable without reflashing the FPGA.
+- [ ] Capture a reproducible Primer evidence bundle: exact core/Dock revision,
+  OSS CAD Suite and programmer versions, bitstream/profile identity, timing
+  and utilisation summary, serial-device identity, and complete UART
+  transcript.  Keep the procedure in
+  [tangprimer25k-bringup.md](tangprimer25k-bringup.md) authoritative.
+- [ ] Decide whether persistent Primer flash programming is useful only after
+  the runtime SRAM regression above is repeatable.  Until then, `flash` remains
+  intentionally unused.
+- [ ] Treat external SDRAM, USB host, PMOD, and removable-storage validation as
+  optional Primer expansion work.  Do not make it a gate for the current
+  core-board-plus-Dock target; add a specific profile and evidence item if the
+  corresponding module is acquired.
+
+### Supported targets not currently in the lab
+
+- [~] ULX3S-85F board component, constraints, SDRAM/UART RTL, synthesis
+  preflight, and ECP5 P&R evidence exist.  Evidence: `make fpga
+  CONFIG=configs/ulx3s-85f.json` with the matched OSS CAD Suite environment.
+  No ULX3S is currently owned, so UART, SDRAM, SD, reset, and live partial-load
+  observations remain unverified and are not near-term hardware gates.
+- [~] Tang Nano 20K (Gowin GW2A-18C) board component, constraints, and Gowin
+  flow exist; the design synthesises and fits.  Evidence:
+  `make -C rtl/fpga synth COMPONENT_CONFIG=$PWD/configs/tangnano20k.json`
+  produces a Yosys netlist in which the 32 KB main memory maps to 32 `DPB`
+  block-RAM cells (not flip-flops) — the BRAM-only bring-up needs registered
+  reads (`axram` `SYNC_READ=1`), verified functionally by `make -C sim/soc run
+  CONFIG=configs/sim-bram.json SYNC_READ=1` (hello prints, one wait state per
+  access).  Fit on the GW2A-18C: 32 DPB, ~2.7k FF, ~11k LUT4.  No Tang Nano is
+  currently owned; physical P&R/programming evidence is deferred.
 - [~] Attach an accelerator role on the Tang Nano.  The parameterized SIMT
   engine (gpu_engine.sv, `NLANES`) fits: the shipped `configs/tangnano20k-gpu.json`
   (minimal host + 6-lane) synthesises to ~20.2k LUT4, 32 DPB, 6 DSP — inside the
@@ -572,13 +627,7 @@ component work above.  It is the final platform-evidence gate.
   cases: [tangnano-capacity.md](tangnano-capacity.md).
 - [~] Run ECP5 / Gowin place-and-route, generate the bitstream, and record
   timing and resource reports. Completed for Tang Primer CPU/GPU/TPU; Tang
-  Nano and ULX3S remain.
-- [x] Program Tang Primer SRAM only for the first board test; confirm serial
-  output and S1 reset behavior.
-- [ ] Validate external SDRAM and SD read/write persistence on the physical
-  board.
-- [ ] Decide separately, and only after the SRAM path is proven, whether a
-  persistent flash operation is appropriate.
+  Nano remains; ULX3S has tool evidence but no physical-board validation.
 
 The detailed, safe board procedures are
 [tangprimer25k-bringup.md](tangprimer25k-bringup.md) and

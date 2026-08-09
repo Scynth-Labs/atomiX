@@ -34,10 +34,13 @@ top-level target runs the exact-memory loader/kernel/accelerator RTL test before
 building the loader-only bitstream:
 
 ```bash
-make fpga-kernel-primer
+make primer-runtime-preflight
 ```
 
-This builds only; it does not access or program a physical board.
+This simulates the loader/runtime switch, builds the image, and records its
+source/input/tool/timing identity in `evidence.json` beside the bitstream. It
+does not access or program a physical board. `fpga-kernel-primer` remains a
+compatibility alias for the build-only path.
 
 Generated diagnostic artifacts are keyed by both configuration and payload. Switching
 from `PROGRAM=hello` to `PROGRAM=cpu_perf` therefore cannot reuse a netlist or
