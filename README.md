@@ -124,6 +124,7 @@ and verification claim.  Read the [component catalog](components/README.md),
 | Inspect current evidence and open work | [docs/design-checklist.md](docs/design-checklist.md) |
 | Track partial reconfiguration, morph compute, and adaptive-logic research | [docs/research-checklist.md](docs/research-checklist.md) |
 | Extend the open compute-personality contract | [docs/personality-contract.md](docs/personality-contract.md) |
+| Compare compute implementations without a vendor-specific score | [docs/comparison-contract.md](docs/comparison-contract.md) |
 | Prepare the Tang Primer 25K | [docs/tangprimer25k-bringup.md](docs/tangprimer25k-bringup.md) |
 | Prepare the ULX3S | [docs/ulx3s-bringup.md](docs/ulx3s-bringup.md) |
 

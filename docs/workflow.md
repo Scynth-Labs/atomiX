@@ -224,6 +224,7 @@ oracles independently of any FPGA toolchain:
 
 ```bash
 make personality-check
+make comparison-check
 ```
 
 ```bash

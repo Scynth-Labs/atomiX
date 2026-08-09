@@ -108,10 +108,12 @@ throughput than separate CPU/GPU/TPU implementations?
   small systolic matrix tile.  Evidence: the vendor-neutral
   [personality contract](personality-contract.md), six machine-readable
   examples under `research/personalities/`, and `make personality-check`.
-- [ ] **No hardware — next:** define the comparison matrix: correctness, switch
+- [x] **No hardware:** define the comparison matrix: correctness, switch
   latency, cycles/work item, LUT/FF/BSRAM/DSP use, Fmax, and energy when
-  physical measurement becomes available.
-- [ ] **No hardware:** implement the smallest morph-fabric RTL prototype:
+  physical measurement becomes available.  Evidence: the
+  [comparison contract](comparison-contract.md), versioned six-candidate R2
+  plan, explicit non-evidence template, and `make comparison-check`.
+- [ ] **No hardware — next:** implement the smallest morph-fabric RTL prototype:
   configurable processing elements, local routing, state/register storage,
   and a bounded configuration memory behind the existing role ABI.
 - [ ] **No hardware:** simulate all three personalities from the same bitstream
@@ -215,7 +217,8 @@ injected failure.
 
 ## Immediate queue without hardware
 
-1. Define the R2 cross-implementation comparison matrix and evidence record.
-2. Specify the shared research-evidence record used by all three tracks.
+1. Implement the smallest R2 morph-fabric RTL prototype behind the role ABI.
+2. Generalise the R2 evidence identity into the shared record used by all three
+   research tracks.
 3. Continue R1 ECP5-85F frame-address validation independently of board access.
 4. Add R3/L0 telemetry only after its schema and fitness consumers are agreed.

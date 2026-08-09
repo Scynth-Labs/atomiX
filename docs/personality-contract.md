@@ -143,3 +143,5 @@ capability, encoding, execution model, and extension are accepted while an
 unnamespaced capability is rejected.  This is the regression against silently
 turning the contract into a closed implementation list.
 
+Cross-implementation cost and performance evidence is deliberately a separate
+layer; see the [comparison contract](comparison-contract.md).

@@ -33,6 +33,8 @@ verifiable, and replaceable.
   ELF entry contract, process state, files, and kernel-mediated role jobs.
 - [personality-contract.md](personality-contract.md) — vendor-neutral compute
   personality, workload, capability-negotiation, and reconfiguration contract.
+- [comparison-contract.md](comparison-contract.md) — correctness-gated R2
+  comparison matrix and machine-readable evidence rules.
 
 Keep a specification and its implementation change together whenever a
 documented interface changes.
