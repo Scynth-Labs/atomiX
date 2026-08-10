@@ -106,5 +106,10 @@
     "gpu-lane1": "sweep tangprimer25k-synth-2026-08-10.json",
     "ax2": "sweep tangprimer25k-synth-2026-08-10.json (failing)",
     "tpu": "in-tree rebuild after the 77553a2 regression fix; the sweep predates that fix and recorded tpu as failing"
+  },
+  "known_stale_rows": {
+    "gpu-lane1": "Locked from the sweep at 12,281 LUT4 / 33.61 MHz. A current build measures 13,393 / 35.73 because sw/baremetal/examples/gpu_lane1.c gained volatile reference arrays after that sweep ran. Re-lock from a fresh sweep.",
+    "morph-1pe": "Same situation: sw/baremetal/examples/morph.c changed after the sweep. The in-tree build that was loaded on the board measured 20,176 / 29.20 against the locked 19,158 / 32.01.",
+    "note": "These two rows will flag on the next sweep. That is the gate working, not a hardware problem; re-lock them deliberately once a post-fix sweep exists."
   }
 }

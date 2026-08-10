@@ -26,6 +26,39 @@ Kernel replacement is about 52.9x faster than full SRAM configuration. The
 complete checked two-program switch is about 90.2x faster. The 38-byte program
 frame alone is approximately 0.46 ms, about 7,836x below SRAM configuration.
 
+## Build throughput
+
+Place-and-route is where the time goes: across the seven-profile sweep,
+nextpnr accounted for 4,480 s of 4,739 s — **95%** — with Yosys at 259 s. So
+speeding up builds means speeding up nextpnr or overlapping profiles, and
+nothing else is worth touching.
+
+| Change | Effect | Adopted |
+|---|---|---|
+| `openFPGALoader --freq` 6 → 30 MHz | 3.42 s → 3.38 s | no — no effect |
+| `nextpnr --threads 6` | 285 s → 253 s (−11%), identical routed result | **yes**, board manifest |
+| `--jobs N` concurrent profiles | 861 s → 509 s for a pair (1.69x) | **yes**, opt-in |
+
+**Programming is not JTAG-clock bound.** Raising the JTAG frequency five-fold
+moves a 7,124,126-byte SRAM configuration by 40 ms, because the cost is USB/IP
+round trips between Windows and WSL rather than the link rate. There is no win
+available there from this side.
+
+**Threading is safe for the lock.** `--threads 6` produced a bit-identical
+result — same LUT4, same 35.73 MHz — so it speeds the build without changing
+what is measured. That mattered enough to check before making it the default:
+a faster build that quietly reroutes the design would invalidate every locked
+number.
+
+**Concurrency is the real win, and it is bounded by memory, not cores.** Each
+place-and-route peaks over 1 GiB, so `--jobs` is an explicit argument rather
+than defaulting to the core count; on a 6-core, 10 GiB WSL, 3 is comfortable.
+Profiles already build in separate directories, so they contend only for CPU
+and RAM. Expect the full sweep to drop from about 79 minutes to roughly 30 at
+`--jobs 3`.
+
+    python3 tools/tangprimer_synth_benchmark.py --jobs 3 --output <report.json>
+
 ## Fresh synthesis and place-and-route — 2026-08-10
 
 One sweep, one toolchain, one process per profile, each built in an isolated

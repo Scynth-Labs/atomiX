@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures as cf
 import datetime as dt
 import hashlib
 import json
@@ -129,6 +130,11 @@ def main() -> None:
         help="profile to run (repeatable; default: all)",
     )
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument(
+        "--jobs", type=int, default=1, metavar="N",
+        help="profiles to build concurrently (default 1). Each place-and-route "
+             "peaks over 1 GiB, so keep N*1.5 GiB inside available RAM; on a "
+             "6-core/10 GiB WSL, 3 is comfortable.")
     args = parser.parse_args()
     profiles = args.profile or list(PRESETS)
     output = args.output.resolve()
@@ -147,17 +153,41 @@ def main() -> None:
     }
     results = []
     write_report(output, base, results, "RUNNING")
+    base["jobs"] = args.jobs
     try:
         with tempfile.TemporaryDirectory(prefix="atomix-primer-synth-") as raw:
-            for label in profiles:
-                print(f"{label}: fresh synthesis/P&R started", flush=True)
-                result = one_profile(label, Path(raw))
-                results.append(result)
-                write_report(output, base, results, "RUNNING")
-                print(f"{label}: synth={result['synthesis_status']} "
-                      f"pnr={result.get('place_route_status', 'not-run')} "
-                      f"total_ms={result.get('total_build_ms', 'n/a')}",
+            if args.jobs == 1:
+                for label in profiles:
+                    print(f"{label}: fresh synthesis/P&R started", flush=True)
+                    result = one_profile(label, Path(raw))
+                    results.append(result)
+                    write_report(output, base, results, "RUNNING")
+                    print(f"{label}: synth={result['synthesis_status']} "
+                          f"pnr={result.get('place_route_status', 'not-run')} "
+                          f"total_ms={result.get('total_build_ms', 'n/a')}",
+                          flush=True)
+            else:
+                # Place-and-route is ~95% of a profile's wall time and is
+                # largely single-threaded, so distinct profiles overlap almost
+                # perfectly.  Each one already builds in its own directory, so
+                # they do not contend for artifacts -- only for CPU and memory,
+                # which is why --jobs is bounded by the caller rather than
+                # defaulted to the core count.
+                print(f"running {len(profiles)} profiles, {args.jobs} at a time",
                       flush=True)
+                with cf.ThreadPoolExecutor(max_workers=args.jobs) as pool:
+                    futures = {pool.submit(one_profile, label, Path(raw)): label
+                               for label in profiles}
+                    for future in cf.as_completed(futures):
+                        label = futures[future]
+                        result = future.result()
+                        results.append(result)
+                        write_report(output, base, results, "RUNNING")
+                        print(f"{label}: synth={result['synthesis_status']} "
+                              f"pnr={result.get('place_route_status', 'not-run')} "
+                              f"total_ms={result.get('total_build_ms', 'n/a')}",
+                              flush=True)
+                results.sort(key=lambda r: profiles.index(r["profile"]))
     except KeyboardInterrupt:
         write_report(output, base, results, "INTERRUPTED")
         raise

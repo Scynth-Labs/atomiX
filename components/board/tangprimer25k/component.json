@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "board.tangprimer25k",
   "kind": "board",
-  "title": "Sipeed Tang Primer 25K Dock (Gowin GW5A-25A) board target — BRAM-only bring-up",
+  "title": "Sipeed Tang Primer 25K Dock (Gowin GW5A-25A) board target \u2014 BRAM-only bring-up",
   "sources": [
     "components/board/tangprimer25k/axuart_phy.sv",
     "components/board/tangprimer25k/tangprimer25k_top.sv"
@@ -14,13 +14,35 @@
     "FPGA_DEVICE": "GW5A-LV25MG121NES",
     "FPGA_FAMILY": "GW5A-25A",
     "FPGA_SYNTH_FAMILY": "gw5a",
-    "FPGA_DEFINES": ["AX_GW5A_DSP"],
-    "GOWIN_SYNTH_ARGS": ["-nolutram", "-strict-gw5a-dffs", "-setundef"],
-    "NEXTPNR_ARGS": ["--freq", "25", "--vopt", "sspi_as_gpio"],
-    "GOWIN_PACK_ARGS": ["--sspi_as_gpio", "--cpu_as_gpio"],
+    "FPGA_DEFINES": [
+      "AX_GW5A_DSP"
+    ],
+    "GOWIN_SYNTH_ARGS": [
+      "-nolutram",
+      "-strict-gw5a-dffs",
+      "-setundef"
+    ],
+    "NEXTPNR_ARGS": [
+      "--freq",
+      "25",
+      "--vopt",
+      "sspi_as_gpio",
+      "--threads",
+      "6"
+    ],
+    "GOWIN_PACK_ARGS": [
+      "--sspi_as_gpio",
+      "--cpu_as_gpio"
+    ],
     "FPGA_PROG_BOARD": "tangprimer25k"
   },
-  "capabilities": ["gowin", "gw5a-25a", "open-flow", "bram-only", "usb-uart"],
+  "capabilities": [
+    "gowin",
+    "gw5a-25a",
+    "open-flow",
+    "bram-only",
+    "usb-uart"
+  ],
   "parameters": {
     "uart_baud": {
       "default": 115200,
