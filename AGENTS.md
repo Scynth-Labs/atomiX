@@ -11,6 +11,11 @@
   simulation or synthesis results for another board into a physical claim.
 - Tang Primer main RAM is 32 KiB. Keep `kernel-evolve-small`, `-mid`, and
   `-large` independently selectable and enforce their existing fit gates.
+- Never make software part of a bitstream's identity. Adding an example, game,
+  or kernel must not require re-synthesis or re-open a board claim: synthesize
+  the loader bitstream once and ship programs as runtime payloads over it. The
+  baked `RAM_INIT_FILE` path is for first bring-up only. See
+  `skills/atomix-development/SKILL.md`.
 
 ## Start here
 

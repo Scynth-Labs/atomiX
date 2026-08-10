@@ -32,6 +32,17 @@ PRESETS = {
     ),
     "morph-1pe": ("configs/tangprimer25k-morph.json", ["PROGRAM=morph"]),
     "gpu-lane1": ("configs/tangprimer25k-gpu-lane1.json", ["PROGRAM=gpu_lane1"]),
+    # The bitstream a board should actually be running: blank RAM and the
+    # immutable UART ROM, with no program baked in. It is locked because it is
+    # the hardware every shipped payload -- games, examples, kernels -- runs on,
+    # so it is the one build whose fit a software change must never touch.
+    "runtime": (
+        "configs/tangprimer25k-runtime.json",
+        [
+            f"RAM_INIT_FILE={ROOT / 'sw/bootrom/blank.hex'}",
+            f"ROM_INIT_FILE={ROOT / 'sw/bootrom/build/uart-ram32768/bootrom.hex'}",
+        ],
+    ),
 }
 
 

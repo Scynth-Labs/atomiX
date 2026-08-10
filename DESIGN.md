@@ -167,12 +167,20 @@ The endgame architecture. The FPGA design is split into two parts:
   partial-reconfiguration research track in
   [docs/partial-reconfig.md](docs/partial-reconfig.md). "Shell is fixed"
   means fixed at the source level — the same shell RTL in every build.
-- **Kernel loading** is below the role protocol and applies to every aXos
-  personality. The fixed FPGA image resets into a small ROM loader, which
+- **Software loading** is below the role protocol and applies to every payload,
+  not only to aXos. The fixed FPGA image resets into a small ROM loader, which
   accepts a length-bounded, CRC-32-checked `AXK1` binary, writes it to blank
-  RAM, executes `fence.i`, and jumps to `0x8000_0000`. Kernel source/config
-  changes therefore never cause FPGA synthesis or P&R. SD boot remains a
-  separate persistent-storage mode, not the kernel-development fast path.
+  RAM, executes `fence.i`, and jumps to `0x8000_0000`. The loader is
+  deliberately payload-agnostic — it copies bytes and jumps — so an aXos
+  personality, a bare-metal benchmark, and a game are the same kind of thing to
+  it. **No software change may cause FPGA synthesis or P&R**, and no program may
+  become part of a bitstream's identity: a board claim is about hardware, and a
+  claim that names a program silently expires the next time the program
+  changes. On block-RAM boards the flow *can* bake a payload into synthesis
+  (`chparam -set RAM_INIT_FILE`), which couples the two — that path is reserved
+  for first bring-up of a profile that has no loader image yet, and every use
+  of it says so. SD boot remains a separate persistent-storage mode, not the
+  development fast path.
 - **Host driver (`axhost`)** = userspace tool/daemon on the host PC speaking a
   small framed protocol over USB: bitstream upload, buffer read/write, work
   submission, completion events. It knows the shell protocol, never the role

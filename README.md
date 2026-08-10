@@ -118,6 +118,7 @@ and verification claim.  Read the [component catalog](components/README.md),
 | I want to… | Start here |
 |---|---|
 | Understand the machine | [DESIGN.md](DESIGN.md) |
+| Play a game on a board I own | [docs/games.md](docs/games.md) |
 | Build, test, or synthesize | [docs/workflow.md](docs/workflow.md) |
 | Set up a host or FPGA toolchain | [docs/dependencies.md](docs/dependencies.md) |
 | Change an implementation | [components/README.md](components/README.md) |

@@ -1,0 +1,227 @@
+# Games on atomiX
+
+atomiX ships at least one playable game per board. This page is written for
+someone who has never built the project: load an image, open a terminal, play.
+You do not need to read any RTL, and for the terminal tier you do not need any
+hardware beyond the board and its USB cable.
+
+Two games ship today, and they are different *kinds* of game on purpose:
+
+| Game | Tier | What it proves |
+|---|---|---|
+| [2048](#play-2048-on-the-tang-primer-25k) | turn-based | the platform can host a game at all, on parts where nothing bigger fits |
+| [snake](#play-snake-on-the-tang-primer-25k) | interactive | the machine stays responsive against a deadline it cannot miss |
+
+## Set the board up once
+
+You configure the FPGA **once**, with a bitstream that contains no program at
+all: blank RAM and a small immutable ROM that accepts an upload over the UART.
+After that, every game and example is a file you send to a board that is
+already running — no synthesis, no reconfiguration, no waiting.
+
+```bash
+source "$HOME/opt/oss-cad-suite/environment"
+make fpga-loader-primer                     # ~15 min, once
+make -C rtl/fpga program \
+  COMPONENT_CONFIG=$PWD/configs/tangprimer25k-runtime.json \
+  RAM_INIT_FILE=$PWD/sw/bootrom/blank.hex \
+  ROM_INIT_FILE=$PWD/sw/bootrom/build/uart-ram32768/bootrom.hex
+```
+
+This matters beyond convenience. The alternative — baking a program into the
+bitstream, which the flow can also do — makes every program its own hardware
+build, with its own placement, timing, and identity. A project that ships
+software that way cannot say "the board works" without saying *which program*,
+and adding an example silently re-opens every earlier claim.
+
+## Play snake on the Tang Primer 25K
+
+```bash
+make load PROGRAM=snake         # ~0.1 s at 921600 baud
+picocom -b 921600 /dev/ttyUSB1
+```
+
+Steer with `w`/`a`/`s`/`d` or the arrow keys, `p` pauses, `r` restarts, `q`
+quits. Unlike 2048 the game does not wait for you: it redraws on its own frame
+clock at 12 fps and speeds up every four apples.
+
+Press `l` first. The upload happens before your terminal is attached, so the
+first screen has already been sent to nobody; `l` repaints it. A game that only
+draws what changed cannot recover from that on its own.
+
+Press S1 to reset back to the loader, then `make load PROGRAM=<something else>`.
+The bitstream never changes.
+
+Under the field is a live panel, in the manner of `htop`, laid out like this:
+
+```
+score    40   len    8   level  2   frame    137
+frame   83.4ms   work    55672cyc (  2.7%)   drops    0
+uart  205B/frame   free  21284B   budget  2083333cyc
+```
+
+Every number the panel shows is measured by the machine running the game — but
+the ones printed above are *projected*, not copied from a board session: no
+Primer has run this image yet. Expect the shape, not the digits.
+
+`work` is what the frame spent before it started waiting for its deadline, so
+`work` against `budget` is the honest headroom figure, and `drops` counts the
+frames that missed. Most of `work` is the serial link, which is why the panel
+reports the bytes: on the loader profile's 921600-baud link a byte is 271
+cycles at 25 MHz, so a frame's ~205 bytes cost 2.2 ms of an 83 ms budget. Run
+the same image over a 115200 link — the bring-up profile's speed — and those
+same bytes cost 17.8 ms, 21% of the frame. Nothing about the program changes;
+the panel is what tells you which of the two you are in.
+
+It is also why the game redraws the cells that changed rather than the screen.
+A full repaint is about 4 KB: 47 ms at 921600, and 370 ms at 115200, which is
+four whole frames to draw one.
+
+## Play 2048 on the Tang Primer 25K
+
+```bash
+make load PROGRAM=game2048
+picocom -b 921600 /dev/ttyUSB1
+```
+
+The board draws the grid as soon as the upload lands. Controls are
+`w`/`a`/`s`/`d` or the arrow keys, `r` to restart, `q` to quit. Leave picocom
+with `Ctrl-A` then `Ctrl-X`.
+
+`program` writes FPGA SRAM only, so a power cycle restores whatever was in
+flash. Nothing here is permanent.
+
+If you need to change the *hardware* — a different core, an accelerator role,
+a different memory — that is when you synthesize again. Changing the program is
+not changing the hardware, and this project keeps the two apart on purpose.
+
+If `/dev/ttyUSB1` does not exist, the board is not attached to WSL; see
+[tangprimer25k-bringup.md](tangprimer25k-bringup.md) for `usbipd`.
+
+## Try it without a board
+
+The same payloads run in simulation, driven by a key script instead of a
+keyboard:
+
+```bash
+make -C sw/baremetal check-game2048
+make -C sw/baremetal check-snake
+```
+
+Each replays a fixed key sequence and requires an exact final state. A game is
+only useful as a platform demonstration if it is deterministic, so it is tested
+like any other profile rather than eyeballed.
+
+`check-snake` additionally requires `drops=0` — that no frame overran its
+budget. Its key file is a frame-by-frame tape (one byte per frame, `.` for a
+frame with nothing pressed) generated by `python3 make_snake_tape.py`, which
+plays a host model of the same rules to find a tape that eats, levels up,
+pauses, dies, and restarts. A tape like that cannot be written by hand: where
+the food lands is a function of the game's own RNG.
+
+A third check proves the delivery path, not the game:
+
+```bash
+make -C sw/baremetal check-snake-loader
+```
+
+It boots the machine from the immutable ROM into blank RAM at the Primer's
+32 KiB, uploads the game as the same `AXK1` frame the board receives, and
+requires the uploaded image to reach the **same checksum** as the image built
+into simulated memory. That is what makes "a program is a payload, not a
+hardware revision" a tested statement rather than an intention.
+
+**What simulation cannot tell you about a real-time game.** The Verilated model
+sustains about 1.78M cycles/s here — a fourteenth of the board's 25 MHz — and a
+12 fps frame is 2.08M cycles, so the shipped image would play at under one
+frame per second. The check therefore builds the game with a compressed frame
+clock, and what it proves is that the compute keeps its deadline, not that the
+game is playable. Only the board shows you that. This is the first workload in
+the project where the distinction bites: a boot or an accelerator job finishes
+either way, just later.
+
+## Writing your own
+
+A game is an ordinary bare-metal payload. Drop a `.c` file into
+`sw/baremetal/examples/`, include `term.h`, and build it with
+`PROGRAM=<name>`. There is no game engine, no registration step, and no
+platform code to modify.
+
+`sw/baremetal/include/term.h` is the whole contract:
+
+| Call | Purpose |
+|---|---|
+| `term_get_key()` | block until a key arrives (turn-based games) |
+| `term_poll_key()` | return 0 if no key is waiting (real-time games) |
+| `term_has_key()` | is input pending |
+| `term_clear()`, `term_home()` | ANSI screen control |
+| `term_goto(row, col)` | absolute addressing, so a frame costs the cells that changed |
+| `term_cursor_hide()`, `term_cursor_show()` | stop the cursor flickering across the field |
+| `term_putu()`, `term_putu_pad()`, `term_puthex()` | print numbers without a printf |
+| `term_tx_bytes` | bytes sent so far, for a panel that reports what a frame costs |
+| `term_rand(&state)` | deterministic RNG |
+
+A real-time game adds a frame clock. There is no timer interrupt on this path —
+the UART is polled and a bare-metal game does not take the CLINT — so the
+deadline is the game's own, measured against `mcycle`:
+
+```c
+term_frame_t clock;
+term_frame_start(&clock, 12);              /* frames per second */
+for (;;) {
+  input(); update(); draw();
+  term_frame_wait(&clock);                 /* sleep to the deadline */
+}
+```
+
+Afterwards `clock.work` is what the frame cost before it started waiting,
+`clock.period` is the budget, and `clock.drops` counts frames that overran.
+`term_mem_paint()` once at startup, then `term_mem_free()`, reports memory the
+program has actually never touched rather than a link-time constant.
+
+The screen is a character grid addressed with ANSI escapes, which every serial
+terminal already understands — picocom, screen, minicom, PuTTY — so the display
+needs no hardware support on the FPGA side at all. That is what makes this tier
+work on any board with a UART.
+
+### Keep it deterministic
+
+Seed your RNG with a constant and take **one key per turn, or one key per
+frame**, and the same inputs will produce the same state in simulation and on
+the board. That is what lets you add a `check-<game>` target that replays keys
+through `UART_INPUT_FILE` and asserts an exact result, which is how
+`check-game2048` and `check-snake` work. A game that cannot be replayed cannot
+be regression-tested, and will quietly rot.
+
+One key per frame is what makes a key file a *tape*: byte N is what was pressed
+during frame N. Draining every pending key inside one frame instead would let
+the whole file be swallowed by frame 0, because the simulated UART hands over
+bytes as fast as the program reads them.
+
+For a real-time game, fold a few facts about each frame into a running hash and
+print that at exit rather than only the final state. Restarting a game resets
+it to something that owes nothing to what came before, so a final-state
+checksum silently stops testing everything before the last restart.
+
+### Sizing
+
+Your program is uploaded into the board's RAM, so it has to fit: 32 KiB on the
+Tang Primer, of which the loader reserves the top 4 KiB, leaving **28,672
+bytes**. 2048 is 3,596 bytes plus 76 of state and snake is 9,556 plus 1,652, so
+there is room. Boards with external memory have far more.
+
+Size is the only budget a program has. It does not consume LUTs, and it cannot
+make the board stop fitting — that is the point of uploading it rather than
+building it into the bitstream.
+
+## Why terminal games are the floor, not a compromise
+
+A game does not imply a screen. On a board with no video pins and no spare
+block RAM, a terminal game is the right game — it exercises exactly the things
+a research SoC otherwise avoids: input as it arrives, state across turns,
+staying responsive, and being judged by a person instead of a checksum.
+
+Boards with a display and the memory to back it earn a framebuffer or tile
+engine later. When that arrives it will be a separate component contract, and
+nothing in `term.h` changes. See the "One shipped game per board" section of
+[design-checklist.md](design-checklist.md) for the tiers and the open work.

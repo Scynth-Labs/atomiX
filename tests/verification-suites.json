@@ -73,6 +73,12 @@
       "timeout_seconds": 2400,
       "requires": ["make", "verilator"]
     },
+    "baremetal-games": {
+      "label": "Shipped games replayed on RTL: exact final state, no missed frame, and the same result when uploaded to blank RAM rather than baked into the image",
+      "command": ["make", "-C", "sw/baremetal", "check-game2048", "check-snake", "check-snake-loader"],
+      "timeout_seconds": 2400,
+      "requires": ["make", "verilator"]
+    },
     "baremetal-accelerators": {
       "label": "GPU, TPU, scalable GPU, and performance workloads on RTL",
       "command": ["make", "-C", "sw/baremetal", "check-tpu", "check-gpu", "check-gpu-perf", "check-gpu1", "check-cpu-perf"],
@@ -191,6 +197,7 @@
       "component-composition",
       "baremetal-peripherals",
       "baremetal-role",
+      "baremetal-games",
       "kernel-shell",
       "kernel-primer-ci",
       "kernel-storage-ci"
@@ -208,6 +215,7 @@
       "component-composition",
       "baremetal-peripherals",
       "baremetal-role",
+      "baremetal-games",
       "baremetal-accelerators",
       "architecture-suites",
       "kernel-shell",

@@ -86,6 +86,17 @@
       "dsp": 3,
       "fmax_mhz": 33.61
     },
+    "runtime": {
+      "config": "configs/tangprimer25k-runtime.json",
+      "program": null,
+      "expect": "pass",
+      "lut4": 15425,
+      "dff": 3132,
+      "bsram": 36,
+      "dsp": 0,
+      "fmax_mhz": 29.72,
+      "note": "loader-only: blank RAM, immutable UART ROM, no baked program. This is the bitstream a board should be running, and the one every shipped payload (games, examples, kernels) executes on, so it is locked instead of a per-program row. It costs about 1,534 LUT4 more than a baked image (13,891 for the same profile carrying snake) because axrom reads combinationally and cannot map to BSRAM; 20 BSRAMs are free if that is ever changed."
+    },
     "ax2": {
       "config": "configs/tangprimer25k-ax2.json",
       "program": "hello",
@@ -105,6 +116,7 @@
     "morph-1pe": "sweep tangprimer25k-synth-2026-08-10.json",
     "gpu-lane1": "sweep tangprimer25k-synth-2026-08-10.json",
     "ax2": "sweep tangprimer25k-synth-2026-08-10.json (failing)",
+    "runtime": "in-tree build 2026-08-10: make fpga-loader-primer, seed 1, routed fmax (not the post-placement estimate)",
     "tpu": "in-tree rebuild after the 77553a2 regression fix; the sweep predates that fix and recorded tpu as failing"
   },
   "known_stale_rows": {

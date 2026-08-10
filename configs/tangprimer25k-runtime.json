@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "name": "tangprimer25k-runtime",
+  "components": {
+    "core": "core.pipeline5",
+    "soc": "soc.reference",
+    "memory": "memory.bram",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.tangprimer25k",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test"
+  },
+  "settings": {
+    "ram_bytes": 32768,
+    "caches": false,
+    "reset_pc": "0x00001000"
+  },
+  "parameters": {
+    "board": {
+      "uart_baud": 921600
+    }
+  }
+}

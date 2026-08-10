@@ -82,16 +82,31 @@ class Terminal {
   }
 
   controlSequence(final, params) {
+    // Private sequences -- ESC[?25l and ESC[?25h are cursor visibility -- are
+    // recognised and dropped. The page draws its own cursor, and the
+    // alternative to recognising them is printing "?25l" into the game.
+    if (params.startsWith('?')) return;
     if (final === 'J' && (params === '2' || params === '')) {
       this.lines = [''];
       this.row = 0;
       this.col = 0;
-    } else if (final === 'H') {
-      this.row = 0;
-      this.col = 0;
+    } else if (final === 'H' || final === 'f') {
+      // Absolute cursor addressing, 1-based, defaulting to the home position
+      // when a parameter is omitted. This is the one sequence an interactive
+      // game cannot do without: it redraws the cells that changed rather than
+      // the whole screen, so a terminal that treats every ESC[r;cH as "home"
+      // stacks a whole frame into the top-left corner.
+      const numbers = params.split(';').map((value) => parseInt(value, 10));
+      this.moveTo((numbers[0] || 1) - 1, (numbers[1] || 1) - 1);
     } else if (final === 'K') {
       this.lines[this.row] = this.lines[this.row].slice(0, this.col);
     }
+  }
+
+  moveTo(row, col) {
+    this.row = Math.max(0, row);
+    this.col = Math.max(0, col);
+    while (this.lines.length <= this.row) this.lines.push('');
   }
 
   // The tail of the current line, which is how the driver recognizes that the
@@ -318,6 +333,18 @@ ui.console.addEventListener('keydown', (event) => {
     // Leave paste, and copy-with-a-selection, to the browser: a console the
     // user cannot copy text out of is a worse console than one without Ctrl-C.
     if (letter === 'v' || (letter === 'c' && window.getSelection().toString())) return;
+  } else if (event.key.startsWith('Arrow')) {
+    // Exactly what a serial terminal sends, because that is what the games
+    // decode: inventing a private encoding here would make the page the one
+    // place the arrow keys behave differently from the board.
+    const letter =
+      { ArrowUp: 'A', ArrowDown: 'B', ArrowRight: 'C', ArrowLeft: 'D' }[event.key];
+    if (!letter) return;
+    event.preventDefault();
+    send(27);
+    send(91);
+    send(letter.charCodeAt(0));
+    return;
   } else if (event.key === 'Enter') {
     byte = 13;
   } else if (event.key === 'Backspace') {

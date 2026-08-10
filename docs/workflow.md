@@ -211,6 +211,25 @@ make -C sw/baremetal check-hello check-timer check-preempt check-fencei
 make -C sw/baremetal check-spi check-sd            # RTL-only (SPI-SD path)
 ```
 
+### 3.2a Games (RTL-only — they are driven by simulated UART input)
+```bash
+make -C sw/baremetal check-game2048     # turn-based tier: exact final state
+make -C sw/baremetal check-snake        # interactive tier: exact state + no missed frame
+make -C sw/baremetal check-snake-loader # the same game, uploaded into blank RAM
+```
+The first two replay a fixed key file through `UART_INPUT_FILE` and assert an
+exact result, so a game is a regression like any other profile.  `check-snake`
+builds the game at a compressed frame clock (`SNAKE_CHECK_HZ`, default 500)
+because at the shipped 12 fps one frame is 2.08M simulated cycles; regenerate
+its input tape with `python3 sw/baremetal/make_snake_tape.py`, which prints the
+checksum the Makefile must then pin.
+
+`check-snake-loader` is the architectural gate rather than a third game test:
+it boots from the immutable ROM into blank RAM and uploads the program as an
+`AXK1` frame, requiring the same checksum the baked image reaches.  Keep it
+passing — it is what stops a program from becoming part of a bitstream's
+identity.  To play either game on the board, see [games.md](games.md).
+
 ### 3.3 Accelerator roles (RTL-only — the ISS does not model the role window)
 ```bash
 make -C sw/baremetal check-role     # role.loopback contract proof
@@ -395,7 +414,30 @@ make -C formal check          # after core/RVFI changes
 ## 4. Deploy (FPGA synthesis → physical board)
 
 Physical deployment is the **final evidence gate**.  Simulation passing is not
-board proof.  The board component selects the flow; three boards are supported:
+board proof.
+
+**Synthesize hardware, not software.**  On the Gowin boards main memory is
+block RAM, whose contents are set when the device is configured, so
+`make fpga ... PROGRAM=<name>` bakes the program into the netlist
+(`chparam -set RAM_INIT_FILE`).  That makes every program a separate bitstream
+with its own placement, timing, and hash — which is how `role.tpu-lite` once
+stopped fitting because of a software change.  Use it only for first bring-up
+of a profile that has no loader image.
+
+The normal path is a **loader bitstream plus runtime payloads**: build it once
+per profile, then send programs to a running board.
+
+```bash
+make fpga-loader-primer            # blank RAM + immutable UART ROM, no payload
+make load PROGRAM=snake            # send any bare-metal program, ~0.1 s
+python3 sw/host/axhost.py --serial /dev/ttyUSB1 --baud 921600 \
+  --upload-kernel sw/kernel/build/primer-runtime/axos_boot.bin   # or a kernel
+```
+
+`make -C sw/baremetal check-snake-loader` gates the property in simulation: an
+uploaded program must reach exactly the state the baked one reaches.
+
+The board component selects the flow; three boards are supported:
 
 | Board | Profile | Flow | Main memory |
 |---|---|---|---|

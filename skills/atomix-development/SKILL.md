@@ -15,6 +15,45 @@ description: Implement, review, or verify atomiX architecture, RISC-V, aXos, FPG
 
 ## Implement
 
+### Software must never be part of a bitstream's identity
+
+**A new example, game, benchmark, or kernel change must never require
+re-synthesis and must never invalidate an existing board claim.** The Gowin
+bring-up flow bakes the payload into synthesis (`chparam -set RAM_INIT_FILE` in
+`rtl/fpga/Makefile`) because block RAM contents are set at configuration time,
+so under it every program is a different bitstream with different placement,
+different timing, and a different hash — "the board works" becomes a claim
+about one *program*, not about the hardware.
+
+This has already cost the project repeatedly. `role.tpu-lite` stopped placing
+after software-side additions, and
+`research/benchmarks/tangprimer25k-baseline.json` still carries two rows marked
+stale in `known_stale_rows` for exactly this reason: `gpu-lane1` and
+`morph-1pe` drifted because `gpu_lane1.c` and `morph.c` changed. Editing a C
+file moved a locked *hardware* number. That is the coupling, and it is the
+thing to refuse.
+
+The decoupled path already exists and is the default for anything shipped:
+
+- Synthesize a **loader** bitstream — `rom.axrom` plus `sw/bootrom` (`AXK1`
+  frame: magic, length, CRC-32), blank RAM, `reset_pc=0x1000`. One bitstream
+  per board profile, proved once.
+- Ship programs as **runtime payloads** over that loader
+  (`sw/host/axhost.py --upload-kernel <bin>`, `make load PROGRAM=<name>`). The
+  loader is payload-agnostic: it copies bytes to `0x8000_0000` and jumps, so a
+  bare-metal game and an aXos kernel are the same kind of thing to it.
+- A payload's budget is **size** (`RAM_BYTES - 4096`), not LUTs. Check size;
+  do not re-run P&R.
+
+Baking a payload is legitimate for exactly two cases, and both must say so:
+first bring-up of a board that has no loader image yet, and a part too small to
+carry the ROM. Never for a shipped example, and never as the flow a reader is
+told to run.
+
+When a change does move hardware, re-lock deliberately: `make synth-baseline`
+against a fresh sweep, and keep the board evidence, the profile, and the
+payload identity separate in the record.
+
 - Express replaceable choices through `components/` manifests and `configs/`
   profiles. Keep protocol boundaries generic and capabilities discoverable.
 - Keep the management plane independent from mutable accelerator logic.

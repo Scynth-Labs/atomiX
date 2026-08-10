@@ -212,9 +212,26 @@ make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf
 make fpga CONFIG=configs/tangprimer25k-tpu.json PROGRAM=tpu
 ```
 
-`PROGRAM` names the bare-metal image baked into on-chip RAM. It is part of the
-artifact directory key, so each profile/payload pair produces an independent
-netlist and bitstream. Use `PROGRAM=hello` for the initial UART smoke test.
+`PROGRAM` names the bare-metal image **baked into on-chip RAM at synthesis**.
+It is part of the artifact directory key, so each profile/payload pair produces
+an independent netlist and bitstream — which is exactly why this is a
+characterisation flow and not how software ships. Under it, changing a test
+program is a hardware event: new placement, new timing, new hash, and
+`role.tpu-lite` has already stopped fitting after a software-side change.
+
+Use it to characterise a *fabric* (a core, a role) where the payload is part of
+what is being measured, and use `PROGRAM=hello` for the initial UART smoke
+test. For anything you want to run, iterate on, or ship, program the loader
+bitstream once and upload instead:
+
+```bash
+make fpga-loader-primer          # blank RAM + immutable UART ROM
+make load PROGRAM=<name>         # send a program to the running board
+```
+
+Migrating the three performance profiles above onto loader images is tracked in
+[design-checklist.md](design-checklist.md); until that lands they stay baked,
+and their board evidence names a payload.
 
 Reproduce the board-independent comparisons with:
 

@@ -342,10 +342,28 @@ Use this for a substantive implementation or interface change:
   polynomial kernels in one 32 KiB aXos/RTL session; the nine-instruction
   switch frame is 42 UART bytes (about 0.46 ms in the 921600-baud runtime
   profile).
-- [x] Kernel-as-runtime-payload invariant: immutable UART ROM accepts a
-  length-bounded CRC-32 `AXK1` frame into blank RAM and starts any compatible
-  aXos personality. Evidence: `make -C sw/kernel check-uartboot` rejects
-  corrupt/oversized uploads and boots the full kernel; `make runtime-primer`
+- [x] Software-as-runtime-payload invariant (was "kernel-as-runtime-payload";
+  the loader never cared which). Immutable UART ROM accepts a length-bounded
+  CRC-32 `AXK1` frame into blank RAM and starts any compatible payload —
+  `uart_boot()` copies bytes to `0x8000_0000` and jumps, so a bare-metal game
+  is the same kind of thing to it as an aXos personality.  **No software change
+  may cause synthesis or P&R, and no program may become part of a bitstream's
+  identity.**  This is an invariant rather than a convenience because the Gowin
+  flow *can* bake the payload into the netlist, and when it does, every program
+  carries its own placement, timing, and hash: `role.tpu-lite` has already
+  stopped fitting because of a software-side change, and every earlier board
+  claim silently re-opens.  Baking is now reserved for first bring-up of a
+  profile that has no loader image, and is labelled as such wherever it
+  appears — including in `DESIGN.md`, `AGENTS.md`, and both skills, so a future
+  change cannot reintroduce the coupling by accident.  The shipping path is
+  `configs/tangprimer25k-runtime.json` (loader-only: `role.none`, blank RAM,
+  reset at the ROM), built by `make fpga-loader-primer` and fed by
+  `make load PROGRAM=<name>`.  Evidence: `make -C sw/kernel check-uartboot`
+  rejects corrupt/oversized uploads and boots the full kernel;
+  `make -C sw/baremetal check-snake-loader` boots from the ROM into blank
+  32 KiB RAM, uploads the game as an `AXK1` frame, and requires the *identical*
+  final checksum the baked image produces — which is what makes "a program is a
+  payload, not a hardware revision" a tested statement; `make runtime-primer`
   uploads the compact host-link kernel before its two-program accelerator test.
   The deterministic seed-3 loader-only Primer image routes at 29.30 MHz for a
   25 MHz constraint (18,417 LUT4, 3,853 DFF, 44 BSRAM, 3 DSP). Its immutable
@@ -357,6 +375,26 @@ Use this for a substantive implementation or interface change:
   through a dedicated Sv32 alias, and device polling is bounded. Evidence:
   `make -C sw/kernel check-role-driver` (resident shell plus U-mode loopback
   job) and `make -C sw/kernel check-boot` (safe role absence on ISS/QEMU).
+- [ ] Put the boot ROM in block RAM.  The loader bitstream costs about 1,534
+  LUT4 more than a baked one (15,425 against 13,891 on the same profile),
+  essentially all of it the 4 KiB ROM: `axrom` reads combinationally, and an
+  asynchronous read cannot map to a Gowin BSRAM, so 1,024 words become a LUT
+  ROM.  Twenty BSRAMs are free on the part.  A registered read would move it —
+  the same change `axram` already carries as `SYNC_READ` — at the cost of a
+  wait state on ROM fetches, which only the loader pays.  Worth doing because
+  the decoupling should not be something a tight profile has a reason to
+  refuse.
+- [ ] Finish decoupling the remaining Primer profiles from their payloads.
+  `tangprimer25k-{ax2,gpu,tpu}` still bake `cpu_perf`/`gpu_perf`/`tpu` into
+  synthesis, so their board evidence names a program and a change to that
+  program re-opens the claim.  Each needs a loader variant (`rom.axrom`, blank
+  RAM, reset at `0x1000`) — `tangprimer25k-runtime-gpu.json` already
+  demonstrates the shape for a role-carrying profile — plus a re-lock of its
+  row from a fresh sweep.  Deliberately not done in the same change as the
+  games: it re-opens three physically verified rows at once, and a re-lock
+  should follow a sweep rather than ride along with unrelated work.  The rule
+  itself is already enforced for anything new: `DESIGN.md`, `AGENTS.md`, and
+  both skills state that software must never be part of a bitstream's identity.
 - [ ] Remaining host-link enhancements: a dedicated second byte pipe so console
   and host-link coexist; buffer/stream and asynchronous-completion ops; cached
   prebuilt-bitstream selection for physical datapath changes.
@@ -443,6 +481,220 @@ Use this for a substantive implementation or interface change:
   shell with no map) each exit nonzero with a specific message.
 - [ ] Evaluate A or C ISA extensions only when their enabling need is explicit;
   neither is required for the current single-hart reference machine.
+
+## One shipped game per board
+
+Every board atomiX supports ships with at least one playable game, built from
+the same component/profile machinery as everything else.
+
+**The class of game is a design choice scaled to the board, not a fixed
+requirement.**  A game does not imply a screen.  A terminal game played over
+the UART is a real game, and on a board with no video pins and no spare block
+RAM it is the *right* game — not a consolation prize.  Boards with a display
+and memory to back it earn a framebuffer or a tile engine.  The commitment is
+one playable thing per board, chosen to fit what that board actually is.
+
+The point is not decoration.  A game is the only workload that forces the
+platform to be honest about what a research SoC can otherwise avoid forever: a
+program that stays responsive, reads input as it arrives, holds state across
+turns, and is judged by a person rather than by a checksum.  Every accelerator
+result so far answers "did the output match".  None answers "is this pleasant
+to use".
+
+It is also what makes the platform trustworthy to someone arriving for the
+first time.  A newcomer with a supported board should be able to load an image
+and *play something* within minutes, on the hardware they already own, without
+buying a display adapter or reading the RTL.  That is the difference between a
+platform someone believes works and one they have to take on faith.
+
+### Tiers, by board capability
+
+The class of game is chosen from what a board can actually spare, and each tier
+demonstrates something the tier below cannot.
+
+- **Minimal tier — turn-based, for boards where fitting a CPU is already the
+  achievement.** A 9K-LUT class part has no headroom for a live display loop
+  once the SoC is in. One key per turn, redraw on change, a few kilobytes of
+  payload. 2048 sits here: 7,695 bytes, and it proves the platform is real on
+  parts where nothing else would fit.
+- **Interactive tier — real-time, for a 25K-class part and up.** Continuous
+  redraw on a frame clock rather than on keypress, non-blocking input, and a
+  live panel in the manner of `htop`: score, frame time, cycles per frame, free
+  memory. This is the tier that proves the machine stays *responsive*, which a
+  turn-based game never has to. The Tang Primer 25K is an interactive-tier
+  board and now ships one — snake, 9,556 bytes at 12 fps — with 2048 kept as
+  the minimal-tier example for smaller parts. Building it also found the tier's
+  real constraint, which is not the CPU: at 115200 baud a byte is 2,170 cycles,
+  so what a frame *sends* dominates what a frame costs, and the differential
+  redraw is what makes the tier reachable at all.
+- **Framebuffer or tile tier — for boards with display pins and memory.**
+  A 320x240x8bpp framebuffer is 76.8 KiB against roughly 126 KiB of BSRAM on a
+  GW5A-25A with 24-48 of 56 blocks already spoken for, so this tier belongs to
+  boards with external memory. ULX3S carries HDMI and audio that no manifest
+  exposes yet.
+
+### Web parity, so the comparison is honest
+
+Every shipped game must also run in the browser build, booting the same payload
+through the WebAssembly Verilated model. That is what turns a game into a
+measurement: the same binary, the same SoC, one instance on real silicon at
+25 MHz and one on a laptop, side by side. It answers the question a newcomer
+actually has — *what is this supposed to feel like, and what does the hardware
+cost me?* — instead of asking them to take a cycle count on trust.
+
+The harness is already most of the way there. `sim/web/tb_soc_wasm.cpp` holds a
+UART input **queue** rather than a single register, and inverts control
+specifically so bytes can arrive from keyboard events; `boot.mjs` exposes
+`send(text)`, and `sim/web/public/app.js` has bound keydown to it since the
+console landed — the page was never output-only. The two things that were
+missing are now separable: its terminal could not follow a game's cursor (fixed
+below), and the model is roughly fourteen times slower than the board, which no
+amount of page work changes. **Parity is therefore not free here, and claiming
+it would be dishonest**: a real-time game is the first workload where a laptop
+cannot keep up with a 25 MHz FPGA, and that finding is worth more than the
+side-by-side screenshot the section was written to justify.
+
+### Checklist
+
+- [x] Define a `terminal` contract for games: how input arrives, how the screen
+  is addressed, and how a game is packaged, so a second game needs no new
+  platform work and a game runs unchanged on any board with a UART.  Evidence:
+  `sw/baremetal/include/term.h`.  Input is polled single-byte reads from the
+  16550 with blocking and non-blocking forms; the screen is a character grid
+  addressed with ANSI escapes, so it needs no hardware support at all; a game
+  is an ordinary bare-metal payload selected with `PROGRAM=<name>`.  The
+  interactive tier grew it a second half rather than a second contract:
+  absolute addressing (`term_goto`), a frame clock over `mcycle` with work,
+  overrun, and worst-case accounting (`term_frame_*`), a counted output path
+  so a game can report what a frame costs in bytes, and stack-painted free
+  memory (`term_mem_*`).  The claim that a second game needs no platform work
+  held on the way in: snake added nothing outside `term.h` and its own file.
+- [x] Ship a terminal-tier game.  Evidence: `sw/baremetal/examples/game2048.c`,
+  3,596 bytes of image plus 76 of state (the 7,695 recorded here previously was
+  the size of the ASCII `$readmemh` file, not of the program — a distinction
+  that matters now that a payload's budget is its size), and
+  `make -C sw/baremetal check-game2048`, which replays a fixed
+  key sequence through `UART_INPUT_FILE` and asserts the exact final state
+  (`score=164 checksum=0x243eb403`).  Determinism is the point: a game that
+  cannot be replayed cannot be regression-tested.  The Tang Primer image builds
+  and routes at 13,891/23,040 LUT4 (60%), 36/56 BSRAM.  The 26.17 MHz recorded
+  here is nextpnr's post-*placement* estimate rather than its routed number:
+  rebuilding the identical design for snake reports 26.17 MHz at that stage and
+  31.76 MHz after routing, and the routed figure is the one every other profile
+  in this tree quotes.
+- [~] Play 2048 on the Tang Primer over the Dock UART.  The image is built and
+  routed; the board detached from USB/IP before the play session, so this line
+  stays open until a transcript exists.
+- [x] Ship an interactive-tier game for the Tang Primer.  Evidence:
+  `sw/baremetal/examples/snake.c` (9,556 bytes of image, 1,652 of state) and
+  `make -C sw/baremetal check-snake`.  It redraws on a 12 fps clock paced from
+  `mcycle`, reads input without blocking, and carries the `htop`-style panel:
+  score, length, level, frame time, work cycles against the frame budget,
+  dropped frames, bytes sent per frame, and free RAM — measured by painting
+  the gap between the image and the stack and scanning what survived, so it is
+  memory the program has never touched rather than a link-map constant.
+  Three things are load-bearing rather than decoration.
+
+  *The redraw is differential.*  Repainting the 28x14 field costs about 4 KB
+  the way it draws — an address escape per cell — which is 47 ms on the
+  921600-baud loader profile and 370 ms at 115200, four frames to draw one.  A
+  moving snake changes three cells, so a frame sends about 205 bytes and the
+  panel reports it.  On the board the serial link, not the CPU, is what a frame
+  costs, and the game deliberately does not know the baud rate: it reports
+  cycles, which is the same fact without the assumption.
+
+  *The check asserts responsiveness, not only state.*  It requires `drops=0` —
+  no frame overran its budget — alongside the exact final checksum, and that
+  checksum folds a per-frame trace rather than hashing the last picture,
+  because a restart resets the game to something that owes nothing to what came
+  before it.  The game takes at most one key per frame, which makes the key
+  file a frame-by-frame tape; `sw/baremetal/make_snake_tape.py` plays a host
+  model of the same rules to generate one that eats, levels up, pauses, dies,
+  and restarts, and independently predicts the checksum the machine then
+  produced (`0xd824f761`).
+
+  *Scope, stated rather than implied.*  The simulated UART is a byte pipe with
+  no baud rate, so `check-snake` proves the compute keeps its deadline and not
+  that the game is playable; the frame's real cost is the link, and only the
+  board can measure it.  The check also builds the game at a compressed frame
+  clock, because at 12 fps one frame is 2.08M simulated cycles — the pacing
+  mechanism is what it exercises, not the constant.  The worst frame used
+  25,751 of its 50,000-cycle budget.
+
+  *Delivery: the game is a payload, not a bitstream.*  It is uploaded to a
+  board already running the loader image (`make load PROGRAM=snake`), and
+  `check-snake-loader` proves an uploaded copy reaches the same state a baked
+  one does.  Its budget is therefore size — 9,556 bytes against the loader's
+  28,672-byte limit at 32 KiB — and not logic.  A baked build was made first,
+  as a bring-up datapoint: 13,891/23,040 LUT4 (60%), 3,138 DFF, 36/56 BSRAM,
+  0 DSP, 31.76 MHz at seed 1.  It matches the 2048 image to the LUT while
+  `hello` on the same profile is 14,326, which is the coupling in one line —
+  one hardware profile, three programs, three different placements.  That is
+  the reason games do not ship this way.  No board session has run either
+  image, so nothing here is a physical claim.
+- [~] Make the browser build able to render a game.  The item as written was
+  wrong about where the gap was: `sim/web/public/app.js` has bound keydown to
+  the input queue since the browser console landed.  What was missing was the
+  other direction — its terminal implemented exactly what the aXos shell emits,
+  so it treated *every* `ESC[r;cH` as "home" and a game's differential redraw
+  stacked into the top-left corner.  It now honours absolute addressing,
+  ignores the cursor-visibility privates instead of printing them, and sends
+  arrow keys as the `ESC [ A..D` the games already decode, so the page and the
+  board agree on what a key means.  Stays `[~]` until a game is actually booted
+  in the page: the browser has no automated check that covers the terminal, and
+  the point below about frame rate has to be settled first.
+- [ ] Decide what a real-time game in the browser is *for*.  Measured: the
+  native model sustains 1.78M cycles/s on this host (5,302,972 cycles of
+  `check-snake` in 2.98 s) and the browser is 0.94–1.37× native, against the
+  25M cycles/s a 12 fps frame clock asks for — the shipped image would play at
+  under one frame a second.  This is the first workload in
+  the project where the browser is not a substitute for hardware — a boot or an
+  accelerator job finishes either way — so either the page boots a
+  browser-paced build (`TERM_CPU_HZ` is already the override that would do it)
+  and says so plainly, or it does not ship a real-time game at all.  Do not
+  publish a side-by-side that quietly compares two different frame clocks.
+- [ ] Publish the side-by-side comparison: the same payload in the browser and
+  on the board, with the frame-time panel visible in both, so the cost of real
+  silicon at 25 MHz is shown rather than asserted.  Blocked on the decision
+  above, and the finding has already turned the intended argument around: the
+  interesting number is not what the FPGA costs against a laptop but that a
+  laptop cannot keep up with a 25 MHz machine on this workload at all.
+- [x] Write the "run a game on atomiX" guide, aimed at someone who has never
+  built the project: load the image, open the port, play.  Evidence:
+  [games.md](games.md).
+- [ ] Only then, define `video`, `input`, and `audio` component kinds on role-
+  window terms — identity register, geometry/mode registers, a framebuffer or
+  tile aperture — so a board without sound selects `audio.none` rather than
+  failing to build.  A game's source must not change when the board does.
+- [ ] Add the physical pins to the manifests of boards that have the hardware,
+  starting with ULX3S HDMI and audio.
+- [ ] Ship the first graphical game on the board with the most headroom, so the
+  contracts are shaped by the comfortable case before being squeezed.
+- [~] Give every shipped game the same evidence treatment as a benchmark
+  profile: a pinned baseline, and a deterministic timing measurement — frame
+  time where there are frames, turn latency where there are not.
+
+  The original wording said "a pinned resource baseline in the synthesis lock",
+  and acting on it literally was a mistake worth recording: a locked LUT/fmax
+  row per *game* only makes sense if a game is part of the bitstream, which is
+  precisely the coupling that has to go.  A payload's budget is **size**, not
+  logic.  So the locked row is the loader bitstream every payload runs on
+  (`runtime` in the Primer sweep), and a game is gated on fitting the loader's
+  `RAM_BYTES - 4096` limit — `check_payload_boot.py` reports an over-budget
+  payload as its own specific failure rather than as a rejected upload.  Snake
+  is 9,556 bytes against 28,672.
+
+  Done: frame time is pinned by `check-snake` requiring `drops=0` and reporting
+  `maxwork`.  Also fixed the more basic gap — neither game check ran in *any*
+  suite, so both, plus the loader-boot gate, are now the `baremetal-games`
+  stage in `ci-integration` and `nightly-integrated`; an unrun check is not
+  evidence.  Open: 2048 has no turn-latency measurement, which is the same
+  claim for a turn-based game.
+
+**Explicit non-goal:** cycle-accurate reimplementation of existing consoles.
+That is what the established FPGA retro community builds, it is a far larger
+project than this one, and competing there would misrepresent what atomiX is.
+atomiX offers a documented, replaceable RISC-V SoC to write *new* software for.
 
 ## Interactive exploration (next milestone)
 

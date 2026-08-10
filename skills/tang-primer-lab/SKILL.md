@@ -35,6 +35,12 @@ device paths or BUSID.
 
 ## Program safely
 
+- Program the **loader** bitstream, then upload programs over UART. Do not
+  re-synthesize to change what the board runs: a baked payload makes every
+  program its own bitstream, its own placement, and its own hash, which is how
+  `role.tpu-lite` once stopped fitting after a software change. Reach for
+  `make fpga PROGRAM=<name>` only for first bring-up of a profile that has no
+  loader image.
 - Use `make -C rtl/fpga program ...` or `openFPGALoader -b tangprimer25k
   <image>` for reversible SRAM loading.
 - Never use `make flash`, `openFPGALoader -f`, or another persistent write

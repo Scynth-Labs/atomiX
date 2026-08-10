@@ -30,6 +30,8 @@ help:
 	@echo "  make fpga CONFIG=configs/tangprimer25k.json"
 	@echo "  make fpga CONFIG=configs/tangprimer25k-ax2.json PROGRAM=cpu_perf"
 	@echo "  make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf"
+	@echo "  make fpga-loader-primer  # loader bitstream: blank RAM, no baked program"
+	@echo "  make load PROGRAM=snake  # send a program to a board running the loader"
 	@echo "  make kernel-primer       # exact 32 KiB ISS + RTL gate"
 	@echo "  make runtime-primer      # two live GPU programs, no resynthesis"
 	@echo "  make -C sw/kernel check-uartboot # upload full aXos into blank RAM"
@@ -189,6 +191,37 @@ sim:
 fpga:
 	$(MAKE) -C rtl/fpga all COMPONENT_CONFIG="$(abspath $(CONFIG))"
 
+# The loader bitstream: blank RAM, immutable UART ROM, no baked program.  This
+# is what a board should be running, and it is built once per profile rather
+# than once per program.
+#
+# `make fpga ... PROGRAM=<name>` bakes the payload into synthesis instead,
+# because block RAM contents are set when the device is configured.  That path
+# exists for first bring-up of a board with no loader image; it is not how
+# software ships, because it makes every program its own bitstream, its own
+# placement, and its own timing claim.
+fpga-loader-primer:
+	$(MAKE) -C sw/bootrom images MODE=uart RAM_BYTES=32768 \
+	  BUILD_DIR=build/uart-ram32768
+	$(MAKE) -C rtl/fpga all \
+	  COMPONENT_CONFIG="$(abspath configs/tangprimer25k-runtime.json)" \
+	  RAM_INIT_FILE="$(abspath sw/bootrom/blank.hex)" \
+	  ROM_INIT_FILE="$(abspath sw/bootrom/build/uart-ram32768/bootrom.hex)"
+
+# Send a program to a board already running a loader bitstream.  No synthesis,
+# no reconfiguration: the hardware is not a function of the program, and this
+# does not change the bitstream the board is running.
+PROGRAM ?= snake
+SERIAL ?= /dev/ttyUSB1
+BAUD ?= 921600
+BOARD_RAM_BYTES ?= 32768
+load:
+	@test -e "$(SERIAL)" || { echo "no board at $(SERIAL): attach the Dock (docs/tangprimer25k-bringup.md), or pass SERIAL=<tty>"; exit 2; }
+	$(MAKE) -C sw/baremetal BUILD_DIR=build/ram$(BOARD_RAM_BYTES) \
+	  RAM_BYTES=$(BOARD_RAM_BYTES) build/ram$(BOARD_RAM_BYTES)/$(PROGRAM).bin
+	$(PYTHON) sw/host/axhost.py --serial $(SERIAL) --baud $(BAUD) \
+	  --upload-kernel sw/baremetal/build/ram$(BOARD_RAM_BYTES)/$(PROGRAM).bin
+
 # Kernel binaries are simulation artifacts and runtime payloads.  They are
 # deliberately never passed to the FPGA flow as RAM initialisation.
 kernel-primer:
@@ -268,4 +301,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
