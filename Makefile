@@ -154,7 +154,16 @@ policy-check: fitness-check registry-check
 	$(PYTHON) tools/live_policy.py check
 	$(PYTHON) tools/live_policy.py self-test
 
-live-sim-check: policy-check
+shadow-check: policy-check
+	$(PYTHON) tools/live_shadow.py check
+	$(PYTHON) tools/live_shadow.py self-test
+
+# Regenerates the shadow record from real RTL runs; not part of the fast gates
+# because it re-simulates every candidate.
+shadow-rebuild:
+	$(PYTHON) tools/live_shadow_build.py
+
+live-sim-check: shadow-check
 	$(MAKE) -C sim/livefpga check
 
 verification-check:

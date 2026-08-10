@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "name": "tangprimer25k-morph",
+  "components": {
+    "core": "core.minimal",
+    "soc": "soc.reference",
+    "memory": "memory.bram",
+    "role": "role.morph",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.tangprimer25k",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test"
+  },
+  "settings": {
+    "ram_bytes": 16384,
+    "caches": false,
+    "reset_pc": "0x80000000"
+  },
+  "parameters": {
+    "role": {
+      "pes": 1,
+      "data_words": 256
+    }
+  }
+}

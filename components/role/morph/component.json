@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "id": "role.morph",
+  "kind": "role",
+  "title": "Morph fabric: coarse-grained reconfigurable PE array (R2 prototype)",
+  "sources": [
+    "components/role/common/ax_gw5a_mul.sv",
+    "components/role/morph/morph_fabric.sv",
+    "components/role/morph/axrole.sv"
+  ],
+  "stock_soc_module": "axrole",
+  "capabilities": [
+    "role-window",
+    "doorbell",
+    "status-poll",
+    "bounded-configuration-memory",
+    "configurable-pe-array",
+    "local-routing",
+    "accumulator-state",
+    "descriptor-rejection",
+    "configuration-generation",
+    "scalar",
+    "simt",
+    "systolic",
+    "tunable"
+  ],
+  "parameters": {
+    "pes": {
+      "default": 4,
+      "define": "MORPH_PES",
+      "doc": "Processing elements, power of two. Lanes map onto SIMT columns or systolic reduction steps; the scalar personality always runs one lane."
+    },
+    "data_words": {
+      "default": 256,
+      "define": "MORPH_DATA_WORDS",
+      "doc": "Power-of-two data-buffer words, 256..4096. Engine addresses are truncated into this buffer, which is the structural role-window confinement guarantee."
+    }
+  }
+}

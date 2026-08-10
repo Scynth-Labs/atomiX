@@ -1,0 +1,154 @@
+{
+  "schema": {
+    "id": "org.atomix.live-ab-trial",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "live-ab-trial",
+  "id": "org.atomix.live-ab-trial.polynomial-horner",
+  "revision": 1,
+  "summary": "Volatile L1/L2 A/B trial with canary rejection and manager-owned rollback",
+  "environment": {
+    "level": "org.atomix.physical-tang-primer-25k",
+    "timestamp_utc": "2026-08-09T23:12:59Z",
+    "role": "org.atomix.role.gpu-compute",
+    "resident_image": true,
+    "reconfigured_fabric": false,
+    "persistent_flash_written": false,
+    "fabric_watchdog_wired": false
+  },
+  "workloads": {
+    "primary": {
+      "values": [
+        -4,
+        -3,
+        -2,
+        -1,
+        0,
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "oracle_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f"
+    },
+    "canary": {
+      "values": [
+        -9,
+        -7,
+        -5,
+        -3,
+        -1,
+        1,
+        3,
+        5,
+        7,
+        9
+      ],
+      "oracle_sha256": "8efcaf232ab931b631eaec355e1c2ba03c17d3ab52dbf103eead9d8e9f4f22cf"
+    }
+  },
+  "programs": {
+    "baseline_sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254",
+    "candidate_sha256": "9cc28a4a8a300ffd96d8b2c1c43a6eb50cb13dfcdd9194ed2930b9536aa5ed7c",
+    "injected_sha256": "b4e60f675ae3118d38de2ae09a271901c0ab89262648916623bf3d13f450d62c"
+  },
+  "result": {
+    "steps": [
+      {
+        "step": "baseline/primary",
+        "correct": true,
+        "note": "last-known-good established",
+        "load_cycles": 197,
+        "execute_cycles": 1022,
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "elapsed_ms": 12.905,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "baseline/canary",
+        "correct": true,
+        "note": "baseline passes the canary workload",
+        "load_cycles": 198,
+        "execute_cycles": 1022,
+        "output_sha256": "8efcaf232ab931b631eaec355e1c2ba03c17d3ab52dbf103eead9d8e9f4f22cf",
+        "elapsed_ms": 12.905,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "candidate/primary",
+        "correct": true,
+        "note": "A/B against the baseline",
+        "load_cycles": 180,
+        "execute_cycles": 986,
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "elapsed_ms": 12.905,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "candidate/canary",
+        "correct": true,
+        "note": "post-activation canary",
+        "load_cycles": 180,
+        "execute_cycles": 986,
+        "output_sha256": "8efcaf232ab931b631eaec355e1c2ba03c17d3ab52dbf103eead9d8e9f4f22cf",
+        "elapsed_ms": 12.905,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "injected/primary",
+        "correct": true,
+        "note": "fault-injected candidate hides on the primary workload",
+        "load_cycles": 252,
+        "execute_cycles": 1106,
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "elapsed_ms": 12.905,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "injected/canary",
+        "correct": false,
+        "note": "canary must reject it",
+        "load_cycles": 252,
+        "execute_cycles": 1106,
+        "output_sha256": "f7a331cf084b3fc6e7c94c142020a3e7d43b8f02749a87242859d293f5dc970a",
+        "elapsed_ms": 12.905,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "rollback/primary",
+        "correct": true,
+        "note": "restored candidate",
+        "load_cycles": 180,
+        "execute_cycles": 986,
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "elapsed_ms": 12.795,
+        "deadline_exceeded": false
+      },
+      {
+        "step": "rollback/canary",
+        "correct": true,
+        "note": "restored candidate passes the canary",
+        "load_cycles": 180,
+        "execute_cycles": 986,
+        "output_sha256": "8efcaf232ab931b631eaec355e1c2ba03c17d3ab52dbf103eead9d8e9f4f22cf",
+        "elapsed_ms": 12.795,
+        "deadline_exceeded": false
+      }
+    ],
+    "jobs": 8,
+    "deadline_ms": 250.0,
+    "deadline_misses": 0,
+    "baseline_execute_cycles": 1022,
+    "candidate_execute_cycles": 986,
+    "improvement_cycles": 36,
+    "candidate_promoted": true,
+    "injected_caught_by": "org.atomix.gate.canary-workload",
+    "injected_execute_cycles": 1106,
+    "last_known_good": "candidate",
+    "rollback_verified": true
+  },
+  "extensions": {},
+  "content_id": "sha256:619b728a6004be7226f678019c8926b25ca77aa5996d32cb1dac1a9d02abebbc"
+}

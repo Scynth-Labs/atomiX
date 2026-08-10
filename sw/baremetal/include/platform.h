@@ -33,6 +33,14 @@ static inline void uart_puts(const char *s) {
   while (*s) uart_putchar(*s++);
 }
 
+/* Wait for the shift register to empty, not just the holding register.  On the
+ * board test_finish stops the CPU immediately, which truncates a long final
+ * message mid-transmission; uart_putchar only guarantees THR was free. */
+static inline void uart_drain(void) {
+  /* 16550 LSR bit 6: transmitter empty (THR and shift register). */
+  while (!(mmio_read8(AX_UART_BASE + 5) & 0x40)) {}
+}
+
 __attribute__((noreturn)) static inline void test_finish(unsigned code) {
   const uint32_t value = code ? (uint32_t)(code << 16) | 0x3333u : 0x5555u;
   mmio_write32(AX_TEST_BASE, value);

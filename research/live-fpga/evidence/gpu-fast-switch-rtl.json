@@ -1,25 +1,40 @@
 {
-  "schema": {"id": "org.atomix.candidate-evidence", "major": 1, "minor": 0},
+  "schema": {
+    "id": "org.atomix.candidate-evidence",
+    "major": 1,
+    "minor": 0
+  },
   "kind": "candidate-evidence",
   "id": "org.atomix.candidate-evidence.gpu-fast-switch-rtl",
-  "revision": 2,
-  "summary": "RTL host-link load, execute, and exact-output observation for both reviewed GPU programs",
-  "content_id": "sha256:9c3d659ece369531ce193e149e9349d3962301ee840374991a39c3dab75f7b91",
+  "revision": 3,
+  "summary": "RTL host-link load, execute, and exact-output observation for both reviewed GPU programs, re-measured from the recorded command",
+  "content_id": "sha256:7e081c951f2884eac22ffc64fcd8427095858383fa1b29c69d34f7f559b54bef",
   "candidates": [
     "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
     "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7"
   ],
   "environment": {
     "level": "org.atomix.verilator-rtl",
-    "timestamp_utc": "2026-08-09T19:24:39Z",
+    "timestamp_utc": "2026-08-10T00:00:00Z",
     "tools": [
-      {"id": "org.atomix.tool.verilator", "version": "5.050"},
-      {"id": "org.atomix.tool.axhost", "version": "1.0"}
+      {
+        "id": "org.atomix.tool.verilator",
+        "version": "5.050"
+      },
+      {
+        "id": "org.atomix.tool.axhost",
+        "version": "1.0"
+      }
     ]
   },
   "test": {
     "id": "org.atomix.test.primer-runtime-fast-switch",
-    "command": ["make", "-C", "sw/kernel", "check-primer-runtime"],
+    "command": [
+      "make",
+      "-C",
+      "sw/kernel",
+      "check-primer-runtime"
+    ],
     "status": "org.atomix.pass",
     "oracle": "org.atomix.oracle.exact-output-le32",
     "results": [
@@ -27,15 +42,15 @@
         "candidate": "sha256:de9c0bbdd96ed9db605d9a3c75e5793164500c61c7b50138039fbad37f52dcba",
         "program_sha256": "e8b4950c5faf895fe87d70157bbb53a441d098d72e7543b58c88ab1003da2cf1",
         "output_sha256": "936e2398cff26b6925c19c4c59f95073b250e73086686ca62e5733e729a0f209",
-        "load_cycles": 340,
-        "execute_cycles": 889
+        "load_cycles": 119,
+        "execute_cycles": 887
       },
       {
         "candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
         "program_sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254",
         "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
         "load_cycles": 119,
-        "execute_cycles": 701
+        "execute_cycles": 699
       }
     ]
   },
@@ -47,7 +62,7 @@
     },
     {
       "id": "org.atomix.artifact.axhost-driver",
-      "sha256": "f3dd4b63d7c42188eb8dae5cd3d4a97ca6b9bb00cd52a0c0a4d60f85f0e9c76f",
+      "sha256": "266ec32db20a4981b89d8eb2b128f6ac1a3c79665bba0ebd99f8bfe95496b6ea",
       "path": "sw/host/axhost.py"
     },
     {

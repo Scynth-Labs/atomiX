@@ -1,0 +1,40 @@
+{
+  "schema": {
+    "id": "org.atomix.candidate-deployment",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "candidate-deployment",
+  "id": "org.atomix.candidate-deployment.horner-primer-volatile",
+  "revision": 1,
+  "summary": "Volatile-only activation of the Horner candidate on the Tang Primer after an L2 sign-off and a passing canary",
+  "content_id": "sha256:f27200ea60b4b23feb0d5193b9fd828edb758b73e014a03be3e8a0bc877eb0e1",
+  "candidates": [
+    "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64"
+  ],
+  "environment": {
+    "board": "org.atomix.board.tang-primer-25k-dock",
+    "device": "org.atomix.device.gw5a-25a",
+    "connected": true
+  },
+  "outcomes": [
+    {
+      "candidate": "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64",
+      "status": "org.atomix.volatile-active",
+      "attempts": 1,
+      "last_generation": 1,
+      "volatile_only": true,
+      "reason": "org.atomix.reason.canary-passed-and-rollback-verified"
+    }
+  ],
+  "extensions": {
+    "org.atomix.trial": {
+      "baseline_execute_cycles": 1022,
+      "candidate_execute_cycles": 986,
+      "improvement_cycles": 36,
+      "injected_caught_by": "org.atomix.gate.canary-workload",
+      "rollback_verified": true,
+      "persistent_flash_written": false
+    }
+  }
+}

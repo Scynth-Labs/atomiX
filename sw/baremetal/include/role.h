@@ -136,3 +136,32 @@ static inline void role_ring_doorbell(void) {
 static inline void role_wait_done(void) {
   while (!(mmio_read32(AX_ROLE_STATUS) & AX_ROLE_STATUS_DONE)) {}
 }
+
+/* role.morph programming model: a coarse-grained reconfigurable PE array.
+ * The personality lives entirely in a 13-word genome at CFG; the fabric is
+ * identical for every mode.  See components/role/morph/morph_fabric.sv. */
+#define AX_ROLE_MORPH_ID    0x4d525048u /* "MRPH" */
+#define AX_ROLE_MORPH_NITEMS     (AX_ROLE_BASE + 0x0010u)
+#define AX_ROLE_MORPH_NCONFIG    (AX_ROLE_BASE + 0x0014u)
+#define AX_ROLE_MORPH_COUNT      (AX_ROLE_BASE + 0x0018u)
+#define AX_ROLE_MORPH_CAPS       (AX_ROLE_BASE + 0x001cu)
+#define AX_ROLE_MORPH_GENERATION (AX_ROLE_BASE + 0x0020u)
+#define AX_ROLE_MORPH_REJECTS    (AX_ROLE_BASE + 0x0024u)
+#define AX_ROLE_MORPH_CFG        (AX_ROLE_BASE + 0x0100u)
+#define AX_ROLE_MORPH_DATA       (AX_ROLE_BASE + 0x1000u)
+
+#define AX_ROLE_MORPH_CFG_WORDS 13u
+#define AX_ROLE_STATUS_REJECTED 0x4u
+
+#define AX_MORPH_MODE_SCALAR   0u
+#define AX_MORPH_MODE_SIMT     1u
+#define AX_MORPH_MODE_SYSTOLIC 2u
+
+/* PE source muxes and the accumulator rule. */
+#define AX_MORPH_SRC_A     0u
+#define AX_MORPH_SRC_B     1u
+#define AX_MORPH_SRC_ACC   2u
+#define AX_MORPH_SRC_IMM0  3u
+#define AX_MORPH_SRC_IMM1  4u
+#define AX_MORPH_SRC_ZERO  5u
+#define AX_MORPH_ACC_LOAD  1u

@@ -1,0 +1,371 @@
+{
+  "schema": {
+    "id": "org.atomix.live-l2-shadow",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "live-l2-shadow",
+  "id": "org.atomix.live-l2-shadow.polynomial-horner",
+  "revision": 1,
+  "summary": "L2 shadow evaluation of a Horner polynomial candidate and a fault-injected variant against the reviewed baseline",
+  "content_id": "sha256:a1ebf59ce76a74c1603383614354483d0a3fef02a9181a1e0b19caf40c0809a9",
+  "baseline": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+  "environment": {
+    "level": "org.atomix.verilator-rtl",
+    "timestamp_utc": "2026-08-09T23:07:06Z",
+    "role": "org.atomix.role.gpu-compute",
+    "limits": {
+      "program_words": 64,
+      "data_words": 256,
+      "lanes": 1,
+      "registers": 8
+    },
+    "tools": [
+      {
+        "id": "org.atomix.tool.verilator",
+        "version": "5.050"
+      },
+      {
+        "id": "org.atomix.tool.axhost",
+        "version": "1.0"
+      }
+    ]
+  },
+  "evaluations": [
+    {
+      "candidate": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+      "identity": {
+        "id": "org.atomix.gpu-program.polynomial-i32-v1",
+        "numeric_id": 2,
+        "role": "org.atomix.role.gpu-compute",
+        "workload": {
+          "id": "org.atomix.workload.polynomial-i32",
+          "revision": 1
+        },
+        "artifact": {
+          "format": "org.atomix.gpu-compute.words-le32",
+          "sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254"
+        },
+        "build": {
+          "source": {
+            "path": "sw/host/gpu_programs.py",
+            "sha256": "f300d360e785a7b94ee047d57a53ba515195882429805bd32a64889a626844be"
+          },
+          "profile": {
+            "path": "configs/sim-primer-runtime-gpu.json",
+            "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae"
+          },
+          "tools": [
+            {
+              "id": "org.atomix.tool.gpu-program-encoder",
+              "version": "1.0"
+            },
+            {
+              "id": "org.atomix.tool.axhost",
+              "version": "1.0"
+            }
+          ]
+        },
+        "lineage": {
+          "parent": null,
+          "mutation": {
+            "operator": "org.atomix.mutation.import-reviewed",
+            "seed": null,
+            "parameters": {
+              "origin": "org.atomix.axhost.fast-switch"
+            }
+          }
+        }
+      },
+      "label": "reviewed baseline polynomial x*x + 2*x + 7",
+      "program": {
+        "words": [
+          67108864,
+          276824064,
+          554827776,
+          1234173954,
+          421920768,
+          1159725063,
+          1174405130,
+          340000768,
+          0
+        ],
+        "nthreads": 10,
+        "workload": "org.atomix.workload.polynomial-i32",
+        "program_sha256": "12d5d4491b04fc920b3e113b99fc70fb14795bee47f998f3a99ade8d1804a254",
+        "oracle_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f"
+      },
+      "observation": {
+        "simulated": true,
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "load_cycles": 119,
+        "execute_cycles": 699
+      },
+      "checks": [
+        {
+          "id": "org.atomix.check.program-length",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.opcode-allow-list",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.halt-terminated",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.define-before-use",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.address-confinement",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.oracle-exact-output",
+          "status": "org.atomix.pass",
+          "reason": null
+        }
+      ],
+      "verdict": "org.atomix.accepted",
+      "reason": [
+        "org.atomix.reason.all-gates-passed"
+      ]
+    },
+    {
+      "candidate": "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64",
+      "identity": {
+        "id": "org.atomix.gpu-program.polynomial-i32-v2-horner",
+        "numeric_id": 3,
+        "role": "org.atomix.role.gpu-compute",
+        "workload": {
+          "id": "org.atomix.workload.polynomial-i32",
+          "revision": 1
+        },
+        "artifact": {
+          "format": "org.atomix.gpu-compute.words-le32",
+          "sha256": "9cc28a4a8a300ffd96d8b2c1c43a6eb50cb13dfcdd9194ed2930b9536aa5ed7c"
+        },
+        "build": {
+          "source": {
+            "path": "sw/host/gpu_programs.py",
+            "sha256": "f300d360e785a7b94ee047d57a53ba515195882429805bd32a64889a626844be"
+          },
+          "profile": {
+            "path": "configs/sim-primer-runtime-gpu.json",
+            "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae"
+          },
+          "tools": [
+            {
+              "id": "org.atomix.tool.verilator",
+              "version": "5.050"
+            },
+            {
+              "id": "org.atomix.tool.axhost",
+              "version": "1.0"
+            }
+          ]
+        },
+        "lineage": {
+          "parent": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+          "mutation": {
+            "operator": "org.atomix.mutation.horner-strength-reduction",
+            "seed": null,
+            "parameters": {
+              "removed_instructions": 1,
+              "constant": 7
+            }
+          }
+        }
+      },
+      "label": "Horner candidate (x + 2) * x + 7",
+      "program": {
+        "words": [
+          67108864,
+          276824064,
+          1158676482,
+          555876352,
+          1159725063,
+          1174405130,
+          340000768,
+          0
+        ],
+        "nthreads": 10,
+        "workload": "org.atomix.workload.polynomial-i32",
+        "program_sha256": "9cc28a4a8a300ffd96d8b2c1c43a6eb50cb13dfcdd9194ed2930b9536aa5ed7c",
+        "oracle_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f"
+      },
+      "observation": {
+        "simulated": true,
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "load_cycles": 108,
+        "execute_cycles": 667
+      },
+      "checks": [
+        {
+          "id": "org.atomix.check.program-length",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.opcode-allow-list",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.halt-terminated",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.define-before-use",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.address-confinement",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.oracle-exact-output",
+          "status": "org.atomix.pass",
+          "reason": null
+        }
+      ],
+      "verdict": "org.atomix.accepted",
+      "reason": [
+        "org.atomix.reason.all-gates-passed"
+      ]
+    },
+    {
+      "candidate": "sha256:0a835a329b54297b8e9735d9f81efd709fb564f90d5e0c5335e94c98826f1f35",
+      "identity": {
+        "id": "org.atomix.gpu-program.polynomial-i32-v2-offby",
+        "numeric_id": 4,
+        "role": "org.atomix.role.gpu-compute",
+        "workload": {
+          "id": "org.atomix.workload.polynomial-i32",
+          "revision": 1
+        },
+        "artifact": {
+          "format": "org.atomix.gpu-compute.words-le32",
+          "sha256": "ee8702cf166a34392c2e72f421220d8fbffc88a04583095f8954d250712dae7b"
+        },
+        "build": {
+          "source": {
+            "path": "sw/host/gpu_programs.py",
+            "sha256": "f300d360e785a7b94ee047d57a53ba515195882429805bd32a64889a626844be"
+          },
+          "profile": {
+            "path": "configs/sim-primer-runtime-gpu.json",
+            "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae"
+          },
+          "tools": [
+            {
+              "id": "org.atomix.tool.verilator",
+              "version": "5.050"
+            },
+            {
+              "id": "org.atomix.tool.axhost",
+              "version": "1.0"
+            }
+          ]
+        },
+        "lineage": {
+          "parent": "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64",
+          "mutation": {
+            "operator": "org.atomix.mutation.constant-perturbation",
+            "seed": null,
+            "parameters": {
+              "constant_delta": 1
+            }
+          }
+        }
+      },
+      "label": "fault-injected Horner candidate with constant 8",
+      "program": {
+        "words": [
+          67108864,
+          276824064,
+          1158676482,
+          555876352,
+          1159725064,
+          1174405130,
+          340000768,
+          0
+        ],
+        "nthreads": 10,
+        "workload": "org.atomix.workload.polynomial-i32",
+        "program_sha256": "ee8702cf166a34392c2e72f421220d8fbffc88a04583095f8954d250712dae7b",
+        "oracle_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f"
+      },
+      "observation": {
+        "simulated": true,
+        "output_sha256": "1ecda72f461c3116143962da8f174bdaa519057688849f23dc6ae9c93431fb85",
+        "load_cycles": 108,
+        "execute_cycles": 667
+      },
+      "checks": [
+        {
+          "id": "org.atomix.check.program-length",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.opcode-allow-list",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.halt-terminated",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.define-before-use",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.address-confinement",
+          "status": "org.atomix.pass",
+          "reason": null
+        },
+        {
+          "id": "org.atomix.check.oracle-exact-output",
+          "status": "org.atomix.fail",
+          "reason": "org.atomix.reason.output-differs-from-oracle"
+        }
+      ],
+      "verdict": "org.atomix.rejected",
+      "reason": [
+        "org.atomix.check.oracle-exact-output"
+      ]
+    }
+  ],
+  "request": {
+    "status": "org.atomix.signed-off",
+    "candidate": "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64",
+    "baseline": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+    "authority": "org.atomix.volatile-test-only",
+    "actuation": "org.atomix.not-authorized",
+    "rollback_to": "sha256:530ef5fa60934e4c0bd4a015b542a04951f44f16e7984707a0108c1d7dc73cb7",
+    "requires": [
+      "org.atomix.gate.manager-approval",
+      "org.atomix.gate.canary-workload",
+      "org.atomix.gate.rollback-target-resident"
+    ],
+    "reason": [
+      "org.atomix.reason.all-gates-passed",
+      "org.atomix.reason.strict-cycle-improvement"
+    ]
+  },
+  "extensions": {}
+}

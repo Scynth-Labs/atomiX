@@ -106,8 +106,7 @@ def validate_tools(path: Path, value: Any, name: str) -> None:
             raise pc.error(path, f"{item_name}.version must be non-empty")
 
 
-def validate_identity(path: Path, value: Any, index: int) -> dict[str, Any]:
-    name = f"candidates[{index}].identity"
+def validate_identity(path: Path, value: Any, name: str) -> dict[str, Any]:
     identity = pc.object_value(path, value, name)
     pc.exact_keys(
         path, identity, name,
@@ -167,7 +166,8 @@ def validate_registry(path: Path, document: dict[str, Any]) -> dict[str, dict[st
         name = f"candidates[{index}]"
         candidate = pc.object_value(path, item, name)
         pc.exact_keys(path, candidate, name, {"content_id", "identity", "records"})
-        identity = validate_identity(path, candidate["identity"], index)
+        identity = validate_identity(path, candidate["identity"],
+                                     f"{name}.identity")
         declared = content_id_value(path, candidate["content_id"], f"{name}.content_id")
         expected = content_id(identity)
         if declared != expected:
@@ -363,6 +363,67 @@ def check(path: Path = DEFAULT_REGISTRY) -> dict[str, dict[str, Any]]:
     return by_content
 
 
+def record_validator(kind: str):
+    if kind == "candidate-evidence":
+        return validate_evidence
+    if kind == "candidate-deployment":
+        return validate_deployment
+    raise pc.ContractError(f"unsupported record kind {kind!r}")
+
+
+def write_json(path: Path, document: dict[str, Any]) -> None:
+    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+
+
+def seal(paths: list[Path], refresh_artifacts: bool = False,
+         registry_path: Path = DEFAULT_REGISTRY) -> int:
+    """Recompute record content IDs and update every registry reference.
+
+    Sealing never invents measurements.  It refuses a record whose tracked
+    artifact digests have drifted unless the caller states explicitly that the
+    artifacts were re-run, which keeps `check` the honest gate.
+    """
+    registry_path = registry_path.resolve()
+    registry = load_json(registry_path)
+    remapped: dict[str, str] = {}
+    for path in paths:
+        path = path.resolve()
+        document = load_json(path)
+        kind = document.get("kind")
+        validate = record_validator(kind)
+        if refresh_artifacts:
+            for artifact in document.get("artifacts", []):
+                if isinstance(artifact, dict) and artifact.get("path"):
+                    target = repo_path(path, artifact["path"], "artifacts[].path")
+                    if target.is_file():
+                        artifact["sha256"] = hashlib.sha256(
+                            target.read_bytes()).hexdigest()
+        previous = document.get("content_id")
+        document["content_id"] = document_content_id(document)
+        validate(path, document)
+        write_json(path, document)
+        if isinstance(previous, str) and previous != document["content_id"]:
+            remapped[previous] = document["content_id"]
+        print(f"sealed {path.relative_to(ROOT)} -> {document['content_id']}")
+
+    updated = 0
+    for candidate in registry.get("candidates", []):
+        for record_kind in ("evidence", "deployments"):
+            for ref in candidate.get("records", {}).get(record_kind, []):
+                target = (ROOT / ref["path"]).resolve()
+                if target not in {p.resolve() for p in paths}:
+                    continue
+                actual = load_json(target)["content_id"]
+                if ref["content_id"] != actual:
+                    ref["content_id"] = actual
+                    updated += 1
+    if updated:
+        write_json(registry_path, registry)
+        print(f"updated {updated} registry reference(s)")
+    check(registry_path)
+    return 0
+
+
 def self_test() -> int:
     registry = load_json(DEFAULT_REGISTRY)
     validate_registry(Path("<registry>"), registry)
@@ -406,11 +467,21 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="command", required=True)
     check_parser = subparsers.add_parser("check")
     check_parser.add_argument("path", nargs="?", type=Path, default=DEFAULT_REGISTRY)
+    seal_parser = subparsers.add_parser(
+        "seal", help="recompute record content IDs and registry references")
+    seal_parser.add_argument("records", nargs="+", type=Path)
+    seal_parser.add_argument(
+        "--refresh-artifacts", action="store_true",
+        help="also re-digest path-backed artifacts; only valid after re-running "
+             "the record's own test command")
+    seal_parser.add_argument("--registry", type=Path, default=DEFAULT_REGISTRY)
     subparsers.add_parser("self-test")
     args = parser.parse_args()
     try:
         if args.command == "self-test":
             return self_test()
+        if args.command == "seal":
+            return seal(args.records, args.refresh_artifacts, args.registry)
         check(args.path)
         return 0
     except pc.ContractError as exc:

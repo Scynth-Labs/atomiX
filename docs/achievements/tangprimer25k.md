@@ -54,6 +54,52 @@ is four lanes: eight lanes overflowed at 109% LUT use, six lanes packed to 96%
 but could not be legally placed, and four lanes placed, routed, met timing, and
 passed its workloads.
 
+### Morph fabric (R2) — 2026-08-10
+
+The coarse-grained reconfigurable role ran on the Dock in volatile SRAM and
+printed `role morph: PASS (scalar, SIMT, systolic on one fabric; descriptors
+confined)`. One resident configuration computed a 64-step scalar recurrence, a
+50-element SIMT SAXPY, and a 12x8x8 systolic GEMM, each checked
+element-by-element against an on-core reference, with only the 13-word genome
+changing between them. Four descriptor classes — output stream and input stream
+leaving the window, unknown mode, and a short genome — were refused before BUSY
+rose, did not advance the configuration generation, and did not disturb the
+previous result; the fabric then ran the last good genome correctly.
+
+| Item | Value |
+|---|---|
+| Profile | `tangprimer25k-morph.json`, 1 PE, 256 data words |
+| Routed resources | 20,176/23,040 LUT4, 2,706 FF, 24 BSRAM, 3 DSP |
+| Routed fmax | 29.20 MHz (PASS at 25 MHz) |
+| Bitstream SHA-256 | `8faf3d137e195d9280c75a5fc12b4d3a60622a5ddaca31c206e5c0363c455d5b` |
+| Payload SHA-256 | `0314c572e3e2758a71902223f57f995a9d29a71d7293a20194424babdc5b7b7c` |
+| Flash written | no |
+
+Measured on the board in the same run, with an on-core reference reading the
+same operands from RAM:
+
+| Personality | Reconfigure | Fabric job | On-core | Items | Speedup |
+|---|---:|---:|---:|---:|---:|
+| scalar recurrence | 358 cyc (14.3 us) | 440 cyc | 3,342 cyc | 64 | 7.6x |
+| SIMT SAXPY | 358 cyc (14.3 us) | 462 cyc | 3,170 cyc | 50 | 6.9x |
+| systolic GEMM | 361 cyc (14.4 us) | 4,950 cyc | 48,584 cyc | 96 | 9.8x |
+
+"Reconfigure" is the whole personality change — thirteen genome words plus
+NITEMS, written locally by the management CPU. It excludes host transfer; the
+same 52-byte genome delivered over the 921600-baud UART would add about
+0.61 ms, still inside R2's sub-millisecond target. "Fabric job" is doorbell to
+observed completion including the status polling the CPU actually performs, so
+it understates nothing.
+
+Capacity is the headline result: two PEs pack to 92% but find no legal
+placement, and four PEs demand 102% of the LUT4 budget. One morph PE therefore
+costs more area and less frequency than the hard four-lane GPU (18,280 LUT4,
+38.47 MHz) or the hard TPU (17,345 LUT4, 32.65 MHz) that it would replace,
+while returning only 7-10x over the scalar core. For contrast the hard TPU
+measured 189 compute cycles against 42,995 on-core cycles for its own GEMM.
+That is a different matrix shape and not a like-for-like comparison, but the
+order-of-magnitude gap is the cost of generality on this device.
+
 ### Live-runtime results — 2026-08-10
 
 - The exact 32 KiB resident-kernel/one-lane-GPU profile passed the two-program

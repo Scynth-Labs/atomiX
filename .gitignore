@@ -57,3 +57,4 @@ sim/web/public/.bundle-tag
 .vscode/
 # Formal-generated jobs, solver databases, and counterexample traces.
 formal/build/
+sim/unit/morph_outputs.bin

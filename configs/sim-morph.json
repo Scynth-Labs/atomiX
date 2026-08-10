@@ -1,0 +1,30 @@
+{
+  "schema": 1,
+  "name": "sim-morph",
+  "components": {
+    "core": "core.pipeline5",
+    "soc": "soc.reference",
+    "memory": "memory.bram",
+    "role": "role.morph",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.sim",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test",
+    "harness": "harness.verilator-soc"
+  },
+  "settings": {
+    "ram_bytes": 131072,
+    "caches": false,
+    "reset_pc": "0x80000000"
+  },
+  "parameters": {
+    "role": {
+      "pes": 4,
+      "data_words": 256
+    }
+  }
+}

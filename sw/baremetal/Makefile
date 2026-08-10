@@ -92,6 +92,14 @@ check-role-irq: $(BUILD_DIR)/role_irq.hex
 
 # RTL-only like check-role.  The raised cycle budget covers the on-core
 # reference matmuls (three 12x8x8 GEMMs on the 32-cycle mul/div unit).
+# Morph fabric: three personalities from one resident configuration, plus the
+# descriptor-confinement cases.  RTL-only; the ISS does not model the window.
+check-morph: $(BUILD_DIR)/morph.hex
+	$(MAKE) -C ../../sim/soc run \
+	  COMPONENT_CONFIG=../../configs/sim-morph.json \
+	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/morph.hex) RESET_PC=0x80000000 \
+	  MAX_CYCLES=1000000
+
 check-tpu: $(BUILD_DIR)/tpu.hex
 	$(MAKE) -C ../../sim/soc run \
 	  COMPONENT_CONFIG=../../configs/sim-tpu-lite.json \

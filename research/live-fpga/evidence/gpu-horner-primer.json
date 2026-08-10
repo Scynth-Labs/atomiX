@@ -1,0 +1,74 @@
+{
+  "schema": {
+    "id": "org.atomix.candidate-evidence",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "candidate-evidence",
+  "id": "org.atomix.candidate-evidence.gpu-horner-primer",
+  "revision": 1,
+  "summary": "Physical Tang Primer A/B trial of the Horner candidate with canary gating and verified rollback",
+  "content_id": "sha256:3c56b514cf76e163b396d6dec1e0fce28d1bb2456317e8394482850626cf628b",
+  "candidates": [
+    "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64"
+  ],
+  "environment": {
+    "level": "org.atomix.physical-tang-primer-25k",
+    "timestamp_utc": "2026-08-09T23:12:59Z",
+    "tools": [
+      {
+        "id": "org.atomix.tool.openfpgaloader",
+        "version": "1.1.1"
+      },
+      {
+        "id": "org.atomix.tool.axhost",
+        "version": "1.0"
+      }
+    ]
+  },
+  "test": {
+    "id": "org.atomix.test.live-ab-trial",
+    "command": [
+      "python3",
+      "tools/live_ab_trial.py",
+      "--serial",
+      "/dev/ttyUSB1",
+      "--baud",
+      "921600"
+    ],
+    "status": "org.atomix.pass",
+    "oracle": "org.atomix.oracle.exact-output-le32",
+    "results": [
+      {
+        "candidate": "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64",
+        "program_sha256": "9cc28a4a8a300ffd96d8b2c1c43a6eb50cb13dfcdd9194ed2930b9536aa5ed7c",
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "load_cycles": 180,
+        "execute_cycles": 986
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "org.atomix.artifact.primer-runtime-profile",
+      "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae",
+      "path": "configs/sim-primer-runtime-gpu.json"
+    },
+    {
+      "id": "org.atomix.artifact.ab-trial-record",
+      "sha256": "856be2d53c3a87dbaa4fe616d06cf7337d2ba0a5f871c5d685ef1d3b35d5342c",
+      "path": "research/live-fpga/trials/ab-primer-2026-08-10.json"
+    },
+    {
+      "id": "org.atomix.artifact.primer-runtime-bitstream",
+      "sha256": "62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6",
+      "path": null
+    },
+    {
+      "id": "org.atomix.artifact.primer-runtime-kernel",
+      "sha256": "0d161fbe0a04599817f5f6c321fb3448594863d3fc0187b9a8bc7d71804a4473",
+      "path": null
+    }
+  ],
+  "extensions": {}
+}

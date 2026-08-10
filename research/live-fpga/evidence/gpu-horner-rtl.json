@@ -1,0 +1,60 @@
+{
+  "schema": {
+    "id": "org.atomix.candidate-evidence",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "candidate-evidence",
+  "id": "org.atomix.candidate-evidence.gpu-horner-rtl",
+  "revision": 1,
+  "summary": "L2 shadow RTL evaluation of the Horner polynomial candidate",
+  "content_id": "sha256:aa3e81b2f2687b3146a657dd9b504b233492c044771189ae9481e76411bff92c",
+  "candidates": [
+    "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64"
+  ],
+  "environment": {
+    "level": "org.atomix.verilator-rtl",
+    "timestamp_utc": "2026-08-09T23:07:06Z",
+    "tools": [
+      {
+        "id": "org.atomix.tool.verilator",
+        "version": "5.050"
+      },
+      {
+        "id": "org.atomix.tool.axhost",
+        "version": "1.0"
+      }
+    ]
+  },
+  "test": {
+    "id": "org.atomix.test.l2-shadow-evaluation",
+    "command": [
+      "make",
+      "shadow-rebuild"
+    ],
+    "status": "org.atomix.pass",
+    "oracle": "org.atomix.oracle.exact-output-le32",
+    "results": [
+      {
+        "candidate": "sha256:05f01b10b9e5bd600b8b97c5372ff56fd0c734af55d22ec2d0eb4ae5c0a15d64",
+        "program_sha256": "9cc28a4a8a300ffd96d8b2c1c43a6eb50cb13dfcdd9194ed2930b9536aa5ed7c",
+        "output_sha256": "af6f2d10d68fca497acefc59533134f034f3a8a63de658cd58424fb8fd10f09f",
+        "load_cycles": 108,
+        "execute_cycles": 667
+      }
+    ]
+  },
+  "artifacts": [
+    {
+      "id": "org.atomix.artifact.sim-primer-runtime-profile",
+      "sha256": "6a919421d6d973e99c8d9b5ecb5ff99dc8731473f92e8be6773dd894d83a7cae",
+      "path": "configs/sim-primer-runtime-gpu.json"
+    },
+    {
+      "id": "org.atomix.artifact.shadow-record",
+      "sha256": "489be76623b13d2afbb72fd77687ca8728700490e1a28bde243b9509ca62bda6",
+      "path": "research/live-fpga/shadow/l2-polynomial-horner.json"
+    }
+  ],
+  "extensions": {}
+}
