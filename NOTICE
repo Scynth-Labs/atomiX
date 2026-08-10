@@ -1,0 +1,21 @@
+atomiX
+Copyright (c) 2026 Shubhendra Gautam and atomiX contributors
+
+This product includes software developed as part of the atomiX project.
+Licensed under the MIT License; see LICENSE for the full text.
+
+Trademark notice: the MIT License grants copyright permissions only. Use of the
+atomiX name and related marks is described in TRADEMARKS.md.
+
+This repository contains no vendored third-party source. The build depends on
+external tools that are obtained and licensed separately, and are not
+distributed here:
+
+  - Yosys, nextpnr, Project Trellis, Project Apicula (YosysHQ and contributors)
+  - Verilator (Veripool and contributors)
+  - RISC-V GNU toolchain (Free Software Foundation and contributors)
+  - openFPGALoader (its authors)
+  - QEMU (its authors), used optionally for kernel-tier checks
+
+Board and device documentation cited in docs/ remains the property of the
+respective vendors. See TRADEMARKS.md for the marks referenced.

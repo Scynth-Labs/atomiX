@@ -1,0 +1,26 @@
+cff-version: 1.2.0
+message: "If you use atomiX in academic or published work, please cite it as below."
+title: atomiX
+abstract: >-
+  A replaceable, component- and profile-driven RISC-V and FPGA platform. atomiX
+  composes a system from interchangeable component manifests, keeps an immutable
+  management shell separate from a swappable accelerator role, and carries a
+  research track covering FPGA partial reconfiguration, compute-personality
+  transformation, and bounded self-adaptive ("Live FPGA") logic with explicit
+  evidence gates.
+type: software
+authors:
+  - family-names: Gautam
+    given-names: Shubhendra
+    email: shubhendragautam1513@gmail.com
+repository-code: "https://github.com/ShubhendraGautam/atomiX"
+license: MIT
+date-released: "2026-08-10"
+keywords:
+  - RISC-V
+  - FPGA
+  - partial reconfiguration
+  - reconfigurable computing
+  - coarse-grained reconfigurable array
+  - hardware/software co-design
+  - evolvable hardware

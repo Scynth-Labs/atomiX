@@ -145,3 +145,21 @@ and verification claim.  Read the [component catalog](components/README.md),
 ---
 
 **Build what teaches. Verify what matters. Keep the seams open.**
+
+## Licence, attribution, and marks
+
+atomiX is copyright © 2026 Shubhendra Gautam and atomiX contributors, released
+under the [MIT License](LICENSE).
+
+| File | Purpose |
+|---|---|
+| [LICENSE](LICENSE) | MIT terms — the copyright grant |
+| [NOTICE](NOTICE) | attribution notice and external tool dependencies |
+| [AUTHORS.md](AUTHORS.md) | who wrote it |
+| [CITATION.cff](CITATION.cff) | how to cite it in published work |
+| [TRADEMARKS.md](TRADEMARKS.md) | use of the atomiX name, and third-party marks |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | DCO sign-off and evidence standards |
+
+The MIT License grants broad rights to use, modify and redistribute the code,
+including commercially. It does **not** grant rights in the project's name:
+that is covered separately by [TRADEMARKS.md](TRADEMARKS.md).
