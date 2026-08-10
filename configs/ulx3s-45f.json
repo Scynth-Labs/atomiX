@@ -1,29 +1,22 @@
 {
   "schema": 1,
-  "name": "tangprimer25k-ax2",
+  "name": "ulx3s-45f",
   "components": {
-    "core": "core.ax2",
+    "core": "core.pipeline5",
     "soc": "soc.reference",
-    "memory": "memory.bram",
+    "memory": "memory.sdram",
     "uart": "uart.mmio16550",
     "clint": "clint.qemu-virt",
     "spi": "spi.polling-mode0",
-    "board": "board.tangprimer25k",
+    "board": "board.ulx3s-45f",
     "interconnect": "interconnect.axbus-reference",
     "cache": "cache.direct-mapped",
     "rom": "rom.axrom",
     "finisher": "finisher.sifive-test"
   },
   "settings": {
-    "ram_bytes": 32768,
-    "caches": false,
-    "reset_pc": "0x80000000"
-  },
-  "parameters": {
-    "core": {
-      "issue_width": 2,
-      "icache_kb": 2,
-      "btb_entries": 64
-    }
+    "ram_bytes": 33554432,
+    "caches": true,
+    "reset_pc": "0x00001000"
   }
 }

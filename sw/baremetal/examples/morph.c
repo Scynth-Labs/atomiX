@@ -37,10 +37,16 @@ static volatile uint32_t sink;
 /* RAM copies of the same operands the fabric holds in its window.  The on-core
  * reference reads these rather than recomputing indices with a modulo, so the
  * comparison measures arithmetic against arithmetic instead of charging the
- * core for divisions the fabric never performs. */
-static int32_t ref_scalar_x[N_SCALAR];
-static int32_t ref_saxpy_x[N_SAXPY], ref_saxpy_y[N_SAXPY];
-static int32_t ref_gemm_a[GEMM_M * GEMM_K], ref_gemm_b[GEMM_K * GEMM_N];
+ * core for divisions the fabric never performs.
+ *
+ * They are volatile because every value here is a compile-time constant: given
+ * plain arrays, -O2 folds the reference loops toward a closed form and the
+ * "on-core" baseline stops measuring the work the fabric actually does.  The
+ * fabric loads each operand from memory, so the reference must too. */
+static volatile int32_t ref_scalar_x[N_SCALAR];
+static volatile int32_t ref_saxpy_x[N_SAXPY], ref_saxpy_y[N_SAXPY];
+static volatile int32_t ref_gemm_a[GEMM_M * GEMM_K];
+static volatile int32_t ref_gemm_b[GEMM_K * GEMM_N];
 
 static void fail(unsigned code, const char *what) {
   uart_puts("role morph: FAIL ");

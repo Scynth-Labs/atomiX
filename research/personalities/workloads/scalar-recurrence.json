@@ -1,0 +1,36 @@
+{
+  "schema": {"id": "org.atomix.workload", "major": 1, "minor": 0},
+  "kind": "workload",
+  "id": "org.atomix.workload.scalar-recurrence-i32",
+  "revision": 1,
+  "summary": "Dependent recurrence acc = (acc + x[i]) * multiplier + increment",
+  "operation": "org.atomix.workload.scalar-recurrence-i32",
+  "parameters": {"items": 64, "seed": 7, "multiplier": 3, "increment": 1},
+  "buffers": [
+    {
+      "name": "x",
+      "direction": "org.atomix.input",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["items"],
+      "layout": "org.atomix.row-major"
+    },
+    {
+      "name": "result",
+      "direction": "org.atomix.output",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": [1],
+      "layout": "org.atomix.row-major"
+    }
+  ],
+  "oracle": {"kind": "org.atomix.builtin-exact", "operation": "org.atomix.workload.scalar-recurrence-i32", "properties": {}},
+  "cases": [
+    {
+      "name": "directed-small",
+      "parameters": {"items": 4, "seed": 7, "multiplier": 3, "increment": 1},
+      "inputs": {"x": [1, 2, 3, 4]},
+      "expected": {"result": [781]}
+    }
+  ],
+  "metrics": ["org.atomix.metric.execute-cycles", "org.atomix.metric.switch-latency", "org.atomix.metric.total-energy"],
+  "extensions": {}
+}

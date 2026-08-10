@@ -42,6 +42,9 @@
 // exists to contain.  Quiescing is the driver's job and happens one level up,
 // by polling the role's own STATUS.BUSY before isolating; the fence is the
 // backstop for when that does not work.
+`ifndef AX_LIVE_MONITOR
+  `define AX_LIVE_MONITOR 1
+`endif
 module axroleiso #(
   parameter logic [31:0] BASE = 32'h1002_0000
 ) (
@@ -146,16 +149,22 @@ module axroleiso #(
     live_command = value == LIVE_SNAPSHOT || value == LIVE_ACTIVATE;
   endfunction
 
+  // Gating only the axlivemon instance is not enough: the decode below, the
+  // command validation, and the 64-bit read muxes are themselves ~550 LUT4 on
+  // a GW5A-25, which is what pushed role.tpu-lite past its placement limit.
+  // LIVE_MON folds all of it out when the profile opts out.
+  localparam bit LIVE_MON = (`AX_LIVE_MONITOR != 0);
+
   function automatic logic reg_offset(input logic [15:0] off);
     reg_offset = off == OFF_ID || off == OFF_CTRL || off == OFF_STATUS ||
-                 off == OFF_LIVE_ID || off == OFF_LIVE_VER ||
+                 LIVE_MON && (off == OFF_LIVE_ID || off == OFF_LIVE_VER ||
                  off == OFF_LIVE_CMD || off == OFF_LIVE_SEQ ||
                  off == OFF_CYCLES_LO || off == OFF_CYCLES_HI ||
                  off == OFF_WORK_LO || off == OFF_WORK_HI ||
                  off == OFF_STALL_LO || off == OFF_STALL_HI ||
                  off == OFF_REJECT_LO || off == OFF_REJECT_HI ||
                  off == OFF_WATCH_LO || off == OFF_WATCH_HI ||
-                 off == OFF_GEN_LO || off == OFF_GEN_HI;
+                 off == OFF_GEN_LO || off == OFF_GEN_HI);
   endfunction
   function automatic logic [31:0] read_reg(input logic [15:0] off);
     unique case (off)
@@ -181,9 +190,9 @@ module axroleiso #(
     endcase
   endfunction
 
-  wire i_bad_live_command = i_off == OFF_LIVE_CMD && |i_wstrb &&
+  wire i_bad_live_command = LIVE_MON && i_off == OFF_LIVE_CMD && |i_wstrb &&
                             (i_wstrb != 4'hf || !live_command(i_wdata));
-  wire d_bad_live_command = d_off == OFF_LIVE_CMD && |d_wstrb &&
+  wire d_bad_live_command = LIVE_MON && d_off == OFF_LIVE_CMD && |d_wstrb &&
                             (d_wstrb != 4'hf || !live_command(d_wdata));
 
   // Control register access.  Both ports are decoded because every shell slave
@@ -241,6 +250,11 @@ module axroleiso #(
   wire live_stall_event = !isolate_q &&
       ((bus_i_valid && !role_i_ready) || (bus_d_valid && !role_d_ready));
 
+  // The telemetry counters are optional; the fence is not.  A profile that
+  // sets AX_LIVE_MONITOR to 0 keeps ISO_CTRL/ISO_STATUS and the monitor's
+  // register window — reads simply return zero — so software needs no
+  // separate address map and role swapping is unaffected.
+generate if (LIVE_MON) begin : g_livemon
   axlivemon u_livemon (
     .clk(clk), .rst(rst),
     .snapshot_event(live_snapshot_event),
@@ -257,6 +271,21 @@ module axroleiso #(
     .snapshot_watchdog_events(live_watchdog_events),
     .snapshot_configuration_generation(live_configuration_generation)
   );
+end else begin : g_no_livemon
+  // Tie the snapshot outputs off and absorb the event lines so the fence and
+  // its register decode are unchanged.
+  assign live_sequence                 = 64'b0;
+  assign live_cycles                   = 64'b0;
+  assign live_work_completed           = 64'b0;
+  assign live_memory_stalls            = 64'b0;
+  assign live_descriptor_rejections    = 64'b0;
+  assign live_watchdog_events          = 64'b0;
+  assign live_configuration_generation = 64'b0;
+  wire _unused_live = &{1'b0, live_snapshot_event, live_work_event,
+                        live_stall_event, role_reject_event, watchdog_event,
+                        live_activation_event, 1'b0};
+end
+endgenerate
 
   always_ff @(posedge clk) begin
     if (rst) begin

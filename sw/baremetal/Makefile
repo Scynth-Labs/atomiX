@@ -100,6 +100,22 @@ check-morph: $(BUILD_DIR)/morph.hex
 	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/morph.hex) RESET_PC=0x80000000 \
 	  MAX_CYCLES=1000000
 
+# The R2 counter-experiment: the same SAXPY the morph fabric runs, on the
+# existing programmable role at one lane, measured identically.
+check-gpu-lane1: $(BUILD_DIR)/gpu_lane1.hex
+	$(MAKE) -C ../../sim/soc run \
+	  COMPONENT_CONFIG=../../configs/sim-gpu-lane1.json \
+	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/gpu_lane1.hex) RESET_PC=0x80000000 \
+	  MAX_CYCLES=2000000
+
+# R1 on silicon: the role-window fence and Live FPGA telemetry, exercised
+# through a real personality change.  RTL-only; the ISS models neither.
+check-roleiso: $(BUILD_DIR)/roleiso.hex
+	$(MAKE) -C ../../sim/soc run \
+	  COMPONENT_CONFIG=../../configs/sim-morph.json \
+	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/roleiso.hex) RESET_PC=0x80000000 \
+	  MAX_CYCLES=2000000
+
 check-tpu: $(BUILD_DIR)/tpu.hex
 	$(MAKE) -C ../../sim/soc run \
 	  COMPONENT_CONFIG=../../configs/sim-tpu-lite.json \

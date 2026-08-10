@@ -1,0 +1,161 @@
+{
+  "schema": {
+    "id": "org.atomix.ecp5-frame-address-probe",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "ecp5-frame-address-probe",
+  "id": "org.atomix.ecp5-frame-address-probe.lfe5u-45f",
+  "revision": 1,
+  "summary": "Exact frame-index to LSC_WRITE_ADDRESS pairs recovered from single-tile perturbations of an ECP5-45F design",
+  "device": "LFE5U-45F",
+  "geometry": {
+    "frames": 9470,
+    "bits_per_frame": 846,
+    "frame_bytes": 106,
+    "max_row": 71,
+    "max_col": 90
+  },
+  "method": "Delete one arc/enum line from one tile of a packed .config, pack the result both fully and as `ecppack --delta` against the unmodified config, then pair the changed frames against the emitted LSC_WRITE_ADDRESS values. A probe is used only when the two counts agree, so every pair is exact rather than inferred.",
+  "probe_sites": 55,
+  "usable_probes": 26,
+  "pairs": [
+    {
+      "frame_index": 43,
+      "address": 42,
+      "offset": -1
+    },
+    {
+      "frame_index": 47,
+      "address": 46,
+      "offset": -1
+    },
+    {
+      "frame_index": 76,
+      "address": 75,
+      "offset": -1
+    },
+    {
+      "frame_index": 100,
+      "address": 99,
+      "offset": -1
+    },
+    {
+      "frame_index": 106,
+      "address": 105,
+      "offset": -1
+    },
+    {
+      "frame_index": 352,
+      "address": 414,
+      "offset": 62
+    },
+    {
+      "frame_index": 354,
+      "address": 416,
+      "offset": 62
+    },
+    {
+      "frame_index": 418,
+      "address": 480,
+      "offset": 62
+    },
+    {
+      "frame_index": 423,
+      "address": 485,
+      "offset": 62
+    },
+    {
+      "frame_index": 424,
+      "address": 486,
+      "offset": 62
+    },
+    {
+      "frame_index": 459,
+      "address": 542,
+      "offset": 83
+    },
+    {
+      "frame_index": 461,
+      "address": 544,
+      "offset": 83
+    },
+    {
+      "frame_index": 525,
+      "address": 608,
+      "offset": 83
+    },
+    {
+      "frame_index": 530,
+      "address": 613,
+      "offset": 83
+    },
+    {
+      "frame_index": 531,
+      "address": 614,
+      "offset": 83
+    },
+    {
+      "frame_index": 4578,
+      "address": 9812,
+      "offset": 5234
+    },
+    {
+      "frame_index": 4685,
+      "address": 9940,
+      "offset": 5255
+    },
+    {
+      "frame_index": 5545,
+      "address": 12632,
+      "offset": 7087
+    },
+    {
+      "frame_index": 5546,
+      "address": 12633,
+      "offset": 7087
+    },
+    {
+      "frame_index": 5547,
+      "address": 12634,
+      "offset": 7087
+    },
+    {
+      "frame_index": 5553,
+      "address": 12640,
+      "offset": 7087
+    },
+    {
+      "frame_index": 5556,
+      "address": 12643,
+      "offset": 7087
+    },
+    {
+      "frame_index": 5561,
+      "address": 12647,
+      "offset": 7086
+    },
+    {
+      "frame_index": 9289,
+      "address": 18775,
+      "offset": 9486
+    },
+    {
+      "frame_index": 9415,
+      "address": 18944,
+      "offset": 9529
+    },
+    {
+      "frame_index": 9419,
+      "address": 18948,
+      "offset": 9529
+    }
+  ],
+  "observations": [
+    "A full bitstream issues LSC_INIT_ADDRESS once and streams every frame, so it never names a frame address; only a partial bitstream does.",
+    "Emitted addresses are strictly descending, so ecppack walks frames in descending index order.",
+    "The address space is roughly twice the frame count (max observed 19106 against 9470 frames), so the address is not a frame index.",
+    "The offset (address - index) is piecewise constant with at least nine segments and is not monotonic in index: between indices 5545 and 5561 the address advances by 15 while the index advances by 16."
+  ],
+  "extensions": {}
+}

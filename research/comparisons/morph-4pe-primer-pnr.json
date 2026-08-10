@@ -1,0 +1,157 @@
+{
+  "schema": {
+    "id": "org.atomix.comparison-evidence",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "comparison-evidence",
+  "id": "org.atomix.comparison-evidence.morph-4pe-primer-pnr",
+  "revision": 1,
+  "summary": "Morph fabric at four PEs: overflows the GW5A-25A LUT budget",
+  "claim": "org.atomix.observation",
+  "plan": {
+    "id": "org.atomix.comparison.r2-morph-vs-hard",
+    "revision": 1
+  },
+  "candidate": "org.atomix.candidate.systolic-morph",
+  "transition": {
+    "from": "org.atomix.candidate.scalar-pipeline5",
+    "mechanism": "org.atomix.full-image",
+    "retains_management_shell": true
+  },
+  "source": {
+    "commit": "1f14d1619e71b256ab4efd88364ded7dd79dfc3d",
+    "dirty": true,
+    "diff_sha256": "0b38e7db3b27d00f1ed1752bc53c69af8d3014a5342253569ee0bf1dfbda0172"
+  },
+  "environment": {
+    "evidence_level": "org.atomix.synthesis",
+    "timestamp_utc": "2026-08-09T23:46:04Z",
+    "board": "org.atomix.board.tang-primer-25k-dock",
+    "device": "org.atomix.device.gw5a-25a",
+    "tools": {
+      "yosys": "synth_gowin",
+      "nextpnr": "himbaechel-gowin"
+    }
+  },
+  "correctness": {
+    "status": "org.atomix.pass",
+    "oracle_cases": 3,
+    "output_sha256": "9bedc71a276bc8c817ac9be9e8c19d0aa283c0bf496550245cd80a091a8f8dd9",
+    "method": "Functional correctness comes from sim/unit tb_morph_fabric on the same RTL sources: the scalar recurrence, SIMT SAXPY and systolic GEMM each match their reference exactly. The area and timing numbers in this record are place-and-route results, not a board run."
+  },
+  "measurements": {
+    "org.atomix.metric.switch-latency": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    },
+    "org.atomix.metric.configuration-transfer-latency": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    },
+    "org.atomix.metric.execute-cycles": {
+      "value": null,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    },
+    "org.atomix.metric.total-cycles": {
+      "value": null,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    },
+    "org.atomix.metric.work-items": {
+      "value": null,
+      "unit": "org.atomix.unit.item",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    },
+    "org.atomix.metric.clock-frequency": {
+      "value": 25000000,
+      "unit": "org.atomix.unit.hertz",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.configuration-bytes": {
+      "value": null,
+      "unit": "org.atomix.unit.byte",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    },
+    "org.atomix.metric.lut-used": {
+      "value": null,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.unavailable",
+      "method": "Synthesis demanded 23,719 LUT4 against 23,040 available, so no design was realized and there is no used-LUT figure. The demand is recorded under extensions."
+    },
+    "org.atomix.metric.lut-available": {
+      "value": 23040,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.flip-flop-used": {
+      "value": 3064,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.flip-flop-available": {
+      "value": 23040,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.block-ram-bits-used": {
+      "value": 442368,
+      "unit": "org.atomix.unit.bit",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.block-ram-bits-available": {
+      "value": 1032192,
+      "unit": "org.atomix.unit.bit",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.dsp-used": {
+      "value": 12,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.dsp-available": {
+      "value": 28,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.maximum-frequency": {
+      "value": null,
+      "unit": "org.atomix.unit.hertz",
+      "status": "org.atomix.unavailable",
+      "method": "no legal placement, so no routed timing result exists"
+    },
+    "org.atomix.metric.total-energy": {
+      "value": null,
+      "unit": "org.atomix.unit.joule",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    }
+  },
+  "extensions": {
+    "org.atomix.placement": {
+      "note": "Four-PE morph fabric overflows at 102 percent LUT4; placement was not reached."
+    },
+    "org.atomix.overflow": {
+      "lut4_demanded": 23719,
+      "lut4_available": 23040,
+      "utilisation_percent": 102
+    }
+  }
+}

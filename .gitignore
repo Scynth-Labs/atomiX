@@ -32,11 +32,13 @@ __pycache__/
 # new profiles are visible to Git by default.
 !components/**/component.json
 !configs/*.json
-# Live FPGA records are checked research inputs/evidence, not synthesis output.
-!research/live-fpga/*.json
-!research/live-fpga/**/*.json
-# Compact benchmark observations are tracked evidence, not tool output.
-!research/benchmarks/*.json
+# Everything under research/ is a checked contract, record or measurement --
+# never synthesis output. Naming subdirectories individually meant that
+# research/personalities, research/comparisons and research/partial-reconfig
+# were silently ignored and never committed, so CI failed on a fresh checkout
+# with "no JSON contract documents found" while the files sat on the author's
+# disk. Cover the whole tree so a new research subdirectory cannot repeat it.
+!research/**/*.json
 # Verification manifests are source inputs, not generated tool output.
 !tests/verification-suites.json
 *.asc

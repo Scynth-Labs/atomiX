@@ -165,3 +165,29 @@ static inline void role_wait_done(void) {
 #define AX_MORPH_SRC_IMM1  4u
 #define AX_MORPH_SRC_ZERO  5u
 #define AX_MORPH_ACC_LOAD  1u
+
+/* Shell-owned role-window fence and Live FPGA monitor (axroleiso).  These live
+ * in *shell* space, not the role window: inside the window they would be
+ * unreachable at exactly the moment they are needed. */
+#define AX_SHELL_BASE       0x10020000u
+#define AX_SHELL_ID         (AX_SHELL_BASE + 0x0000u)
+#define AX_SHELL_ISO_CTRL   (AX_SHELL_BASE + 0x0004u)
+#define AX_SHELL_ISO_STATUS (AX_SHELL_BASE + 0x0008u)
+#define AX_SHELL_ID_MAGIC   0x61585348u /* "aXSH" */
+#define AX_ISO_ISOLATE      0x1u
+#define AX_ISO_ROLE_RESET   0x2u
+#define AX_ISO_STATUS_ISOLATED 0x1u
+
+#define AX_LIVE_ID          (AX_SHELL_BASE + 0x0100u)
+#define AX_LIVE_VERSION     (AX_SHELL_BASE + 0x0104u)
+#define AX_LIVE_COMMAND     (AX_SHELL_BASE + 0x0108u)
+#define AX_LIVE_SEQUENCE    (AX_SHELL_BASE + 0x010cu)
+#define AX_LIVE_CYCLES_LO   (AX_SHELL_BASE + 0x0110u)
+#define AX_LIVE_WORK_LO     (AX_SHELL_BASE + 0x0118u)
+#define AX_LIVE_STALL_LO    (AX_SHELL_BASE + 0x0120u)
+#define AX_LIVE_REJECT_LO   (AX_SHELL_BASE + 0x0128u)
+#define AX_LIVE_WATCH_LO    (AX_SHELL_BASE + 0x0130u)
+#define AX_LIVE_GEN_LO      (AX_SHELL_BASE + 0x0138u)
+#define AX_LIVE_ID_MAGIC    0x61584c56u /* "aXLV" */
+#define AX_LIVE_CMD_SNAPSHOT 1u
+#define AX_LIVE_CMD_ACTIVATE 2u

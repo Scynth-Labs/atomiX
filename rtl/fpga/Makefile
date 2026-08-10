@@ -27,6 +27,10 @@ $(COMPONENT_MK): $(COMPONENT_CONFIG) ../../tools/configure.py $(COMPONENT_MANIFE
 # Seed-specific P&R outputs below prevent make from reusing a route produced
 # with a different seed while leaving the synthesized netlist reusable.
 PNR_SEED ?= $(or $(COMPONENT_SETTING_PNR_SEED),1)
+# Extra place-and-route arguments, e.g. a larger placer effort for a profile
+# that sits close to the device limit. A profile may pin its own via the
+# pnr_extra_args setting so the recorded numbers are reproducible.
+PNR_EXTRA_ARGS ?= $(COMPONENT_SETTING_PNR_EXTRA_ARGS)
 
 $(COMPONENT_MK): $(COMPONENT_SELECTED_MANIFESTS)
 
@@ -154,7 +158,7 @@ $(JSON): $(SYNTH_SV) $(PROGRAM_HEX) $(ROM_INIT_DEP) Makefile | $(CONFIG_BUILD)
 	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); $(RAM_BYTES_CHPARAM) $(PROGRAM_CHPARAM) $(ROM_CHPARAM) $(RESET_PC_CHPARAM) synth_gowin -noabc9 -family $(SYNTH_FAMILY) $(COMPONENT_GOWIN_SYNTH_ARGS) -top $(TOP) -run begin:map_cells; techmap -map +/gowin/cells_map.v; opt_lut_ins -tech gowin; $(GOWIN_SETUNDEF_CMD) hilomap -singleton -hicell VCC V -locell GND G; clean; hierarchy -check; stat; check -noinit; blackbox =A:whitebox; write_json $@'
 
 $(PNR_JSON): $(JSON) $(CST) | check-tools
-	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) --seed $(PNR_SEED) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@ --report $(PNR_REPORT) --detailed-timing-report
+	$(NEXTPNR_HIMBAECHEL) $(COMPONENT_NEXTPNR_ARGS) $(PNR_EXTRA_ARGS) --seed $(PNR_SEED) --device $(DEVICE) --vopt family=$(FAMILY) --vopt cst=$(CST) --json $(JSON) --write $@ --report $(PNR_REPORT) --detailed-timing-report
 
 $(BIT): $(PNR_JSON)
 	$(GOWIN_PACK) $(COMPONENT_GOWIN_PACK_ARGS) -d $(FAMILY) -o $@ $(PNR_JSON)

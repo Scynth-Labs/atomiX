@@ -1,0 +1,172 @@
+{
+  "schema": {
+    "id": "org.atomix.comparison-evidence",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "comparison-evidence",
+  "id": "org.atomix.comparison-evidence.morph-1pe-primer-physical-systolic",
+  "revision": 1,
+  "summary": "Physical Tang Primer run of the morph fabric's systolic personality: reconfiguration, job latency, and an on-core reference over the same operands",
+  "claim": "org.atomix.observation",
+  "plan": {
+    "id": "org.atomix.comparison.r2-morph-vs-hard",
+    "revision": 1
+  },
+  "candidate": "org.atomix.candidate.systolic-morph",
+  "transition": {
+    "from": "org.atomix.candidate.scalar-pipeline5",
+    "mechanism": "org.atomix.full-image",
+    "retains_management_shell": true
+  },
+  "source": {
+    "commit": "1f14d1619e71b256ab4efd88364ded7dd79dfc3d",
+    "dirty": true,
+    "diff_sha256": "fcee19ba9213324680f32f660a4e7d0cc93005aad709650128cba26419469ffd"
+  },
+  "environment": {
+    "evidence_level": "org.atomix.physical-tang-primer-25k",
+    "timestamp_utc": "2026-08-10T04:51:26Z",
+    "board": "org.atomix.board.tang-primer-25k-dock",
+    "device": "org.atomix.device.gw5a-25a",
+    "tools": {
+      "yosys": "synth_gowin",
+      "nextpnr": "himbaechel-gowin",
+      "openfpgaloader": "1.1.1"
+    }
+  },
+  "correctness": {
+    "status": "org.atomix.pass",
+    "oracle_cases": 3,
+    "output_sha256": "9bedc71a276bc8c817ac9be9e8c19d0aa283c0bf496550245cd80a091a8f8dd9",
+    "method": "The board checked every element against an on-core reference and printed 'role morph: PASS (scalar, SIMT, systolic on one fabric; descriptors confined)'. The digest is the same concatenated personality output the Verilator bench produces; the board program verifies the identical values element-by-element and halts non-zero on any mismatch."
+  },
+  "measurements": {
+    "org.atomix.metric.switch-latency": {
+      "value": 14440,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "361 management-CPU cycles at 25 MHz to write the 13-word genome plus NITEMS. On-board reconfiguration only; it excludes any host transfer of the genome."
+    },
+    "org.atomix.metric.configuration-transfer-latency": {
+      "value": 564236,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "Wire time for the same 52-byte genome if it were delivered over the 921600-baud host UART rather than written locally. Not measured over the wire in this run."
+    },
+    "org.atomix.metric.execute-cycles": {
+      "value": 4950,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.measured",
+      "method": "Doorbell to observed completion, including the status polling the management CPU actually performs."
+    },
+    "org.atomix.metric.total-cycles": {
+      "value": 5311,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.measured",
+      "method": "Reconfiguration plus job latency for one personality change and run."
+    },
+    "org.atomix.metric.work-items": {
+      "value": 96,
+      "unit": "org.atomix.unit.item",
+      "status": "org.atomix.measured",
+      "method": "systolic personality work items"
+    },
+    "org.atomix.metric.clock-frequency": {
+      "value": 25000000,
+      "unit": "org.atomix.unit.hertz",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.configuration-bytes": {
+      "value": 52,
+      "unit": "org.atomix.unit.byte",
+      "status": "org.atomix.measured",
+      "method": "The genome is 13 words; a personality change writes only these plus NITEMS."
+    },
+    "org.atomix.metric.lut-used": {
+      "value": 20176,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.lut-available": {
+      "value": 23040,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.flip-flop-used": {
+      "value": 2706,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.flip-flop-available": {
+      "value": 23040,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.block-ram-bits-used": {
+      "value": 442368,
+      "unit": "org.atomix.unit.bit",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.block-ram-bits-available": {
+      "value": 1032192,
+      "unit": "org.atomix.unit.bit",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.dsp-used": {
+      "value": 3,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.dsp-available": {
+      "value": 28,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.maximum-frequency": {
+      "value": 29200000,
+      "unit": "org.atomix.unit.hertz",
+      "status": "org.atomix.measured",
+      "method": "nextpnr-himbaechel GW5A-25A place-and-route at the 25 MHz board constraint"
+    },
+    "org.atomix.metric.total-energy": {
+      "value": null,
+      "unit": "org.atomix.unit.joule",
+      "status": "org.atomix.unavailable",
+      "method": "not measured"
+    }
+  },
+  "extensions": {
+    "org.atomix.physical-run": {
+      "board": "Tang Primer 25K Dock, GW5A-25A, volatile SRAM load, UART 115200",
+      "bitstream_sha256": "8faf3d137e195d9280c75a5fc12b4d3a60622a5ddaca31c206e5c0363c455d5b",
+      "program_sha256": "0314c572e3e2758a71902223f57f995a9d29a71d7293a20194424babdc5b7b7c",
+      "pes": 1,
+      "data_words": 256,
+      "personalities": [
+        "scalar-recurrence-i32",
+        "saxpy-i32",
+        "gemm-i32"
+      ],
+      "rejected_descriptor_classes": 4,
+      "persistent_flash_written": false,
+      "uart_transcript": "role morph: PASS (scalar, SIMT, systolic on one fabric; descriptors confined)",
+      "personality": "systolic",
+      "reconfigure_cycles": 361,
+      "fabric_job_cycles": 4950,
+      "on_core_reference_cycles": 59168,
+      "work_items": 96,
+      "fabric_speedup_over_core_x100": 1195,
+      "note": "The on-core reference reads the same operands from volatile RAM arrays so -O2 cannot fold the loop; the scalar reference cross-validates at 3,732 cycles against the gpu-compute payload."
+    }
+  }
+}

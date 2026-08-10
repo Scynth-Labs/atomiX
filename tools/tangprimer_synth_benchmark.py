@@ -29,6 +29,8 @@ PRESETS = {
             f"ROM_INIT_FILE={ROOT / 'sw/bootrom/build/uart-ram32768/bootrom.hex'}",
         ],
     ),
+    "morph-1pe": ("configs/tangprimer25k-morph.json", ["PROGRAM=morph"]),
+    "gpu-lane1": ("configs/tangprimer25k-gpu-lane1.json", ["PROGRAM=gpu_lane1"]),
 }
 
 

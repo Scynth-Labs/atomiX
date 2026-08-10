@@ -1,0 +1,43 @@
+{
+  "schema": {"id": "org.atomix.workload", "major": 1, "minor": 0},
+  "kind": "workload",
+  "id": "org.atomix.workload.saxpy-i32",
+  "revision": 1,
+  "summary": "Independent signed-int32 SAXPY elements with explicit wrapping arithmetic",
+  "operation": "org.atomix.workload.saxpy-i32",
+  "parameters": {"items": 50, "a": 3},
+  "buffers": [
+    {
+      "name": "x",
+      "direction": "org.atomix.input",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["items"],
+      "layout": "org.atomix.row-major"
+    },
+    {
+      "name": "y",
+      "direction": "org.atomix.input",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["items"],
+      "layout": "org.atomix.row-major"
+    },
+    {
+      "name": "out",
+      "direction": "org.atomix.output",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["items"],
+      "layout": "org.atomix.row-major"
+    }
+  ],
+  "oracle": {"kind": "org.atomix.builtin-exact", "operation": "org.atomix.workload.saxpy-i32", "properties": {}},
+  "cases": [
+    {
+      "name": "signed-and-tail",
+      "parameters": {"items": 5, "a": 3},
+      "inputs": {"x": [1, -2, 3, 4, 5], "y": [10, 20, -30, 40, 50]},
+      "expected": {"out": [13, 14, -21, 52, 65]}
+    }
+  ],
+  "metrics": ["org.atomix.metric.execute-cycles", "org.atomix.metric.switch-latency", "org.atomix.metric.total-energy"],
+  "extensions": {}
+}

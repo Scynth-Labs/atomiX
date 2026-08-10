@@ -1,0 +1,110 @@
+{
+  "schema": 1,
+  "id": "org.atomix.synth-baseline.tangprimer25k",
+  "locked_on": "2026-08-10",
+  "locked_at_commit": "6e70b9e7124d715798fe485a4b3874c1d1642139",
+  "device": {
+    "part": "GW5A-25A",
+    "lut4": 23040,
+    "dff": 23040,
+    "bsram": 56,
+    "mult12x12": 56,
+    "constraint_mhz": 25.0
+  },
+  "tools": {
+    "yosys": "0.67+102",
+    "nextpnr": "himbaechel-gowin",
+    "note": "resource counts are toolchain-sensitive; a toolchain bump is expected to move them and should re-lock deliberately"
+  },
+  "tolerance": {
+    "lut4_percent": 3.0,
+    "dff_percent": 3.0,
+    "bsram_abs": 0,
+    "dsp_abs": 0,
+    "fmax_min_ratio": 0.97,
+    "note": "logic may drift a few percent with synthesis changes, but BSRAM and DSP counts are structural and must be exact; fmax must stay within 3% and above 25 MHz"
+  },
+  "profiles": {
+    "cpu": {
+      "config": "configs/tangprimer25k.json",
+      "program": "hello",
+      "expect": "pass",
+      "lut4": 14326,
+      "dff": 3138,
+      "bsram": 36,
+      "dsp": 0,
+      "fmax_mhz": 33.81
+    },
+    "gpu": {
+      "config": "configs/tangprimer25k-gpu.json",
+      "program": "gpu_perf",
+      "expect": "pass",
+      "lut4": 17782,
+      "dff": 3015,
+      "bsram": 40,
+      "dsp": 12,
+      "fmax_mhz": 34.12
+    },
+    "tpu": {
+      "config": "configs/tangprimer25k-tpu.json",
+      "program": "tpu",
+      "expect": "pass",
+      "lut4": 18134,
+      "dff": 3720,
+      "bsram": 48,
+      "dsp": 24,
+      "fmax_mhz": 31.74,
+      "note": "requires soc.live_monitor=0; regression fixed 2026-08-10"
+    },
+    "runtime-gpu": {
+      "config": "configs/tangprimer25k-runtime-gpu.json",
+      "program": null,
+      "expect": "pass",
+      "lut4": 18417,
+      "dff": 3853,
+      "bsram": 44,
+      "dsp": 3,
+      "fmax_mhz": 29.3
+    },
+    "morph-1pe": {
+      "config": "configs/tangprimer25k-morph.json",
+      "program": "morph",
+      "expect": "pass",
+      "lut4": 19158,
+      "dff": 2706,
+      "bsram": 24,
+      "dsp": 3,
+      "fmax_mhz": 32.01
+    },
+    "gpu-lane1": {
+      "config": "configs/tangprimer25k-gpu-lane1.json",
+      "program": "gpu_lane1",
+      "expect": "pass",
+      "lut4": 12281,
+      "dff": 2242,
+      "bsram": 28,
+      "dsp": 3,
+      "fmax_mhz": 33.61
+    },
+    "ax2": {
+      "config": "configs/tangprimer25k-ax2.json",
+      "program": "hello",
+      "expect": "fail",
+      "lut4": 25569,
+      "dff": 4641,
+      "bsram": 44,
+      "dsp": 0,
+      "fmax_mhz": null,
+      "note": "known failure: 110% LUT4, overflows the device. Recorded as failing rather than redefined; making it fit requires dropping branch prediction, which changes what it measures. A build that starts passing is also a baseline violation and must be re-locked deliberately."
+    }
+  },
+  "provenance": {
+    "cpu": "sweep tangprimer25k-synth-2026-08-10.json",
+    "gpu": "sweep tangprimer25k-synth-2026-08-10.json",
+    "runtime-gpu": "sweep tangprimer25k-synth-2026-08-10.json",
+    "morph-1pe": "sweep tangprimer25k-synth-2026-08-10.json",
+    "gpu-lane1": "sweep tangprimer25k-synth-2026-08-10.json",
+    "ax2": "sweep tangprimer25k-synth-2026-08-10.json (failing)",
+    "tpu": "in-tree rebuild after the 77553a2 regression fix; the sweep predates that fix and recorded tpu as failing"
+  }
+}

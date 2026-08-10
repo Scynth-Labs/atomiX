@@ -1,0 +1,714 @@
+{
+  "follow_up_2026_08_10": {
+    "ax2": {
+      "bsram": 44,
+      "conclusion": "Overflows outright even with the telemetry disabled. core.ax2 at issue_width 2, icache_kb 2 and btb_entries 64 does not fit the GW5A-25 alongside the current shell; this needs the core scaled down, not a build knob.",
+      "dff": 4641,
+      "fix": {
+        "changes": {
+          "core.btb_entries": "64 -> 0",
+          "core.icache_kb": "2 -> 1",
+          "core.issue_width": 2,
+          "soc.live_monitor": 0
+        },
+        "cost": "Branch prediction is gone and the instruction cache is halved. The profile is still dual-issue superscalar, which is what it exists to measure, but every taken branch now costs a redirect.",
+        "progression": [
+          {
+            "config": "as found",
+            "lut4": 25569,
+            "percent": 110
+          },
+          {
+            "config": "monitor off",
+            "lut4": 25569,
+            "percent": 110
+          },
+          {
+            "config": "+icache 1KiB, btb 16",
+            "lut4": 20839,
+            "percent": 90,
+            "result": "still fails"
+          },
+          {
+            "config": "+btb 0",
+            "lut4": 18825,
+            "percent": 81,
+            "result": "PASS"
+          }
+        ],
+        "result": {
+          "bsram": 42,
+          "fmax_mhz": 26.39,
+          "lut4": 18825,
+          "percent": 81,
+          "percent_bsram": 75,
+          "place_route_status": "PASS"
+        },
+        "status": "FIXED"
+      },
+      "lut4": {
+        "available": 23040,
+        "percent": 110,
+        "used": 25569
+      },
+      "mult12x12": 0
+    },
+    "question": "why do ax2 and tpu fail place-and-route, and can it be fixed",
+    "shell_change_applied": {
+      "effect_on_tpu": {
+        "dff_saved": 545,
+        "lut4_saved": 1511
+      },
+      "kept": "the isolation fence and the monitor register window are unchanged",
+      "profiles_opted_out": [
+        "tangprimer25k-tpu",
+        "tangprimer25k-ax2"
+      ],
+      "what": "soc.reference gained a live_monitor parameter (define AX_LIVE_MONITOR)"
+    },
+    "tpu": {
+      "baseline_lut4": {
+        "available": 23040,
+        "percent": 87,
+        "used": 20254
+      },
+      "conclusion": "Not LUT4-bound and not BSRAM-bound: morph-1pe places at 83% LUT4 while this fails at 81% with BSRAM at 57%. The binding constraint is unidentified; the 24 DSP blocks and their routing are the leading suspect. Unresolved.",
+      "dsp_mapping": "intact \u2014 24/56 MULT12X12, matching the 24 DSP recorded 2026-07-29",
+      "further_attempts": {
+        "cache_passthrough": "identical LUT4 \u2014 caches:false already optimised it out",
+        "decisive_observation": "Superseded. The DSP hypothesis was wrong: the TPU places with all 24 MULT12X12 once the telemetry decode is folded out. The cause was shell growth in 77553a2, not the multipliers.",
+        "next_step": "Parameterise the tpu-lite tile so the profile can trade multipliers for placeability. role.tpu-lite currently exposes no parameters and its dimensions are hardcoded, so this is an RTL change, not a profile knob.",
+        "placer_heap_cell_placement_timeout_200": "still fails",
+        "placer_sa": "segfaults",
+        "seeds_at_reduced_size": [
+          1,
+          2,
+          3
+        ],
+        "status": "SUPERSEDED \u2014 fixed; see regression_bisect_2026_08_10"
+      },
+      "ram_reduction_reverted": true,
+      "seed_result": "all fail; not a placement-seed effect",
+      "seeds_tried": [
+        2,
+        3,
+        5,
+        7
+      ],
+      "with_live_monitor_disabled": {
+        "bsram": 48,
+        "dff": 3720,
+        "lut4": 18743,
+        "percent": 81,
+        "result": "still fails"
+      },
+      "with_ram_16k_as_well": {
+        "bsram": 32,
+        "lut4": 18844,
+        "percent": 81,
+        "percent_bsram": 57,
+        "result": "still fails"
+      }
+    }
+  },
+  "generated_at_utc": "2026-08-10T09:17:27.723014+00:00",
+  "host": {
+    "logical_cpus": 2,
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.43"
+  },
+  "method": "fresh isolated synthesis, then place/route/pack; one process",
+  "regression_bisect_2026_08_10": {
+    "ax2": "Left as an explicit known failure at the user's direction: 25,569 LUT4 (110%) in its original configuration. It overflows rather than failing to place, and making it fit required dropping branch prediction, which changes what the profile measures.",
+    "fix": "soc.reference exposes live_monitor (define AX_LIVE_MONITOR); a LIVE_MON localparam now folds out the instance, the register decode, the command validation and the read muxes together.",
+    "method": "rebuild the tpu profile at successive commits in a worktree",
+    "result": {
+      "bsram": 48,
+      "design_changed": false,
+      "fmax_mhz": 31.74,
+      "lut4": 18134,
+      "mult12x12": 24,
+      "note": "Full 8x8 tile and all 24 DSPs retained; no RTL change to the role.",
+      "percent": 78,
+      "place_route_status": "PASS"
+    },
+    "root_cause": "77553a2 added the axlivemon counters *and* their register decode inside axroleiso. Together they cost about 2,100 LUT4 in every profile, which pushed role.tpu-lite past the point where nextpnr could legalise a placement.",
+    "symptom": "role.tpu-lite profile stopped placing; physically verified 2026-07-29",
+    "walk": [
+      {
+        "commit": "f038b65",
+        "date": "2026-07-30",
+        "fmax_mhz": 32.65,
+        "lut4": 17345,
+        "mult12x12": 24,
+        "note": "last commit before the window",
+        "percent": 75,
+        "result": "PASS"
+      },
+      {
+        "commit": "1373b58",
+        "date": "2026-07-31",
+        "lut4": 17759,
+        "note": "PLIC for role completion",
+        "percent": 77,
+        "result": "PASS"
+      },
+      {
+        "commit": "6ad8a4c",
+        "date": "2026-08-09",
+        "fmax_mhz": 33.87,
+        "lut4": 18193,
+        "note": "axroleiso isolation fence",
+        "percent": 78,
+        "result": "PASS"
+      },
+      {
+        "commit": "77553a2",
+        "date": "2026-08-09",
+        "lut4": 20254,
+        "note": "Live FPGA telemetry",
+        "percent": 87,
+        "result": "FAIL \u2014 the regression"
+      }
+    ],
+    "why_the_first_fix_was_insufficient": "Gating only the axlivemon instance saved 1,511 LUT4 and left 18,743 \u2014 still 550 above the 18,193 that placed at 6ad8a4c. The decode, the command validation and the 64-bit read muxes 77553a2 added to axroleiso were still being synthesised."
+  },
+  "results": [
+    {
+      "bitstream": {
+        "bytes": 6963614,
+        "sha256": "7c2f055a69bec2a5bb4ead5f243ad9065352a03f56386d9ce9d033c8bb9a6a6b"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 33.81462860107422,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k.json",
+        "sha256": "276002ed7ab5bf6ca7b13c5242340df6cb3fe7b451286312d4639ad79dff4a10"
+      },
+      "place_route_pack_ms": 370819.273,
+      "place_route_status": "PASS",
+      "profile": "cpu",
+      "synthesis_log_sha256": "0336394f60a0d60870869030cfba5d9e6869d83ec1f65c6ece56c7c3cc268589",
+      "synthesis_ms": 20306.882,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "595ac635b4790b81d3a2bebbd2ef4562d90aa63b1f521c33f0f8853af4b2c9d2",
+      "total_build_ms": 391126.154,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 1924
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 36
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3138
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 14326
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3761
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1380
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 591
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 219
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "config": {
+        "path": "configs/tangprimer25k-ax2.json",
+        "sha256": "5321f76ad476529f025a1c990ec16971a4706dff5129323683bcfcd283e5767a"
+      },
+      "failure_tail": [
+        "Info: \t           MUX2_LUT8:     122/   2880     4%",
+        "Info: \t                 ALU:    2098/  17280    12%",
+        "Info: \t                 GND:       1/      1   100%",
+        "Info: \t                 DFF:    5057/  23040    21%",
+        "Info: \t               BSRAM:      44/     56    78%",
+        "Info: \t           MULT12X12:       0/     56     0%",
+        "Info: \t        MULTALU27X18:       0/     28     0%",
+        "Info: \t     MULTADDALU12X12:       0/     28     0%",
+        "Info: \t                 GSR:       1/      1   100%",
+        "Info: \t              PINCFG:       1/      1   100%",
+        "Info: \t                OSCA:       0/      1     0%",
+        "Info: \t                PLLA:       0/      6     0%",
+        "Info: \t                 ADC:       0/      1     0%",
+        "Info: \t                BUFG:       0/     18     0%",
+        "Info: \t                 DCS:       0/      8     0%",
+        "Info: \t              CLKDIV:       1/     16     6%",
+        "Info: \t             CLKDIV2:       0/     16     0%",
+        "",
+        "Info: Running custom HCLK placer...",
+        "Info: Placed 0 cells based on constraints.",
+        "Info: Creating initial analytic placement for 15467 cells, random placement wirelen = 967554.",
+        "Info:     at initial placer iter 0, wirelen = 6789",
+        "Info:     at initial placer iter 1, wirelen = 6396",
+        "Info:     at initial placer iter 2, wirelen = 6205",
+        "Info:     at initial placer iter 3, wirelen = 6140",
+        "Info: Running main analytical placer, max placement attempts per cell = 198941404.",
+        "ERROR: Unable to find legal placement for all cells, design is probably at utilisation limit.",
+        "0 warnings, 1 error",
+        "make: *** [Makefile:157: /tmp/atomix-primer-synth-qvfp79vk/ax2/_home_shubhgau_dev_atomiX_configs_tangprimer25k-ax2/_home_shubhgau_dev_atomiX_sw_baremetal_build_ram32768_hello/tangprimer25k_top_seed1_pnr.json] Error 125",
+        "make: Leaving directory '/home/shubhgau/dev/atomiX/rtl/fpga'"
+      ],
+      "place_route_pack_ms": 205531.721,
+      "place_route_status": "FAIL",
+      "profile": "ax2",
+      "synthesis_ms": 37272.033,
+      "synthesis_status": "PASS",
+      "total_build_ms": 242803.754
+    },
+    {
+      "bitstream": {
+        "bytes": 7017166,
+        "sha256": "854a6781d8ca777cdd6129549cbeb3e7ad570a7984c6e080de99792e7b7dd05d"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 34.11921310424805,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-gpu.json",
+        "sha256": "99025406a6871b1b9a1dc4e8f8e05f694c69e827daa2fc6650f8a5a16a247165"
+      },
+      "place_route_pack_ms": 979279.103,
+      "place_route_status": "PASS",
+      "profile": "gpu",
+      "synthesis_log_sha256": "3d78d283bfdf5df1f3e50508ac74e0ccd34b8d83cd14b63295d3b2dcc3c179c8",
+      "synthesis_ms": 28452.172,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "ccaae8ced093cebc50a7ff14463637f86dd7fd84f096a7234472ce45b2e4a5f1",
+      "total_build_ms": 1007731.275,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2746
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 40
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3015
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 24
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 17782
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 12
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4067
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1348
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 563
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 166
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "config": {
+        "path": "configs/tangprimer25k-tpu.json",
+        "sha256": "f0787c81dbf091163a1f146e7a60cd9e2dc0aaded76acebe296c064a23326d41"
+      },
+      "failure_tail": [
+        "Info: \t                 DFF:    4265/  23040    18%",
+        "Info: \t               BSRAM:      48/     56    85%",
+        "Info: \t           MULT12X12:      24/     56    42%",
+        "Info: \t        MULTALU27X18:       0/     28     0%",
+        "Info: \t     MULTADDALU12X12:       0/     28     0%",
+        "Info: \t                 GSR:       1/      1   100%",
+        "Info: \t              PINCFG:       1/      1   100%",
+        "Info: \t                OSCA:       0/      1     0%",
+        "Info: \t                PLLA:       0/      6     0%",
+        "Info: \t                 ADC:       0/      1     0%",
+        "Info: \t                BUFG:       0/     18     0%",
+        "Info: \t                 DCS:       0/      8     0%",
+        "Info: \t              CLKDIV:       1/     16     6%",
+        "Info: \t             CLKDIV2:       0/     16     0%",
+        "",
+        "Info: Running custom HCLK placer...",
+        "Info: Placed 0 cells based on constraints.",
+        "Info: Creating initial analytic placement for 12719 cells, random placement wirelen = 884634.",
+        "Info:     at initial placer iter 0, wirelen = 9511",
+        "Info:     at initial placer iter 1, wirelen = 8271",
+        "Info:     at initial placer iter 2, wirelen = 8111",
+        "Info:     at initial placer iter 3, wirelen = 8192",
+        "Info: Running main analytical placer, max placement attempts per cell = 155443712.",
+        "Info:     at iteration #1, type ALL: wirelen solved = 8061, spread = 243175, legal = 740704; time = 108.35s",
+        "Info:     at iteration #2, type ALL: wirelen solved = 21773, spread = 206486, legal = 815035; time = 128.01s",
+        "Info:     at iteration #3, type ALL: wirelen solved = 32199, spread = 183573, legal = 716048; time = 118.34s",
+        "ERROR: Unable to find legal placement for all cells, design is probably at utilisation limit.",
+        "0 warnings, 1 error",
+        "make: *** [Makefile:157: /tmp/atomix-primer-synth-qvfp79vk/tpu/_home_shubhgau_dev_atomiX_configs_tangprimer25k-tpu/_home_shubhgau_dev_atomiX_sw_baremetal_build_ram32768_tpu/tangprimer25k_top_seed1_pnr.json] Error 125",
+        "make: Leaving directory '/home/shubhgau/dev/atomiX/rtl/fpga'"
+      ],
+      "place_route_pack_ms": 472500.714,
+      "place_route_status": "FAIL",
+      "profile": "tpu",
+      "synthesis_ms": 56711.119,
+      "synthesis_status": "PASS",
+      "total_build_ms": 529211.834
+    },
+    {
+      "bitstream": {
+        "bytes": 7124126,
+        "sha256": "62ee2d6d2f833f3bbe29d7af0cac4b64f8a3914db9490d5cdb9b979ce7e329c6"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 29.295446395874023,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-runtime-gpu.json",
+        "sha256": "1cb785c511c4ce6437fc4cde1c8d7e6865f2ed45b098e172d578234beb9b6799"
+      },
+      "place_route_pack_ms": 1464161.696,
+      "place_route_status": "PASS",
+      "profile": "runtime-gpu",
+      "synthesis_log_sha256": "2361b9884e184da54ec00d291899c3c611c2d8e2e11ffa5e70d4897e6493d12b",
+      "synthesis_ms": 55574.861,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "563c9c57b02ccd9825266f47e67580e322e10e8646a62e3af419f2bdc1779529",
+      "total_build_ms": 1519736.557,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2368
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 44
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3853
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 6
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 18417
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 3
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4312
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1502
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 632
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 242
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 6696126,
+        "sha256": "3a8b1eeddcb6f88a766950e96ace600f8ff59d034846bc5cbfdbd803ea0a59f5"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 32.00614547729492,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-morph.json",
+        "sha256": "16f1a27dba23d6b0ab18c2e1949070e3d875f6ddc6e0dd7749ff439cdc6a6e6d"
+      },
+      "place_route_pack_ms": 663986.212,
+      "place_route_status": "PASS",
+      "profile": "morph-1pe",
+      "synthesis_log_sha256": "30f20866c100cd03db371efa31a78632233b07b933ee97cc24b7b75d027fa70a",
+      "synthesis_ms": 34330.646,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "1f4090b584d464472d89e84dadf26d672325a617de5ebf0bf707795b04bf59dc",
+      "total_build_ms": 698316.858,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2752
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 24
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 2706
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 6
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 19158
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 3
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4055
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1310
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 573
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 203
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 6749638,
+        "sha256": "093831e30e16ef5eb67f376bbe5696ff0dd2df467cb0fb01bcd4681a3822a844"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 33.60892868041992,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-gpu-lane1.json",
+        "sha256": "8c5d33c34b16b7893da3fd46477499d854580d4b216f7d9746aa807cc90e252a"
+      },
+      "place_route_pack_ms": 323835.82,
+      "place_route_status": "PASS",
+      "profile": "gpu-lane1",
+      "synthesis_log_sha256": "b1326e398ce1abcad5f2ae5fefa4b5996d12d2a7a2ffbf98e489be75955dd0da",
+      "synthesis_ms": 26309.227,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "710f1720115288c6535ef20354992db60faa9886bfa727157b04cdf9d42c8dff",
+      "total_build_ms": 350145.048,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2308
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 28
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 2242
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 6
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 12281
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 3
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3241
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1210
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 535
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 183
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    }
+  ],
+  "schema": 1,
+  "status": "COMPLETE",
+  "tools": {
+    "gowin_pack": "/home/shubhgau/opt/oss-cad-suite/lib/python3.11/site-packages/apycula/bitmatrix.py:60: UserWarning: Numpy is not available, performance will be degraded.",
+    "nextpnr_himbaechel": "\"nextpnr-himbaechel\" -- Next Generation Place and Route (Version nextpnr-0.10-105-g77e1f19f)",
+    "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty, Release, Clang /usr/bin/clang++ 21.1.8)"
+  }
+}

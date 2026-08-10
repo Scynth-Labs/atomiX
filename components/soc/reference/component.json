@@ -9,6 +9,27 @@
     "components/soc/reference/soc_top.sv"
   ],
   "stock_sim_module": "soc_top",
-  "defaults": {"role": "role.none", "plic": "plic.qemu-virt"},
-  "capabilities": ["axbus", "qemu-virt-map", "rom", "clint", "plic", "spi", "uart", "role-window", "role-isolation", "live-telemetry-v1"]
+  "defaults": {
+    "role": "role.none",
+    "plic": "plic.qemu-virt"
+  },
+  "capabilities": [
+    "axbus",
+    "qemu-virt-map",
+    "rom",
+    "clint",
+    "plic",
+    "spi",
+    "uart",
+    "role-window",
+    "role-isolation",
+    "live-telemetry-v1"
+  ],
+  "parameters": {
+    "live_monitor": {
+      "default": 1,
+      "define": "AX_LIVE_MONITOR",
+      "doc": "Instantiate the Live FPGA telemetry counters inside the role fence. They cost twelve 64-bit counters and their snapshot registers, which is real area on a small device: profiles that only run bare-metal payloads can set 0 and keep the isolation fence, which is the part role swapping needs."
+    }
+  }
 }

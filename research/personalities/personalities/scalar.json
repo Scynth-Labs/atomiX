@@ -1,0 +1,41 @@
+{
+  "schema": {"id": "org.atomix.personality", "major": 1, "minor": 0},
+  "kind": "personality",
+  "id": "org.atomix.personality.scalar-recurrence",
+  "revision": 1,
+  "summary": "Dependent 32-bit scalar recurrence for control and ALU evaluation",
+  "execution_model": "org.atomix.scalar",
+  "requires": [
+    "org.atomix.control.loop",
+    "org.atomix.integer.i32",
+    "org.atomix.memory.linear",
+    "org.atomix.op.add",
+    "org.atomix.op.multiply"
+  ],
+  "prefers": ["org.atomix.state.local-register"],
+  "parameters": {
+    "items": {"value": 64, "mutability": "org.atomix.per-job", "doc": "Logical input items"},
+    "word_bits": {"value": 32, "mutability": "org.atomix.build-time", "doc": "Arithmetic word width"}
+  },
+  "reconfiguration": {
+    "scope": "org.atomix.role-region",
+    "quiesce": true,
+    "state": "org.atomix.replace",
+    "rollback": "org.atomix.last-known-good"
+  },
+  "workload_bindings": [
+    {"id": "org.atomix.workload.scalar-recurrence-i32", "revision": 1, "parameters": {"items": 64}}
+  ],
+  "implementations": [
+    {
+      "format": "org.atomix.intent",
+      "version": {"major": 1, "minor": 0},
+      "requires": [],
+      "payload": {
+        "operation": "org.atomix.workload.scalar-recurrence-i32",
+        "schedule": "org.atomix.schedule.sequential"
+      }
+    }
+  ],
+  "extensions": {}
+}

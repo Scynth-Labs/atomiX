@@ -52,18 +52,62 @@ though its current open-source ECP5 path is lower-level.  See the
 and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
 
 - [x] Define a stable, isolatable role ABI and keep the management shell
-  outside it.  Evidence: `axrole` plus `axroleiso` and their tests.
+  outside it.  Evidence: `axrole` plus `axroleiso` and their tests — and, since
+  2026-08-10, **the fence running on real silicon**.  On the Tang Primer the
+  full swap protocol minus the bitstream write was executed: with the fence
+  asserted every read of the role window completed and returned zero, the role
+  stayed invisible while held in reset, the management CPU and the Live FPGA
+  monitor kept running throughout, and releasing the fence restored the role
+  and allowed a verified personality change.  `make -C sw/baremetal
+  check-roleiso` is the simulation gate; the board result and hashes are in
+  [tangprimer25k.md](achievements/tangprimer25k.md).  This is the R1 exit
+  gate's isolation clause, discharged on hardware even though the Primer
+  cannot supply the configuration write.
 - [x] Build same-seed ECP5-85F `role.none` and `role.loopback` baselines and
   measure their delta.  The unconstrained result changes 8,603/13,294 CRAM
   frames across all 126 frame groups, proving that ordinary P&R is not a
   usable partial image.  Evidence: `make -C rtl/fpga pr-delta`.
-- [~] Decode the ECP5-85F changed-frame set.  The analysis works, but the
-  current 45F-only partial-frame encoder refuses to emit an 85F image.
-- [ ] **No hardware:** validate or implement the ECP5-85F frame-address map
+- [x] Decode the changed-frame set and emit a real partial bitstream.  The
+  85F's missing frame-address encoder was treated as the thing to defeat; it
+  was cheaper to remove the need for it.  `ecppack --delta` fully supports the
+  ECP5-45F, the ULX3S ships a 45F variant on the same CABGA381 package and
+  pinout, and the atomiX shell needs 13,782 LUT4 against the 45F's 44,000 — so
+  nothing in R1's question required the 85F.  Retargeting is a board-manifest
+  change (`board.ulx3s-45f`, `--45k`, idcode `0x41112043`) reusing the 85F
+  sources and constraint file unchanged.  No ULX3S is in hand for either
+  variant, so the hardware gate is exactly where it was.
+
+  **A partial bitstream for the atomiX role swap now exists.**  Evidence:
+  `make -C rtl/fpga pr-delta PR_REFERENCE_CONFIG=../../configs/ulx3s-45f.json
+  PR_CANDIDATE_CONFIG=../../configs/ulx3s-45f-loopback.json`.  It writes 7,377
+  frames, each with an explicit `LSC_WRITE_ADDRESS`, verified independently by
+  `tools/ecp5_frames.py`.
+
+- [~] **No hardware:** validate or implement the ECP5-85F frame-address map
   against full bitstreams and deliberately small placement changes.
-- [ ] **No hardware:** lock shell placement and routing, constrain the role to
-  whole-frame-compatible columns, and show that two role implementations have
-  identical shell frames and boundary routing.
+  **Deprioritised, not abandoned:** the 45F retarget above removes this from
+  R1's critical path.  The investigation and its apparatus are kept because the
+  map is still the only route to partial reconfiguration on an 85F board, and
+  because the probe method generalises.  What it established:
+  Trellis's refusal is a hardcoded `FIXME`, not missing data — `devices.json`
+  already carries the full 85F geometry; the map cannot be read from a full
+  bitstream, which names no addresses; single-tile `.config` perturbations
+  yield exact index/address pairs (26 recorded from 55 sites in
+  `research/partial-reconfig/ecp5-45f-frame-address-probe.json`); and the
+  offset is piecewise over at least nine segments and non-monotonic.  A second
+  obstacle was also found: `ecppack` compresses 85F frame data even without
+  `--compress`, so that path needs a decompressor too.
+
+- [ ] **No hardware — now the binding constraint:** lock shell placement and
+  routing, constrain the role to whole-frame-compatible columns, and show that
+  two role implementations have identical shell frames and boundary routing.
+  With `--delta` working on the 45F, this is measurable rather than
+  theoretical: unconstrained place-and-route rewrites 7,377 of 9,470 frames
+  (77.9%), spread over 89 columns and 69 rows, touching all 90 frame groups.
+  The resulting "partial" image is 892,674 bytes against 381,080 for the full
+  compressed bitstream — **2.3x larger than simply reloading the whole
+  device**, which is the sharpest possible statement of why confinement, not
+  the encoder, was always the real problem.
 - [ ] **No hardware:** generate a candidate delta, unpack it, and prove it
   addresses only the allowed region; reject truncated, out-of-region, and
   wrong-shell inputs before any physical load attempt.
@@ -176,19 +220,31 @@ throughput than separate CPU/GPU/TPU implementations?
   not merely routed: 20,176 LUT4, 2,706 FF, 24 BSRAM, 3 DSP, 29.20 MHz.  A
   personality change writes 13 genome words — 52 bytes — with no bitstream
   reload.  Throughput was then measured on the board against an on-core
-  reference reading the same operands: the fabric returns 7.6x (scalar), 6.9x
-  (SIMT) and 9.8x (systolic) over the management core, at 440/462/4,950 cycles
-  per job.  Reconfiguration costs 358-361 management-CPU cycles, about 14.3 us
+  reference reading the same operands from volatile arrays: the fabric returns
+  8.5x (scalar) and 12.0x (systolic) over the management core, at 440/462/4,950
+  cycles per job.  No SIMT speedup-against-core is claimed — that reference
+  loop compiles differently in the two payloads that measure it, while the
+  scalar reference cross-validates exactly at 3,732 cycles in both.  Reconfiguration costs 358-361 management-CPU cycles, about 14.3 us
   at 25 MHz, or roughly 0.61 ms if the genome were shipped over the 921600-baud
   UART instead — inside R2's sub-millisecond target either way.  So the fabric
   is genuinely faster than the core on all three personalities, but only by
   single-digit multiples, while costing more area and less frequency than the
   hard roles it would replace.
-- [~] **No hardware:** compare three alternatives before scaling: a composite
-  hard GPU+TPU role, the unified morph fabric, and separate full images.  Two
-  of the three are measured above — the unified fabric and separate full
-  images.  The composite hard GPU+TPU role has not been built, and on the
-  numbers above it is the only remaining alternative that could still fit.
+- [~] Compare the alternatives before scaling.  Three of four are now measured
+  on the board, and a fourth alternative the original item did not name turned
+  out to matter more than the ones it did.  Evidence:
+  [alternatives.md](alternatives.md), `research/comparisons/`.
+  - *Separate full images* and *the unified morph fabric*: measured.
+  - *Program switch on the existing programmable role*: measured, and tested
+    head-to-head against the fabric.  A one-lane `role.gpu-compute` is 13,426
+    LUT4 at 33.15 MHz against the one-PE fabric's 20,176 at 29.20 MHz, and
+    reconfigures in 206 cycles against 358 — but takes 1,479 cycles to the
+    fabric's 462 on the same SAXPY, needs 64 separate jobs (4,955 cycles) for
+    the recurrence the fabric does in one (440), and cannot express the GEMM in
+    this window at all.  Neither design dominates: flexibility buys capability
+    and throughput here, not efficiency.
+  - *Composite hard GPU+TPU role*: still not built.  Area arithmetic says it
+    will not fit, but that is an estimate, not evidence.
 - [~] Run switching, workload, and power/energy experiments on the Primer.
   Switching and workload experiments are complete and reproduced on 2026-08-10;
   **power and energy remain unmeasured** because no current-sense fixture has
@@ -336,6 +392,11 @@ suite, the system measures a baseline, proposes at least one candidate, rejects
 an intentionally wrong candidate, promotes a correct improvement only after
 shadow evaluation, and returns to the known-good configuration after an
 injected failure.
+
+Alternative mechanisms across all three tracks — tested, refuted, and still
+untested — are enumerated in [alternatives.md](alternatives.md).  That document
+is the record of what was *not* tried and why, which is what keeps the measured
+results above from reading as general claims.
 
 ## Cross-track dependencies
 

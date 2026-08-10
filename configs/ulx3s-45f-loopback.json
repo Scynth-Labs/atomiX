@@ -1,28 +1,23 @@
 {
   "schema": 1,
-  "name": "tangprimer25k-tpu",
+  "name": "ulx3s-45f-loopback",
   "components": {
     "core": "core.pipeline5",
     "soc": "soc.reference",
-    "memory": "memory.bram",
-    "role": "role.tpu-lite",
+    "memory": "memory.sdram",
     "uart": "uart.mmio16550",
     "clint": "clint.qemu-virt",
     "spi": "spi.polling-mode0",
-    "board": "board.tangprimer25k",
+    "board": "board.ulx3s-45f",
     "interconnect": "interconnect.axbus-reference",
     "cache": "cache.direct-mapped",
     "rom": "rom.axrom",
-    "finisher": "finisher.sifive-test"
+    "finisher": "finisher.sifive-test",
+    "role": "role.loopback"
   },
   "settings": {
-    "ram_bytes": 32768,
-    "caches": false,
-    "reset_pc": "0x80000000"
-  },
-  "parameters": {
-    "soc": {
-      "live_monitor": 0
-    }
+    "ram_bytes": 33554432,
+    "caches": true,
+    "reset_pc": "0x00001000"
   }
 }

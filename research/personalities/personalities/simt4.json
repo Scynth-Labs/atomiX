@@ -1,0 +1,42 @@
+{
+  "schema": {"id": "org.atomix.personality", "major": 1, "minor": 0},
+  "kind": "personality",
+  "id": "org.atomix.personality.simt4-saxpy",
+  "revision": 1,
+  "summary": "Four-lane preferred SIMT personality with lane-independent semantics",
+  "execution_model": "org.atomix.simt",
+  "requires": [
+    "org.atomix.integer.i32",
+    "org.atomix.memory.gather-scatter",
+    "org.atomix.op.add",
+    "org.atomix.op.multiply",
+    "org.atomix.thread.logical-id",
+    "org.atomix.thread.tail-predication"
+  ],
+  "prefers": ["org.atomix.memory.banked", "org.atomix.parallelism.lanes"],
+  "parameters": {
+    "logical_threads": {"value": 50, "mutability": "org.atomix.per-job", "doc": "Semantic thread count, independent of physical lanes"},
+    "preferred_lanes": {"value": 4, "mutability": "org.atomix.load-time", "doc": "Selection hint, never a correctness requirement"}
+  },
+  "reconfiguration": {
+    "scope": "org.atomix.role-region",
+    "quiesce": true,
+    "state": "org.atomix.replace",
+    "rollback": "org.atomix.last-known-good"
+  },
+  "workload_bindings": [
+    {"id": "org.atomix.workload.saxpy-i32", "revision": 1, "parameters": {"items": 50}}
+  ],
+  "implementations": [
+    {
+      "format": "org.atomix.intent",
+      "version": {"major": 1, "minor": 0},
+      "requires": ["org.atomix.thread.logical-id"],
+      "payload": {
+        "operation": "org.atomix.workload.saxpy-i32",
+        "schedule": "org.atomix.schedule.independent-elements"
+      }
+    }
+  ],
+  "extensions": {}
+}

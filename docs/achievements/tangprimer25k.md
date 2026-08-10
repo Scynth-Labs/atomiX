@@ -38,6 +38,15 @@ All three were loaded into volatile SRAM and verified through the Dock UART:
 | GPU `gpu_perf` | 18,280 LUT4, 2,446 FF, 40 BSRAM, 12 DSP | 38.47 MHz | `gpu-perf: PASS`; N=256 checksums `0xf515cdf9` / `0xbe878696` |
 | TPU `tpu` | 17,345 LUT4, 3,696 FF, 48 BSRAM, 24 DSP | 32.65 MHz | `role tpu-lite: PASS`; checksum `0x8acb4a08` |
 
+**These three no longer all rebuild.** A fresh sweep on 2026-08-10 found that
+`tpu` and `ax2` fail place-and-route at the utilisation limit. The TPU's DSP
+mapping is intact — it still uses 24 MULT12X12 — but it now needs 20,254 LUT4
+(87%) against the 17,345 recorded here, because the shell grew by roughly 2,100
+LUT4 when `axroleiso` and the `axlivemon` counters were added to `soc_top`. The
+`cpu` profile shows the same shift, 12,179 to 14,326. The physical runs below
+happened and their transcripts stand, but they measured a smaller shell. See
+[benchmarks](../benchmarks/tangprimer25k.md).
+
 Release `.fs` SHA-256 values are CPU
 `bb9ab409ec8f0c0da834672b0c4a6116fb6e18471dba22e285476b78b2065e55`,
 GPU `a361173ba4a5a82fc98ce4b8445620e9463c891686e33ac508135e2d84a9500b`,
@@ -53,6 +62,52 @@ The physical capacity experiments also established that the shipped GPU width
 is four lanes: eight lanes overflowed at 109% LUT use, six lanes packed to 96%
 but could not be legally placed, and four lanes placed, routed, met timing, and
 passed its workloads.
+
+### Role-window fence and Live FPGA telemetry (R1/R3) — 2026-08-10
+
+The R1 exit gate requires that role isolation is asserted while a role is being
+loaded. `axroleiso` implements that fence and had been proven in Verilator, but
+never on hardware — and a fence is exactly the logic whose simulation model can
+be right while the routed design is not, since its whole job is keeping a bus
+alive when the thing behind it has stopped answering.
+
+The board ran the swap protocol without the bitstream write, which is the only
+part the Gowin toolchain cannot express, and printed:
+
+```
+roleiso: PASS (fence contained the role, shell stayed live, role rediscovered
+and reconfigured)
+roleiso: telemetry seq=1 cycles=947599 rejects=0 watchdogs=0 generation=0
+```
+
+What that covers, all on silicon:
+
+- with `ISO_CTRL.ISOLATE` set, every read of the role window **completed** —
+  the property under test, since a broken fence stalls the CPU forever and the
+  board goes silent — and returned zero, so a fenced role is indistinguishable
+  from `role.none` and discovery needs no new software path;
+- the role stayed invisible while additionally held in `ROLE_RESET`, standing
+  in for fabric mid-rewrite;
+- the management CPU's cycle counter advanced across the whole swap window and
+  the Live FPGA monitor stayed reachable while the role was fenced;
+- releasing the fence restored `ROLE_ID` and cleared the configuration
+  generation, after which the morph fabric was reconfigured and its SAXPY
+  verified element-by-element;
+- the shell-owned telemetry snapshot works on hardware: the sequence advanced
+  0 to 1 and the counters read back.
+
+| Item | Value |
+|---|---|
+| Profile | `tangprimer25k-morph.json`, payload `roleiso` |
+| Routed resources | 20,176/23,040 LUT4, 29.20 MHz |
+| Bitstream SHA-256 | `76179771acb1c4f8d1828faf21fe5b3df7cb6dab8258d4489e429f71aeac6ff1` |
+| Payload SHA-256 | `248ca084884434fe06a030eed176a6730cb614b0271f181ce97c64b78563303a` |
+| Flash written | no |
+
+`rejects=0 watchdogs=0 generation=0` is not a pass — it confirms from the
+telemetry side that `soc_top.sv` still ties `role_reject_event`,
+`watchdog_event` and the activation event to zero, so those counters cannot
+advance in a real SoC. Wiring them is open work.
 
 ### Morph fabric (R2) — 2026-08-10
 
@@ -76,26 +131,53 @@ previous result; the fabric then ran the last good genome correctly.
 | Flash written | no |
 
 Measured on the board in the same run, with an on-core reference reading the
-same operands from RAM:
+same operands from volatile RAM arrays:
 
 | Personality | Reconfigure | Fabric job | On-core | Items | Speedup |
 |---|---:|---:|---:|---:|---:|
-| scalar recurrence | 358 cyc (14.3 us) | 440 cyc | 3,342 cyc | 64 | 7.6x |
-| SIMT SAXPY | 358 cyc (14.3 us) | 462 cyc | 3,170 cyc | 50 | 6.9x |
-| systolic GEMM | 361 cyc (14.4 us) | 4,950 cyc | 48,584 cyc | 96 | 9.8x |
+| scalar recurrence | 358 cyc (14.3 us) | 440 cyc | 3,732 cyc | 64 | 8.5x |
+| SIMT SAXPY | 358 cyc (14.3 us) | 462 cyc | 3,170 cyc | 50 | see note |
+| systolic GEMM | 361 cyc (14.4 us) | 4,950 cyc | 59,168 cyc | 96 | 12.0x |
 
 "Reconfigure" is the whole personality change — thirteen genome words plus
 NITEMS, written locally by the management CPU. It excludes host transfer; the
-same 52-byte genome delivered over the 921600-baud UART would add about
-0.61 ms, still inside R2's sub-millisecond target. "Fabric job" is doorbell to
-observed completion including the status polling the CPU actually performs, so
-it understates nothing.
+same 52-byte genome over the 921600-baud UART would add about 0.61 ms, still
+inside R2's sub-millisecond target. "Fabric job" is doorbell to observed
+completion including the status polling the CPU performs.
+
+Note on the SIMT row: the on-core reference for SAXPY compiles differently in
+the two payloads that measure it, so no SIMT speedup-against-core is claimed.
+The scalar reference cross-validates exactly — 3,732 cycles in both the morph
+and the GPU payload — which is what makes the other two rows trustworthy.
+
+### Morph fabric versus the existing programmable role
+
+The fabric was built assuming scalar, SIMT and systolic work needs a
+reconfigurable datapath. `role.gpu-compute` is already programmable, so that
+assumption was tested directly: one lane against one PE, identical 50-element
+SAXPY, identical buffer layout, identical measurement.
+
+| | morph, 1 PE | gpu-compute, 1 lane |
+|---|---:|---:|
+| LUT4 | 20,176 (87%) | **13,426 (58%)** |
+| Routed fmax | 29.20 MHz | **33.15 MHz** |
+| Reconfigure | 358 cyc | **206 cyc** |
+| SIMT SAXPY job | **462 cyc** | 1,479 cyc |
+| Scalar recurrence | **440 cyc, 1 job** | 4,955 cyc, 64 jobs |
+| Systolic GEMM | **4,950 cyc** | not expressible in this window |
+
+Neither dominates, and that is the result. The fabric is 3.2x faster on SIMT,
+11.3x faster on the recurrence — which the GPU can only express as one
+dependent step per doorbell, because its ISA is straight-line with 64 program
+words — and it is the only one of the two that can run the GEMM at all. The
+hard GPU is a third smaller, clocks 13% higher, and reconfigures in fewer
+cycles. Flexibility here buys capability and throughput, not efficiency.
 
 Capacity is the headline result: two PEs pack to 92% but find no legal
 placement, and four PEs demand 102% of the LUT4 budget. One morph PE therefore
 costs more area and less frequency than the hard four-lane GPU (18,280 LUT4,
 38.47 MHz) or the hard TPU (17,345 LUT4, 32.65 MHz) that it would replace,
-while returning only 7-10x over the scalar core. For contrast the hard TPU
+while returning 8-12x over the scalar core. For contrast the hard TPU
 measured 189 compute cycles against 42,995 on-core cycles for its own GEMM.
 That is a different matrix shape and not a like-for-like comparison, but the
 order-of-magnitude gap is the cost of generality on this device.

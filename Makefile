@@ -166,6 +166,14 @@ shadow-rebuild:
 live-sim-check: shadow-check
 	$(MAKE) -C sim/livefpga check
 
+# Hold the Primer synthesis results to their locked baseline. Give it a sweep
+# report from tools/tangprimer_synth_benchmark.py; --partial checks only the
+# profiles that report contains.
+synth-baseline:
+	$(PYTHON) tools/synth_baseline.py show
+	@test -n "$(REPORT)" || { echo "usage: make synth-baseline REPORT=<sweep.json>"; exit 2; }
+	$(PYTHON) tools/synth_baseline.py check $(REPORT)
+
 verification-check:
 	$(PYTHON) tools/verify.py validate
 

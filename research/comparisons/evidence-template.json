@@ -1,0 +1,49 @@
+{
+  "schema": {"id": "org.atomix.comparison-evidence", "major": 1, "minor": 0},
+  "kind": "comparison-evidence",
+  "id": "org.atomix.template.comparison-evidence",
+  "revision": 1,
+  "summary": "Non-evidentiary template for one R2 candidate observation",
+  "claim": "org.atomix.template",
+  "plan": {"id": "org.atomix.comparison.r2-morph-vs-hard", "revision": 1},
+  "candidate": "org.atomix.candidate.simt4-morph",
+  "transition": {
+    "from": null,
+    "mechanism": "org.atomix.not-run",
+    "retains_management_shell": null
+  },
+  "source": {"commit": null, "dirty": null, "diff_sha256": null},
+  "environment": {
+    "evidence_level": "org.atomix.not-run",
+    "timestamp_utc": null,
+    "board": null,
+    "device": null,
+    "tools": {}
+  },
+  "correctness": {
+    "status": "org.atomix.not-run",
+    "oracle_cases": 0,
+    "output_sha256": null,
+    "method": "Template only; no workload executed"
+  },
+  "measurements": {
+    "org.atomix.metric.switch-latency": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.configuration-transfer-latency": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.execute-cycles": {"value": null, "unit": "org.atomix.unit.cycle", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.total-cycles": {"value": null, "unit": "org.atomix.unit.cycle", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.work-items": {"value": null, "unit": "org.atomix.unit.item", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.clock-frequency": {"value": null, "unit": "org.atomix.unit.hertz", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.configuration-bytes": {"value": null, "unit": "org.atomix.unit.byte", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.lut-used": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.lut-available": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.flip-flop-used": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.flip-flop-available": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.block-ram-bits-used": {"value": null, "unit": "org.atomix.unit.bit", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.block-ram-bits-available": {"value": null, "unit": "org.atomix.unit.bit", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.dsp-used": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.dsp-available": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.maximum-frequency": {"value": null, "unit": "org.atomix.unit.hertz", "status": "org.atomix.unavailable", "method": "not measured"},
+    "org.atomix.metric.total-energy": {"value": null, "unit": "org.atomix.unit.joule", "status": "org.atomix.unavailable", "method": "not measured"}
+  },
+  "extensions": {}
+}

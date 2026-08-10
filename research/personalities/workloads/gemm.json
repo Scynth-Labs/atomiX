@@ -1,0 +1,43 @@
+{
+  "schema": {"id": "org.atomix.workload", "major": 1, "minor": 0},
+  "kind": "workload",
+  "id": "org.atomix.workload.gemm-i8-i32",
+  "revision": 1,
+  "summary": "Row-major signed-int8 matrix product with signed-int32 accumulation",
+  "operation": "org.atomix.workload.gemm-i8-i32",
+  "parameters": {"m": 12, "k": 8, "n": 8},
+  "buffers": [
+    {
+      "name": "a",
+      "direction": "org.atomix.input",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 8, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["m", "k"],
+      "layout": "org.atomix.row-major"
+    },
+    {
+      "name": "b",
+      "direction": "org.atomix.input",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 8, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["k", "n"],
+      "layout": "org.atomix.row-major"
+    },
+    {
+      "name": "c",
+      "direction": "org.atomix.output",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": true, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": ["m", "n"],
+      "layout": "org.atomix.row-major"
+    }
+  ],
+  "oracle": {"kind": "org.atomix.builtin-exact", "operation": "org.atomix.workload.gemm-i8-i32", "properties": {}},
+  "cases": [
+    {
+      "name": "directed-2x2",
+      "parameters": {"m": 2, "k": 2, "n": 2},
+      "inputs": {"a": [[1, 2], [3, 4]], "b": [[5, 6], [7, 8]]},
+      "expected": {"c": [[19, 22], [43, 50]]}
+    }
+  ],
+  "metrics": ["org.atomix.metric.execute-cycles", "org.atomix.metric.switch-latency", "org.atomix.metric.total-energy"],
+  "extensions": {}
+}

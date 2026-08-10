@@ -1,0 +1,43 @@
+{
+  "schema": {"id": "org.atomix.personality", "major": 1, "minor": 0},
+  "kind": "personality",
+  "id": "org.atomix.personality.systolic-gemm",
+  "revision": 1,
+  "summary": "Foldable signed-int8 GEMM personality for systolic or general dataflow fabrics",
+  "execution_model": "org.atomix.dataflow",
+  "requires": [
+    "org.atomix.accumulator.i32",
+    "org.atomix.integer.i8",
+    "org.atomix.memory.linear",
+    "org.atomix.op.add",
+    "org.atomix.op.multiply"
+  ],
+  "prefers": ["org.atomix.dataflow.neighbor-routing", "org.atomix.op.mac"],
+  "parameters": {
+    "m": {"value": 12, "mutability": "org.atomix.per-job", "doc": "Logical output rows"},
+    "k": {"value": 8, "mutability": "org.atomix.per-job", "doc": "Logical reduction dimension"},
+    "n": {"value": 8, "mutability": "org.atomix.per-job", "doc": "Logical output columns"},
+    "preferred_processing_elements": {"value": 4, "mutability": "org.atomix.load-time", "doc": "Folding hint, not a logical matrix dimension"}
+  },
+  "reconfiguration": {
+    "scope": "org.atomix.role-region",
+    "quiesce": true,
+    "state": "org.atomix.replace",
+    "rollback": "org.atomix.last-known-good"
+  },
+  "workload_bindings": [
+    {"id": "org.atomix.workload.gemm-i8-i32", "revision": 1, "parameters": {"m": 12, "k": 8, "n": 8}}
+  ],
+  "implementations": [
+    {
+      "format": "org.atomix.intent",
+      "version": {"major": 1, "minor": 0},
+      "requires": [],
+      "payload": {
+        "operation": "org.atomix.workload.gemm-i8-i32",
+        "schedule": "org.atomix.schedule.foldable-dataflow"
+      }
+    }
+  ],
+  "extensions": {}
+}

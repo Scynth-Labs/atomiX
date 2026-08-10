@@ -120,3 +120,50 @@ only for the 45k device; the ULX3S-85F may need fuzzing work.
 Until stage 4 passes on hardware, "swap without reflashing" on the physical
 board means full-bitstream SRAM reload (~1 s, no flash wear); in simulation
 it means selecting a different role component and rebuilding the model.
+
+
+## Stage 2 progress: the 85F frame-address map (2026-08-10)
+
+`ecppack --delta` refuses the 85F with `FIXME: partial bitstreams only
+supported for ECP5-45k`.  That refusal is not caused by missing device data:
+Trellis's `devices.json` already describes the part completely (13,294 frames
+of 1,136 bits, `max_row` 95, `max_col` 126).  The gap is the encoding that turns
+a frame index into an `LSC_WRITE_ADDRESS` value.
+
+`tools/ecp5_frames.py` is the apparatus for closing that gap.  It parses the
+ECP5 command stream, and is validated against the 45F, where it recovers
+exactly the 9,470 frames of 106 bytes the database predicts.
+
+Two structural facts shape the work:
+
+**A full bitstream cannot teach us the map.**  It issues `LSC_INIT_ADDRESS`
+once and then streams every frame in order, so no address is ever named.  Only
+a partial bitstream emits `LSC_WRITE_ADDRESS` per frame, and only the 45F can
+produce one — so the 45F is the sole ground truth available.
+
+**Single-tile probes give exact pairs.**  Deleting one arc from one tile of a
+`.config` changes a handful of frames.  Packing that config both fully and as a
+delta yields exactly as many emitted addresses as changed frames, so the lists
+pair one-to-one with no inference.  Probes whose counts disagree are discarded
+rather than guessed at.  26 exact pairs from 55 sites are recorded in
+`research/partial-reconfig/ecp5-45f-frame-address-probe.json`.
+
+What the pairs show, and why the map is not yet closed:
+
+- addresses are emitted strictly descending, so the packer walks frames in
+  descending index order;
+- the address space is roughly twice the frame count — 19,106 observed against
+  9,470 frames — so an address is not a frame index;
+- the offset between them is piecewise constant over at least nine segments and
+  is not monotonic: between frame indices 5,545 and 5,561 the address advances
+  by 15 while the index advances by 16.
+
+A second obstacle surfaced that this document had not recorded: `ecppack`
+compresses 85F frame data even when `--compress` is not requested (492 KB
+against the 1,914,336 bytes an uncompressed image needs).  Frame-level analysis
+of the 85F therefore needs a decompressor in addition to the address map.  That
+was caught only after the parser was changed to refuse compressed streams —
+before that, a fixed-stride walk reported a confident and entirely false
+"13,294 frames, 27.1% changed", because the frame count had come from the block
+header rather than from traversing the frames.  Any tool in this area should
+refuse input it cannot actually walk.

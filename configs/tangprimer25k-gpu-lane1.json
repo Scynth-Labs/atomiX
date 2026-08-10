@@ -1,10 +1,11 @@
 {
   "schema": 1,
-  "name": "tangprimer25k-ax2",
+  "name": "tangprimer25k-gpu-lane1",
   "components": {
-    "core": "core.ax2",
+    "core": "core.minimal",
     "soc": "soc.reference",
     "memory": "memory.bram",
+    "role": "role.gpu-compute",
     "uart": "uart.mmio16550",
     "clint": "clint.qemu-virt",
     "spi": "spi.polling-mode0",
@@ -15,15 +16,14 @@
     "finisher": "finisher.sifive-test"
   },
   "settings": {
-    "ram_bytes": 32768,
+    "ram_bytes": 16384,
     "caches": false,
     "reset_pc": "0x80000000"
   },
   "parameters": {
-    "core": {
-      "issue_width": 2,
-      "icache_kb": 2,
-      "btb_entries": 64
+    "role": {
+      "lanes": 1,
+      "data_words": 256
     }
   }
 }

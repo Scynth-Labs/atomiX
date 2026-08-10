@@ -1,0 +1,83 @@
+{
+  "schema": {"id": "org.atomix.comparison-plan", "major": 1, "minor": 0},
+  "kind": "comparison-plan",
+  "id": "org.atomix.comparison.r2-morph-vs-hard",
+  "revision": 1,
+  "summary": "Matched scalar, SIMT, and systolic comparison of existing implementations with the research morph fabric",
+  "candidates": [
+    {
+      "id": "org.atomix.candidate.scalar-pipeline5",
+      "implementation_class": "org.atomix.fixed-cpu",
+      "personality": {"id": "org.atomix.personality.scalar-recurrence", "revision": 1},
+      "workload": {"id": "org.atomix.workload.scalar-recurrence-i32", "revision": 1, "parameters": {"items": 64}},
+      "work": {"unit": "org.atomix.input-item", "count": 64},
+      "selector": {"kind": "org.atomix.component-profile", "value": {"core": "core.pipeline5"}}
+    },
+    {
+      "id": "org.atomix.candidate.scalar-morph",
+      "implementation_class": "org.atomix.morph-fabric",
+      "personality": {"id": "org.atomix.personality.scalar-recurrence", "revision": 1},
+      "workload": {"id": "org.atomix.workload.scalar-recurrence-i32", "revision": 1, "parameters": {"items": 64}},
+      "work": {"unit": "org.atomix.input-item", "count": 64},
+      "selector": {"kind": "org.atomix.research-component", "value": {"role": "role.morph", "mode": "scalar"}}
+    },
+    {
+      "id": "org.atomix.candidate.simt4-gpu-compute",
+      "implementation_class": "org.atomix.hard-role",
+      "personality": {"id": "org.atomix.personality.simt4-saxpy", "revision": 1},
+      "workload": {"id": "org.atomix.workload.saxpy-i32", "revision": 1, "parameters": {"items": 50, "a": 3}},
+      "work": {"unit": "org.atomix.output-element", "count": 50},
+      "selector": {"kind": "org.atomix.component-profile", "value": {"role": "role.gpu-compute", "lanes": 4}}
+    },
+    {
+      "id": "org.atomix.candidate.simt4-morph",
+      "implementation_class": "org.atomix.morph-fabric",
+      "personality": {"id": "org.atomix.personality.simt4-saxpy", "revision": 1},
+      "workload": {"id": "org.atomix.workload.saxpy-i32", "revision": 1, "parameters": {"items": 50, "a": 3}},
+      "work": {"unit": "org.atomix.output-element", "count": 50},
+      "selector": {"kind": "org.atomix.research-component", "value": {"role": "role.morph", "mode": "simt"}}
+    },
+    {
+      "id": "org.atomix.candidate.systolic-tpu-lite",
+      "implementation_class": "org.atomix.hard-role",
+      "personality": {"id": "org.atomix.personality.systolic-gemm", "revision": 1},
+      "workload": {"id": "org.atomix.workload.gemm-i8-i32", "revision": 1, "parameters": {"m": 12, "k": 8, "n": 8}},
+      "work": {"unit": "org.atomix.output-element", "count": 96},
+      "selector": {"kind": "org.atomix.component-profile", "value": {"role": "role.tpu-lite"}}
+    },
+    {
+      "id": "org.atomix.candidate.systolic-morph",
+      "implementation_class": "org.atomix.morph-fabric",
+      "personality": {"id": "org.atomix.personality.systolic-gemm", "revision": 1},
+      "workload": {"id": "org.atomix.workload.gemm-i8-i32", "revision": 1, "parameters": {"m": 12, "k": 8, "n": 8}},
+      "work": {"unit": "org.atomix.output-element", "count": 96},
+      "selector": {"kind": "org.atomix.research-component", "value": {"role": "role.morph", "mode": "systolic"}}
+    }
+  ],
+  "metrics": [
+    {"id": "org.atomix.metric.switch-latency", "unit": "org.atomix.unit.nanosecond", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.configuration-transfer-latency", "unit": "org.atomix.unit.nanosecond", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.execute-cycles", "unit": "org.atomix.unit.cycle", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.total-cycles", "unit": "org.atomix.unit.cycle", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.work-items", "unit": "org.atomix.unit.item", "direction": "org.atomix.context-only", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.clock-frequency", "unit": "org.atomix.unit.hertz", "direction": "org.atomix.context-only", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.configuration-bytes", "unit": "org.atomix.unit.byte", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.lut-used", "unit": "org.atomix.unit.count", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.lut-available", "unit": "org.atomix.unit.count", "direction": "org.atomix.context-only", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.flip-flop-used", "unit": "org.atomix.unit.count", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.flip-flop-available", "unit": "org.atomix.unit.count", "direction": "org.atomix.context-only", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.block-ram-bits-used", "unit": "org.atomix.unit.bit", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.block-ram-bits-available", "unit": "org.atomix.unit.bit", "direction": "org.atomix.context-only", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.dsp-used", "unit": "org.atomix.unit.count", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.dsp-available", "unit": "org.atomix.unit.count", "direction": "org.atomix.context-only", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.maximum-frequency", "unit": "org.atomix.unit.hertz", "direction": "org.atomix.higher-is-better", "requirement": "org.atomix.required"},
+    {"id": "org.atomix.metric.total-energy", "unit": "org.atomix.unit.joule", "direction": "org.atomix.lower-is-better", "requirement": "org.atomix.when-available"}
+  ],
+  "policy": {
+    "correctness": "org.atomix.hard-gate",
+    "missing_measurement": "org.atomix.unavailable-not-zero",
+    "ranking": "org.atomix.pareto-no-composite",
+    "cross_device_resources": "org.atomix.context-only"
+  },
+  "extensions": {}
+}

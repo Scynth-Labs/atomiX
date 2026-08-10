@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "id": "board.ulx3s-45f",
+  "kind": "board",
+  "title": "ULX3S v2/v3 ECP5-45F board target (partial-reconfiguration research target)",
+  "sources": [
+    "components/board/ulx3s_85f/axuart_phy.sv",
+    "components/board/ulx3s_85f/ulx3s_85f_top.sv"
+  ],
+  "make": {
+    "FPGA_TOP": "ulx3s_85f_top",
+    "FPGA_LPF": "components/board/ulx3s_85f/ulx3s_85f.lpf",
+    "NEXTPNR_ARGS": [
+      "--45k",
+      "--package",
+      "CABGA381",
+      "--speed",
+      "6",
+      "--freq",
+      "25"
+    ],
+    "ECPPACK_ARGS": [
+      "--idcode",
+      "0x41112043"
+    ]
+  },
+  "capabilities": [
+    "ecp5",
+    "sdram",
+    "ftdi-uart",
+    "micro-sd"
+  ]
+}

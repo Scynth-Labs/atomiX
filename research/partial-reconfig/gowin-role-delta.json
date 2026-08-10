@@ -1,0 +1,68 @@
+{
+  "reference": {
+    "path": "rtl/fpga/build/_home_shubhgau_dev_atomiX_configs_tangprimer25k-pr-none/_home_shubhgau_dev_atomiX_sw_baremetal_build_ram16384_hello/tangprimer25k_top_seed1.fs",
+    "sha256": "24ba7ff98769b411cd4d47f395f92de5761a6db4e3cbc7bc947893cd597d0bb5",
+    "frames": 13910,
+    "widths": {
+      "160": 3,
+      "16": 3,
+      "64": 9,
+      "32": 6,
+      "536": 11072,
+      "112": 1,
+      "208": 2816
+    }
+  },
+  "candidate": {
+    "path": "rtl/fpga/build/_home_shubhgau_dev_atomiX_configs_tangprimer25k-pr-loopback/_home_shubhgau_dev_atomiX_sw_baremetal_build_ram16384_hello/tangprimer25k_top_seed1.fs",
+    "sha256": "978533e0833edcb1bb9228a01b690f3ffda546329c16e1d490f189d6ec42895d",
+    "frames": 15190,
+    "widths": {
+      "160": 3,
+      "16": 3,
+      "64": 9,
+      "32": 6,
+      "536": 11072,
+      "104": 1,
+      "208": 4096
+    }
+  },
+  "comparable": false,
+  "changed_frames": 9914,
+  "changed_bits": 674460,
+  "first_changed_frame": 38,
+  "last_changed_frame": 13909,
+  "changed_span_frames": 13872,
+  "span_fraction_of_stream": 0.997268,
+  "contiguous_runs": 268,
+  "by_frame_width": {
+    "160": {
+      "total": 3,
+      "changed": 1
+    },
+    "16": {
+      "total": 3,
+      "changed": 1
+    },
+    "64": {
+      "total": 9,
+      "changed": 4
+    },
+    "32": {
+      "total": 6,
+      "changed": 2
+    },
+    "536": {
+      "total": 11072,
+      "changed": 9811
+    },
+    "112": {
+      "total": 1,
+      "changed": 1
+    },
+    "208": {
+      "total": 2816,
+      "changed": 94
+    }
+  }
+}
