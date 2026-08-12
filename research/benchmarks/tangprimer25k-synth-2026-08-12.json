@@ -1,0 +1,850 @@
+{
+  "generated_at_utc": "2026-08-11T23:04:13.119748+00:00",
+  "host": {
+    "logical_cpus": 6,
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.43"
+  },
+  "jobs": 3,
+  "method": "fresh isolated synthesis, then place/route/pack; one process",
+  "results": [
+    {
+      "bitstream": {
+        "bytes": 6963614,
+        "sha256": "578c11b69f7fb80de9124afb38245579a050f081b7ae7047cda9ed3a1573dece"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 31.764183044433594,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k.json",
+        "sha256": "276002ed7ab5bf6ca7b13c5242340df6cb3fe7b451286312d4639ad79dff4a10"
+      },
+      "place_route_pack_ms": 586606.523,
+      "place_route_status": "PASS",
+      "profile": "cpu",
+      "synthesis_log_sha256": "58905f91df3dc59225216fb8bed59128ecd8d7f29ccf7c70f10dd5235cd91a21",
+      "synthesis_ms": 30039.497,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "b9521d2c6006f83b457690df779a518084600fe4847cf7bd8dd37c8c6899419b",
+      "total_build_ms": 616646.02,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 1924
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 36
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3138
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 13844
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3484
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1254
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 525
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 206
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "config": {
+        "path": "configs/tangprimer25k-ax2.json",
+        "sha256": "5bf45061593fe589e0b0ce96d79de717ae04203e94f26717aebc42d07b6e37a2"
+      },
+      "failure_tail": [
+        "Info: \t           MUX2_LUT8:     189/   2880     6%",
+        "Info: \t                 ALU:    2098/  17280    12%",
+        "Info: \t                 GND:       1/      1   100%",
+        "Info: \t                 DFF:    5057/  23040    21%",
+        "Info: \t               BSRAM:      44/     56    78%",
+        "Info: \t           MULT12X12:       0/     56     0%",
+        "Info: \t        MULTALU27X18:       0/     28     0%",
+        "Info: \t     MULTADDALU12X12:       0/     28     0%",
+        "Info: \t                 GSR:       1/      1   100%",
+        "Info: \t              PINCFG:       1/      1   100%",
+        "Info: \t                OSCA:       0/      1     0%",
+        "Info: \t                PLLA:       0/      6     0%",
+        "Info: \t                 ADC:       0/      1     0%",
+        "Info: \t                BUFG:       0/     18     0%",
+        "Info: \t                 DCS:       0/      8     0%",
+        "Info: \t              CLKDIV:       1/     16     6%",
+        "Info: \t             CLKDIV2:       0/     16     0%",
+        "",
+        "Info: Running custom HCLK placer...",
+        "Info: Placed 0 cells based on constraints.",
+        "Info: Creating initial analytic placement for 15454 cells, random placement wirelen = 966932.",
+        "Info:     at initial placer iter 0, wirelen = 6895",
+        "Info:     at initial placer iter 1, wirelen = 7593",
+        "Info:     at initial placer iter 2, wirelen = 6550",
+        "Info:     at initial placer iter 3, wirelen = 6272",
+        "Info: Running main analytical placer, max placement attempts per cell = 223344112.",
+        "ERROR: Unable to find legal placement for all cells, design is probably at utilisation limit.",
+        "0 warnings, 1 error",
+        "make: *** [Makefile:161: /tmp/atomix-primer-synth-hlswiwgn/ax2/_home_shubhgau_dev_atomiX_configs_tangprimer25k-ax2/_home_shubhgau_dev_atomiX_sw_baremetal_build_ram32768_hello/tangprimer25k_top_seed1_pnr.json] Error 125",
+        "make: Leaving directory '/home/shubhgau/dev/atomiX/rtl/fpga'"
+      ],
+      "place_route_pack_ms": 426463.238,
+      "place_route_status": "FAIL",
+      "profile": "ax2",
+      "synthesis_ms": 47454.104,
+      "synthesis_status": "PASS",
+      "total_build_ms": 473917.341
+    },
+    {
+      "bitstream": {
+        "bytes": 7070630,
+        "sha256": "3654f703a6ec1121404218165a89d1d66521b7efed5e37b136d6627c5bcde418"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 33.914398193359375,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-gpu.json",
+        "sha256": "99025406a6871b1b9a1dc4e8f8e05f694c69e827daa2fc6650f8a5a16a247165"
+      },
+      "place_route_pack_ms": 917280.12,
+      "place_route_status": "PASS",
+      "profile": "gpu",
+      "synthesis_log_sha256": "4a37a47c8812e343e1152bfff9ceb381c712b0803d2b06e954b61b80b5b86de0",
+      "synthesis_ms": 34283.118,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "b0c8e2dcc3ae5576a29b1a31a04c858f826d69cc18816a556e944272275ac42d",
+      "total_build_ms": 951563.238,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2746
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 40
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3015
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 24
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 16892
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 12
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3615
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1117
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 495
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 164
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 7231134,
+        "sha256": "93676dc0f1df332a6e8bc7c72eafc73e6f56bbaa3f7fc57bd05e508b95ac1e2f"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 31.739986419677734,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-tpu.json",
+        "sha256": "db0bd43a4a15b4052c4237c7eb72b0941ed46f7c6951f00af3430122dffc085b"
+      },
+      "place_route_pack_ms": 697094.666,
+      "place_route_status": "PASS",
+      "profile": "tpu",
+      "synthesis_log_sha256": "1e9f02cc044d2f2b0c21c14b3164c5e209c9a46bf6b15b43afd9f7ce01d3a341",
+      "synthesis_ms": 40527.071,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "210b57504c6277a147c46f5a1cf3426036476a184072202ace513f280ccb93f1",
+      "total_build_ms": 737621.737,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2874
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 48
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3720
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 17637
+        },
+        "MULT12X12": {
+          "available": 56,
+          "used": 24
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4255
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1270
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 512
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 165
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 7231158,
+        "sha256": "bd4d9cab5d82c00ab013118972dd81bf5f25502fd35093e42f43a390f2bdb483"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 31.363693237304688,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-runtime-gpu.json",
+        "sha256": "1cb785c511c4ce6437fc4cde1c8d7e6865f2ed45b098e172d578234beb9b6799"
+      },
+      "place_route_pack_ms": 767932.001,
+      "place_route_status": "PASS",
+      "profile": "runtime-gpu",
+      "synthesis_log_sha256": "f6da0ccd309272e4b6ad86643e5896ba3e8f729916b7c07241ea1c03a9adb2ed",
+      "synthesis_ms": 41859.928,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "840b91c5e08f7caa88220ef1ef1502c05dbbfc02e86a07b6925791be2cea0ec6",
+      "total_build_ms": 809791.928,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2368
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 46
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3857
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 6
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 17804
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 3
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4435
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1555
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 664
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 265
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 6696110,
+        "sha256": "8c2862cca42021b014622911e26e59e07c679d8891246f88090101f94acdae0b"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 33.64850616455078,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-morph.json",
+        "sha256": "16f1a27dba23d6b0ab18c2e1949070e3d875f6ddc6e0dd7749ff439cdc6a6e6d"
+      },
+      "place_route_pack_ms": 1102914.37,
+      "place_route_status": "PASS",
+      "profile": "morph-1pe",
+      "synthesis_log_sha256": "ed231718841078ff371c740d969e3d0103bfc0201a2b86439d8f1514ee462fc9",
+      "synthesis_ms": 35671.167,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "36bcfa7eec701922a010ac2fb382ec85e6f94ab8f94fe20836a4b6b20c47c09a",
+      "total_build_ms": 1138585.537,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2752
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 24
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 2706
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 6
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 18660
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 3
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3772
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1170
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 513
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 161
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 6749638,
+        "sha256": "f608735b7562e08555aea7228f4367ce02f3724b87497bf63feb1a47411bbd34"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 35.72576904296875,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-gpu-lane1.json",
+        "sha256": "8c5d33c34b16b7893da3fd46477499d854580d4b216f7d9746aa807cc90e252a"
+      },
+      "place_route_pack_ms": 396832.848,
+      "place_route_status": "PASS",
+      "profile": "gpu-lane1",
+      "synthesis_log_sha256": "20ddaa6fe90e83e3047eac5d03d0b031dccf4f71cfe6e159ef9945484bf67851",
+      "synthesis_ms": 28779.427,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "cdfb38975b31c4ad275364d10c4f2d7f14cc60ee5bf938ba913b23bebce9358a",
+      "total_build_ms": 425612.275,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2308
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 28
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 2242
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 6
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 12413
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 3
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3245
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1235
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 492
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 147
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "bitstream": {
+        "bytes": 6963606,
+        "sha256": "44ff45efdfd34732c889ec2515ef6657876d8e20a6921d6b14d32fbb24f01de4"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 31.212936401367188,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-runtime.json",
+        "sha256": "b920d51039621de9c626ac09d6c2c2ba8abd0d52302175be358a97ff16f3a296"
+      },
+      "place_route_pack_ms": 426567.315,
+      "place_route_status": "PASS",
+      "profile": "runtime",
+      "synthesis_log_sha256": "3d2a5f585f2760ed45306ba8901cdec03c5c88bd59d9190d29c1ff0840aa773c",
+      "synthesis_ms": 32178.087,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "f87ad5fd85e57a68aa9960939525422c7d8d1d6ffcc1d438ed42061bfb44bee3",
+      "total_build_ms": 458745.402,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 1920
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 38
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3136
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 13387
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 3306
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1147
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 468
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 185
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "config": {
+        "path": "configs/tangprimer25k-runtime-ax2.json",
+        "sha256": "cfa21cb5c6d7d77f260b6ac7d5fb6362357acbc40217736aa0941c89fd78839e"
+      },
+      "failure_tail": [
+        "Info: \t           MUX2_LUT8:     279/   2880     9%",
+        "Info: \t                 ALU:    2098/  17280    12%",
+        "Info: \t                 GND:       1/      1   100%",
+        "Info: \t                 DFF:    5061/  23040    21%",
+        "Info: \t               BSRAM:      46/     56    82%",
+        "Info: \t           MULT12X12:       0/     56     0%",
+        "Info: \t        MULTALU27X18:       0/     28     0%",
+        "Info: \t     MULTADDALU12X12:       0/     28     0%",
+        "Info: \t                 GSR:       1/      1   100%",
+        "Info: \t              PINCFG:       1/      1   100%",
+        "Info: \t                OSCA:       0/      1     0%",
+        "Info: \t                PLLA:       0/      6     0%",
+        "Info: \t                 ADC:       0/      1     0%",
+        "Info: \t                BUFG:       0/     18     0%",
+        "Info: \t                 DCS:       0/      8     0%",
+        "Info: \t              CLKDIV:       1/     16     6%",
+        "Info: \t             CLKDIV2:       0/     16     0%",
+        "",
+        "Info: Running custom HCLK placer...",
+        "Info: Placed 0 cells based on constraints.",
+        "Info: Creating initial analytic placement for 15419 cells, random placement wirelen = 970708.",
+        "Info:     at initial placer iter 0, wirelen = 7870",
+        "Info:     at initial placer iter 1, wirelen = 7804",
+        "Info:     at initial placer iter 2, wirelen = 6946",
+        "Info:     at initial placer iter 3, wirelen = 7442",
+        "Info: Running main analytical placer, max placement attempts per cell = 230705940.",
+        "ERROR: Unable to find legal placement for all cells, design is probably at utilisation limit.",
+        "0 warnings, 1 error",
+        "make: *** [Makefile:161: /tmp/atomix-primer-synth-hlswiwgn/runtime-ax2/_home_shubhgau_dev_atomiX_configs_tangprimer25k-runtime-ax2/_home_shubhgau_dev_atomiX_sw_bootrom_blank/rom_home_shubhgau_dev_atomiX_sw_bootrom_build_uart-ram32768_bootrom/tangprimer25k_top_seed1_pnr.json] Error 125",
+        "make: Leaving directory '/home/shubhgau/dev/atomiX/rtl/fpga'"
+      ],
+      "place_route_pack_ms": 482780.875,
+      "place_route_status": "FAIL",
+      "profile": "runtime-ax2",
+      "synthesis_ms": 53435.817,
+      "synthesis_status": "PASS",
+      "total_build_ms": 536216.692
+    },
+    {
+      "bitstream": {
+        "bytes": 7177646,
+        "sha256": "912ad85fb5f1d027aa318f88fbbf392ee9d9d571fc265feaa442d354e9c8bcc9"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 30.56047821044922,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-runtime-gpu4.json",
+        "sha256": "593e0816bbe69265135cce271184bdd6d7bb81d5c43d723060a414182ef18d38"
+      },
+      "place_route_pack_ms": 792496.784,
+      "place_route_status": "PASS",
+      "profile": "runtime-gpu4",
+      "synthesis_log_sha256": "0468d98b441d01f6b475ba9bb4c72245ecb477fd032d09b0e291aa16c2bd379b",
+      "synthesis_ms": 36990.272,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "b5a8e0fb3f7f2b09213807083063e497bfa70a747757a3ce55d10fce1dc5888e",
+      "total_build_ms": 829487.056,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2746
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 42
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3019
+        },
+        "DUMMY_CELL": {
+          "available": 0,
+          "used": 24
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 17721
+        },
+        "MULTALU27X18": {
+          "available": 28,
+          "used": 12
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4110
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1330
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 512
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 149
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    },
+    {
+      "config": {
+        "path": "configs/tangprimer25k-runtime-tpu.json",
+        "sha256": "76f53aa3fb3e3f554e611b7bc1e04a304169eff5df4f50172a47b8b5be452eb6"
+      },
+      "failure_tail": [
+        "Info: \t                 ALU:    2874/  17280    16%",
+        "Info: \t                 GND:       1/      1   100%",
+        "Info: \t                 DFF:    3724/  23040    16%",
+        "Info: \t               BSRAM:      50/     56    89%",
+        "Info: \t           MULT12X12:      24/     56    42%",
+        "Info: \t        MULTALU27X18:       0/     28     0%",
+        "Info: \t     MULTADDALU12X12:       0/     28     0%",
+        "Info: \t                 GSR:       1/      1   100%",
+        "Info: \t              PINCFG:       1/      1   100%",
+        "Info: \t                OSCA:       0/      1     0%",
+        "Info: \t                PLLA:       0/      6     0%",
+        "Info: \t                 ADC:       0/      1     0%",
+        "Info: \t                BUFG:       0/     18     0%",
+        "Info: \t                 DCS:       0/      8     0%",
+        "Info: \t              CLKDIV:       1/     16     6%",
+        "Info: \t             CLKDIV2:       0/     16     0%",
+        "",
+        "Info: Running custom HCLK placer...",
+        "Info: Placed 0 cells based on constraints.",
+        "Info: Creating initial analytic placement for 11896 cells, random placement wirelen = 827923.",
+        "Info:     at initial placer iter 0, wirelen = 7847",
+        "Info:     at initial placer iter 1, wirelen = 6344",
+        "Info:     at initial placer iter 2, wirelen = 7237",
+        "Info:     at initial placer iter 3, wirelen = 7204",
+        "Info: Running main analytical placer, max placement attempts per cell = 132055626.",
+        "Info:     at iteration #1, type ALL: wirelen solved = 6704, spread = 238803, legal = 666363; time = 55.73s",
+        "ERROR: Unable to find legal placement for all cells, design is probably at utilisation limit.",
+        "0 warnings, 1 error",
+        "make: *** [Makefile:161: /tmp/atomix-primer-synth-hlswiwgn/runtime-tpu/_home_shubhgau_dev_atomiX_configs_tangprimer25k-runtime-tpu/_home_shubhgau_dev_atomiX_sw_bootrom_blank/rom_home_shubhgau_dev_atomiX_sw_bootrom_build_uart-ram32768_bootrom/tangprimer25k_top_seed1_pnr.json] Error 125",
+        "make: Leaving directory '/home/shubhgau/dev/atomiX/rtl/fpga'"
+      ],
+      "place_route_pack_ms": 128110.876,
+      "place_route_status": "FAIL",
+      "profile": "runtime-tpu",
+      "synthesis_ms": 42793.806,
+      "synthesis_status": "PASS",
+      "total_build_ms": 170904.683
+    }
+  ],
+  "schema": 1,
+  "status": "COMPLETE",
+  "tools": {
+    "gowin_pack": "/home/shubhgau/opt/oss-cad-suite/lib/python3.11/site-packages/apycula/bitmatrix.py:60: UserWarning: Numpy is not available, performance will be degraded.",
+    "nextpnr_himbaechel": "\"nextpnr-himbaechel\" -- Next Generation Place and Route (Version nextpnr-0.10-105-g77e1f19f)",
+    "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty, Release, Clang /usr/bin/clang++ 21.1.8)"
+  }
+}

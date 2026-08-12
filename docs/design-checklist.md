@@ -375,26 +375,102 @@ Use this for a substantive implementation or interface change:
   through a dedicated Sv32 alias, and device polling is bounded. Evidence:
   `make -C sw/kernel check-role-driver` (resident shell plus U-mode loopback
   job) and `make -C sw/kernel check-boot` (safe role absence on ISS/QEMU).
-- [ ] Put the boot ROM in block RAM.  The loader bitstream costs about 1,534
-  LUT4 more than a baked one (15,425 against 13,891 on the same profile),
-  essentially all of it the 4 KiB ROM: `axrom` reads combinationally, and an
-  asynchronous read cannot map to a Gowin BSRAM, so 1,024 words become a LUT
-  ROM.  Twenty BSRAMs are free on the part.  A registered read would move it —
-  the same change `axram` already carries as `SYNC_READ` — at the cost of a
-  wait state on ROM fetches, which only the loader pays.  Worth doing because
-  the decoupling should not be something a tight profile has a reason to
-  refuse.
+- [x] Put the boot ROM in block RAM.  The loader bitstream used to cost about
+  1,534 LUT4 more than a baked one (15,425 against 13,891 on the same profile),
+  essentially all of it the 4 KiB ROM: `axrom` read combinationally, and an
+  asynchronous read cannot map to a Gowin BSRAM, so 1,024 words became a LUT
+  ROM.  That gave a profile near the device limit a real reason to refuse the
+  decoupling, which would have left the invariant true only where it was free.
+  `axrom` now carries the same `SYNC_READ` parameter `axram` does, and
+  `soc_top` passes the board's value through, so the read and its completion
+  are registered and the array infers BSRAM.  With no write port at all it is a
+  0W2R memory, and both read ports map onto the same two initialised blocks
+  rather than a duplicated bank each.  The cost is one wait state on ROM
+  fetches, paid only while the loader itself is executing.
+
+  **The registered ROM is scoped to profiles that reset into it**, via
+  `localparam ROM_SYNC_READ = (RESET_PC == ROM_BASE) ? SYNC_READ : 0` in
+  `soc_top`.  That is not a tuning knob, it is the fix for a regression this
+  change caused: a profile resetting at RAM carries a baked payload and never
+  fetches a ROM word, and with no `ROM_INIT_FILE` the asynchronous ROM
+  optimises away completely while the registered one leaves a handshake behind
+  and re-rolls packing.  The effect was erratic rather than uniform — measured
+  at −252 LUT4 on `cpu`, −51 on `tpu`, but **+427 on `morph-1pe`** — and it was
+  enough to push both `role.tpu-lite` (78% LUT4, 85% BSRAM) and `role.morph`
+  (87% LUT4) off a legal placement at seed 1, turning two locked `expect: pass`
+  rows into failures.  Both place at HEAD.  Deriving the condition in RTL rather
+  than plumbing a build flag means no profile can set it wrong and no Makefile
+  variable can drift from the config that selects it.
+
+  Evidence (P&R, seed 1, one build at a time, OSS CAD Suite yosys 0.67+102 /
+  nextpnr-0.10-105): with the scope in place every baked profile is
+  *bit-identical* to HEAD — `cpu` 13,844 LUT4 / 3,138 DFF / 36 BSRAM /
+  31.76 MHz, `tpu` 17,637 / 3,720 / 48 / 31.74, `morph-1pe` 18,660 / 2,706 /
+  24 / 33.65, each matching field for field — while `tangprimer25k-runtime`
+  keeps 13,387 LUT4 / 38 BSRAM / 31.21 MHz, against 15,425 / 36 / 29.72 locked
+  before the ROM moved.  That is −2,038 LUT4 and +1.49 MHz on the shipping
+  image, and it is **457 LUT4 below the baked `cpu` image it replaces**.
+  Evidence (simulation): `make -C sim/unit run-axrom` builds the ROM in both
+  read timings from one testbench and requires the same contents, the same
+  out-of-range/misaligned/below-base errors, and the same refusal to be written
+  — one wait state apart; `make -C sw/baremetal check-snake-loader` now runs at
+  the board's `SYNC_READ=1` rather than the simulator default, boots from the
+  registered ROM into blank RAM, uploads snake, and still reaches the baked
+  image's exact `checksum=0xd824f761`.  `make -C sw/kernel check-uartboot`
+  continues to cover the combinational timing.
 - [ ] Finish decoupling the remaining Primer profiles from their payloads.
-  `tangprimer25k-{ax2,gpu,tpu}` still bake `cpu_perf`/`gpu_perf`/`tpu` into
-  synthesis, so their board evidence names a program and a change to that
-  program re-opens the claim.  Each needs a loader variant (`rom.axrom`, blank
-  RAM, reset at `0x1000`) — `tangprimer25k-runtime-gpu.json` already
-  demonstrates the shape for a role-carrying profile — plus a re-lock of its
-  row from a fresh sweep.  Deliberately not done in the same change as the
-  games: it re-opens three physically verified rows at once, and a re-lock
-  should follow a sweep rather than ride along with unrelated work.  The rule
-  itself is already enforced for anything new: `DESIGN.md`, `AGENTS.md`, and
-  both skills state that software must never be part of a bitstream's identity.
+  `tangprimer25k-{ax2,gpu,tpu}` baked `hello`/`gpu_perf`/`tpu` into synthesis,
+  so their board evidence named a program and a change to that program
+  re-opened the claim.  Each now has a loader variant carrying identical
+  hardware and differing only in `reset_pc`, which is what declares a runtime
+  profile — `rtl/fpga/Makefile` derives blank RAM and a correctly sized UART
+  ROM from it, so the profiles name no payload at all:
+  `tangprimer25k-runtime-ax2.json`, `-runtime-gpu4.json` (the 4-lane minimal
+  host of `-gpu.json`; `-runtime-gpu.json` was already taken by the 1-lane
+  reference-core aXos platform, which is a different machine), and
+  `-runtime-tpu.json`.  `make fpga-loader LOADER_CONFIG=<profile>` builds any
+  of them and refuses a profile that does not reset into the ROM; all three are
+  sweep presets (`runtime-ax2`, `runtime-gpu4`, `runtime-tpu`).
+  Re-locked from a full 11-profile sweep on 2026-08-12
+  (`research/benchmarks/tangprimer25k-synth-2026-08-12.json`, seed 1,
+  `--jobs 3`, OSS CAD Suite yosys 0.67+102 / nextpnr-0.10-105).  Routed, each
+  loader against the baked row it replaces:
+
+  | pair | baked | loader | loader cost |
+  |---|---|---|---|
+  | `cpu` → `runtime` | 13,844 LUT4 / 36 BSRAM / 31.76 MHz | **13,387 / 38 / 31.21** | **−457 LUT4**, +2 BSRAM |
+  | `gpu` → `runtime-gpu4` | 16,892 / 40 / 33.91 | 17,721 / 42 / 30.56 | +829 LUT4, +2 BSRAM |
+  | `tpu` → `runtime-tpu` | 17,637 / 48 / 31.74 | 18,403 / 50 / 32.75 (seed 2) | +766 LUT4, +2 BSRAM |
+  | `ax2` → `runtime-ax2` | fails, 111% LUT4 | fails | — |
+
+  **Every Primer profile except `ax2` can now run the loader.**  On the shipping
+  profile it is *cheaper* than a single-program image, so decoupling is no
+  longer a cost to justify; on the 4-lane GPU and the TPU it costs about 800
+  LUT4 out of 23,040, and the TPU actually routes 1.01 MHz faster.
+
+  Two caveats belong with those numbers.  `runtime-tpu` is **placement-fragile**:
+  it fits at 80% LUT4 / 89% BSRAM but legalises on only one seed in five
+  (FAIL/PASS/FAIL/FAIL/FAIL for seeds 1–5), so the profile pins `pnr_seed: 2`
+  as `-runtime-gpu` pins 3.  Nothing there is over capacity — 50 block RAMs and
+  24 multipliers must land in fixed GW5A columns, and that is what runs out.  A
+  failure is a re-rolled placer, not a size regression, so re-seed rather than
+  shrink; but the pinned seed is not guaranteed to survive an unrelated RTL edit.
+
+  `ax2` is excluded by arithmetic, not luck, and no seed can help: **25,569
+  LUT4 against 23,040 (111%)**.  Measured by parameter, the 64-entry BTB costs
+  5,820 LUT-family cells and the second issue slot 8,086, against a 19,286-cell
+  single-issue baseline.  The BTB is 64 × 60 = 3,840 bits read combinationally
+  at two indices (`look_idx` at fetch, `upd_idx` at retire) with a write port,
+  so it maps to a LUT register file at ~1.5 cells per bit.  It cannot take the
+  `SYNC_READ` treatment that fixed `axram` and `axrom`: `ax2_icache.sv` needs
+  the lookup combinational "so the prediction is available in time to choose the
+  *next* fetch address", and registering it would cost the bubble the predictor
+  exists to avoid.  **`core.ax2` is therefore a profile for a larger part**, and
+  is kept in the Primer baseline only to record how far over it is — shrinking
+  it to fit would mean dropping prediction, which changes what it measures.  Its
+  loader variant fails for the same reason and says nothing about the loader.
+  Measuring AX2 properly needs a bigger board (the ULX3S-85F is the obvious
+  candidate); until one is in hand, both rows stay locked `expect: fail`.
 - [ ] Remaining host-link enhancements: a dedicated second byte pipe so console
   and host-link coexist; buffer/stream and asynchronous-completion ops; cached
   prebuilt-bitstream selection for physical datapath changes.

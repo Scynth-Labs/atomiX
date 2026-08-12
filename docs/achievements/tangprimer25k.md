@@ -47,6 +47,28 @@ LUT4 when `axroleiso` and the `axlivemon` counters were added to `soc_top`. The
 happened and their transcripts stand, but they measured a smaller shell. See
 [benchmarks](../benchmarks/tangprimer25k.md).
 
+**Update, 2026-08-12: `tpu` places again; `ax2` still does not.** The 11-profile
+sweep of that date routes `tpu` at 17,637 LUT4 / 3,720 DFF / 48 BSRAM / 24 DSP
+and 31.74 MHz, so the row is locked `expect: pass` again. That is a
+place-and-route result only — the image has not been programmed into the Dock,
+so the physical verdict in the table above remains the 2026-07-29 run against a
+smaller shell, and nothing here is a new hardware claim. `ax2` still overflows
+the device at 110% LUT4 and stays locked as a known failure.
+
+**The loader reaches every profile here except `ax2`.** Each now has a variant
+that boots any payload over UART instead of baking one in, and on the plain CPU
+profile that image is *smaller* than a baked one (13,387 against 13,844 LUT4).
+The TPU's loader form routes at 18,403 LUT4 / 50 BSRAM / 32.75 MHz — +766 LUT4
+and the ROM's two block RAMs over the baked build, and 1.01 MHz faster — but it
+is placement-fragile, legalising on one seed in five, so
+`tangprimer25k-runtime-tpu.json` pins `pnr_seed: 2`. `ax2` is out of reach in
+either form — it needs 25,569 LUT4 against the device's 23,040 — because
+`core.ax2` targets a larger part than this one; that is a statement about the
+board, not about the loader.
+
+None of this is a physical claim. These are place-and-route results; no loader
+image for a role-carrying profile has been programmed into the Dock.
+
 Release `.fs` SHA-256 values are CPU
 `bb9ab409ec8f0c0da834672b0c4a6116fb6e18471dba22e285476b78b2065e55`,
 GPU `a361173ba4a5a82fc98ce4b8445620e9463c891686e33ac508135e2d84a9500b`,

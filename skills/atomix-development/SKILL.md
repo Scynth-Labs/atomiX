@@ -37,13 +37,42 @@ The decoupled path already exists and is the default for anything shipped:
 
 - Synthesize a **loader** bitstream — `rom.axrom` plus `sw/bootrom` (`AXK1`
   frame: magic, length, CRC-32), blank RAM, `reset_pc=0x1000`. One bitstream
-  per board profile, proved once.
+  per board profile, proved once. On a Gowin profile `reset_pc: "0x00001000"`
+  is the *only* thing that declares this: `rtl/fpga/Makefile` derives blank RAM
+  and a correctly sized UART ROM from it, so a loader profile names no payload
+  anywhere. Build one with `make fpga-loader LOADER_CONFIG=<profile>`, which
+  refuses a profile that does not reset into the ROM. Every baked Primer
+  profile has a loader counterpart differing in exactly that one setting; add
+  one rather than inventing a second way to decouple.
 - Ship programs as **runtime payloads** over that loader
   (`sw/host/axhost.py --upload-kernel <bin>`, `make load PROGRAM=<name>`). The
   loader is payload-agnostic: it copies bytes to `0x8000_0000` and jumps, so a
   bare-metal game and an aXos kernel are the same kind of thing to it.
 - A payload's budget is **size** (`RAM_BYTES - 4096`), not LUTs. Check size;
   do not re-run P&R.
+
+The loader must not be the expensive option, or a tight profile gets a reason
+to refuse it. `axrom` therefore carries `SYNC_READ` exactly as `axram` does, so
+the boot ROM infers BSRAM instead of becoming a LUT ROM. Anything that
+reintroduces a combinational read on a synthesised memory undoes that — see the
+same rule for main memory. Gates that stand behind a *board* claim run at the
+board's timing (`SYNC_READ=1`), not the simulator default;
+`check_payload_boot.py` defaults to it for that reason.
+
+**Scope a component's cost to the profiles that use it.** `soc_top` enables the
+registered ROM only when `RESET_PC == ROM_BASE`, because a profile resetting
+into RAM never fetches a ROM word. Enabling it everywhere made two locked
+profiles stop placing: with no `ROM_INIT_FILE` the async ROM optimises away
+entirely, while the registered one leaves a handshake that re-rolls packing by
+−252 LUT4 on one profile and +427 on another, and `role.tpu-lite` and
+`role.morph` were sitting at 78–87% utilisation with no room for either sign.
+Prefer deriving such a condition in RTL from a parameter the profile already
+sets, rather than adding a Makefile flag that can drift from the config.
+
+More generally: on a part near its limit, **placement is not a function of size**.
+A change that removes logic can still break a design whose BSRAM and DSP
+placement pins it. Never infer "smaller, so it still fits" — run P&R, and when a
+locked row moves, A/B it against HEAD before attributing the cause.
 
 Baking a payload is legitimate for exactly two cases, and both must say so:
 first bring-up of a board that has no loader image yet, and a part too small to

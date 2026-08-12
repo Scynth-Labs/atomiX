@@ -30,7 +30,9 @@ help:
 	@echo "  make fpga CONFIG=configs/tangprimer25k.json"
 	@echo "  make fpga CONFIG=configs/tangprimer25k-ax2.json PROGRAM=cpu_perf"
 	@echo "  make fpga CONFIG=configs/tangprimer25k-gpu.json PROGRAM=gpu_perf"
+	@echo "                           # ^ those bake a program in; bring-up only"
 	@echo "  make fpga-loader-primer  # loader bitstream: blank RAM, no baked program"
+	@echo "  make fpga-loader LOADER_CONFIG=configs/tangprimer25k-runtime-tpu.json"
 	@echo "  make load PROGRAM=snake  # send a program to a board running the loader"
 	@echo "  make kernel-primer       # exact 32 KiB ISS + RTL gate"
 	@echo "  make runtime-primer      # two live GPU programs, no resynthesis"
@@ -208,6 +210,17 @@ fpga-loader-primer:
 	  RAM_INIT_FILE="$(abspath sw/bootrom/blank.hex)" \
 	  ROM_INIT_FILE="$(abspath sw/bootrom/build/uart-ram32768/bootrom.hex)"
 
+# The same thing for any profile that resets into the ROM.  `reset_pc` is what
+# declares a loader profile, and rtl/fpga derives blank RAM and a correctly
+# sized UART ROM from it, so there is nothing else to pass -- there is no
+# payload to name.  The check is the point of having a target at all: aimed at
+# a baked profile this would quietly produce an image carrying one program,
+# which is the coupling the loader exists to remove.
+LOADER_CONFIG ?= configs/tangprimer25k-runtime.json
+fpga-loader:
+	@$(PYTHON) -c 'import json,sys; s=json.load(open("$(LOADER_CONFIG)")).get("settings",{}); pc=int(str(s.get("reset_pc","0")),0); sys.exit(0 if pc==0x1000 else "$(LOADER_CONFIG): reset_pc is %#x, not 0x1000, so this profile boots a baked payload rather than the loader. Use a runtime profile, or `make fpga CONFIG=... PROGRAM=<name>` if a baked image is really what you want." % pc)'
+	$(MAKE) -C rtl/fpga all COMPONENT_CONFIG="$(abspath $(LOADER_CONFIG))"
+
 # Send a program to a board already running a loader bitstream.  No synthesis,
 # no reconfiguration: the hardware is not a function of the program, and this
 # does not change the bitstream the board is running.
@@ -301,4 +314,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

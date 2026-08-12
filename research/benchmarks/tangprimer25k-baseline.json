@@ -1,8 +1,8 @@
 {
   "schema": 1,
   "id": "org.atomix.synth-baseline.tangprimer25k",
-  "locked_on": "2026-08-10",
-  "locked_at_commit": "6e70b9e7124d715798fe485a4b3874c1d1642139",
+  "locked_on": "2026-08-12",
+  "locked_at_commit": "95dd855be399cd946c8f47e0ecbb23c9414bf886",
   "device": {
     "part": "GW5A-25A",
     "lut4": 23040,
@@ -12,9 +12,14 @@
     "constraint_mhz": 25.0
   },
   "tools": {
-    "yosys": "0.67+102",
+    "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty, Release, Clang /usr/bin/clang++ 21.1.8)",
     "nextpnr": "himbaechel-gowin",
-    "note": "resource counts are toolchain-sensitive; a toolchain bump is expected to move them and should re-lock deliberately"
+    "note": "resource counts are toolchain-sensitive; a toolchain bump is expected to move them and should re-lock deliberately",
+    "sweep_tool_versions": {
+      "gowin_pack": "/home/shubhgau/opt/oss-cad-suite/lib/python3.11/site-packages/apycula/bitmatrix.py:60: UserWarning: Numpy is not available, performance will be degraded.",
+      "nextpnr_himbaechel": "\"nextpnr-himbaechel\" -- Next Generation Place and Route (Version nextpnr-0.10-105-g77e1f19f)",
+      "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty, Release, Clang /usr/bin/clang++ 21.1.8)"
+    }
   },
   "tolerance": {
     "lut4_percent": 3.0,
@@ -29,27 +34,27 @@
       "config": "configs/tangprimer25k.json",
       "program": "hello",
       "expect": "pass",
-      "lut4": 14326,
+      "lut4": 13844,
       "dff": 3138,
       "bsram": 36,
       "dsp": 0,
-      "fmax_mhz": 33.81
+      "fmax_mhz": 31.76
     },
     "gpu": {
       "config": "configs/tangprimer25k-gpu.json",
       "program": "gpu_perf",
       "expect": "pass",
-      "lut4": 17782,
+      "lut4": 16892,
       "dff": 3015,
       "bsram": 40,
       "dsp": 12,
-      "fmax_mhz": 34.12
+      "fmax_mhz": 33.91
     },
     "tpu": {
       "config": "configs/tangprimer25k-tpu.json",
       "program": "tpu",
       "expect": "pass",
-      "lut4": 18134,
+      "lut4": 17637,
       "dff": 3720,
       "bsram": 48,
       "dsp": 24,
@@ -60,42 +65,42 @@
       "config": "configs/tangprimer25k-runtime-gpu.json",
       "program": null,
       "expect": "pass",
-      "lut4": 18417,
-      "dff": 3853,
-      "bsram": 44,
+      "lut4": 17804,
+      "dff": 3857,
+      "bsram": 46,
       "dsp": 3,
-      "fmax_mhz": 29.3
+      "fmax_mhz": 31.36
     },
     "morph-1pe": {
       "config": "configs/tangprimer25k-morph.json",
       "program": "morph",
       "expect": "pass",
-      "lut4": 19158,
+      "lut4": 18660,
       "dff": 2706,
       "bsram": 24,
       "dsp": 3,
-      "fmax_mhz": 32.01
+      "fmax_mhz": 33.65
     },
     "gpu-lane1": {
       "config": "configs/tangprimer25k-gpu-lane1.json",
       "program": "gpu_lane1",
       "expect": "pass",
-      "lut4": 12281,
+      "lut4": 12413,
       "dff": 2242,
       "bsram": 28,
       "dsp": 3,
-      "fmax_mhz": 33.61
+      "fmax_mhz": 35.73
     },
     "runtime": {
       "config": "configs/tangprimer25k-runtime.json",
       "program": null,
       "expect": "pass",
-      "lut4": 15425,
-      "dff": 3132,
-      "bsram": 36,
+      "lut4": 13387,
+      "dff": 3136,
+      "bsram": 38,
       "dsp": 0,
-      "fmax_mhz": 29.72,
-      "note": "loader-only: blank RAM, immutable UART ROM, no baked program. This is the bitstream a board should be running, and the one every shipped payload (games, examples, kernels) executes on, so it is locked instead of a per-program row. It costs about 1,534 LUT4 more than a baked image (13,891 for the same profile carrying snake) because axrom reads combinationally and cannot map to BSRAM; 20 BSRAMs are free if that is ever changed."
+      "fmax_mhz": 31.21,
+      "note": "loader-only: blank RAM, immutable UART ROM, no baked program. This is the bitstream a board should be running, and the one every shipped payload (games, examples, kernels) executes on, so it is locked instead of a per-program row. It used to cost about 1,534 LUT4 more than a baked image because axrom read combinationally and could not map to BSRAM; with axrom's SYNC_READ it is now 457 LUT4 *below* the baked `cpu` row it replaces (13,387 against 13,844 in this same sweep), for 2 of the ~20 spare BSRAMs and 0.55 MHz. Decoupling a profile from its payload is now the cheaper option, not a cost."
     },
     "ax2": {
       "config": "configs/tangprimer25k-ax2.json",
@@ -106,22 +111,54 @@
       "bsram": 44,
       "dsp": 0,
       "fmax_mhz": null,
-      "note": "known failure: 110% LUT4, overflows the device. Recorded as failing rather than redefined; making it fit requires dropping branch prediction, which changes what it measures. A build that starts passing is also a baseline violation and must be re-locked deliberately."
+      "note": "Known failure, and a deliberate one: `core.ax2` is a profile for a larger part than this one, kept here so the Primer records how far over it is rather than pretending it is a Primer design. It needs 25,569 LUT4 against 23,040 (111%), so no seed or placer effort can help -- unlike `runtime-tpu`, which fits and merely places badly. Measured by parameter, the 64-entry BTB costs 5,820 LUT-family cells and the second issue slot 8,086, over a 19,286-cell single-issue baseline. The BTB is 64 x 60 = 3,840 bits read combinationally at two indices with a write port, so it becomes a LUT register file at ~1.5 cells/bit, and it cannot take the SYNC_READ treatment that moved axram and axrom into BSRAM: ax2_icache.sv needs the lookup combinational to steer the *next* fetch, and registering it costs the bubble the predictor exists to avoid. Making it fit on this device means dropping branch prediction, which changes what the profile measures -- so measure AX2 on a larger board instead. A build that starts passing is also a baseline violation and must be re-locked deliberately."
+    },
+    "runtime-ax2": {
+      "config": "configs/tangprimer25k-runtime-ax2.json",
+      "program": null,
+      "expect": "fail",
+      "lut4": null,
+      "dff": null,
+      "bsram": null,
+      "dsp": null,
+      "fmax_mhz": null,
+      "note": "Loader form of the ax2 profile: identical hardware, reset into the ROM, blank RAM, no baked program. Fails for the same reason `ax2` does -- the part is too small for a dual-issue core with a 64-entry BTB, not anything about the loader -- confirmed by building it, not assumed. Recorded rather than dropped so the pair stays comparable and so a build that starts passing is a deliberate re-lock. The decoupling itself is proven on every other Primer profile; this one waits on a larger board."
+    },
+    "runtime-gpu4": {
+      "config": "configs/tangprimer25k-runtime-gpu4.json",
+      "program": null,
+      "expect": "pass",
+      "lut4": 17721,
+      "dff": 3019,
+      "bsram": 42,
+      "dsp": 12,
+      "fmax_mhz": 30.56,
+      "note": "loader form of the 4-lane minimal-host GPU profile (`-runtime-gpu` is a different machine: reference core, one lane, 32 KiB). Payload budget is 16384-4096 = 12 KiB."
+    },
+    "runtime-tpu": {
+      "config": "configs/tangprimer25k-runtime-tpu.json",
+      "program": null,
+      "expect": "pass",
+      "lut4": 18403,
+      "dff": 3724,
+      "bsram": 50,
+      "dsp": 24,
+      "fmax_mhz": 32.75,
+      "note": "loader form of the TPU profile. PLACEMENT-FRAGILE: it fits comfortably (80% LUT4, 89% BSRAM, 24/56 DSP) but legalises on only one seed in five -- measured FAIL/PASS/FAIL/FAIL/FAIL for seeds 1-5 -- so the profile pins `pnr_seed: 2` the way `-runtime-gpu` pins 3. Nothing is over capacity; what is scarce is placement freedom, because 50 block RAMs and 24 multipliers must land in fixed GW5A columns and the boot ROM adds the last 2 BSRAMs on top of baked `tpu`'s 48. Treat a failure here as a re-roll of the analytic placer, not a size regression, and re-seed rather than shrink -- but do not assume the pinned seed survives an unrelated RTL change, because any netlist edit re-rolls it. The loader costs +766 LUT4 and +2 BSRAM over baked `tpu`, and routes 1.01 MHz faster."
     }
   },
   "provenance": {
-    "cpu": "sweep tangprimer25k-synth-2026-08-10.json",
-    "gpu": "sweep tangprimer25k-synth-2026-08-10.json",
-    "runtime-gpu": "sweep tangprimer25k-synth-2026-08-10.json",
-    "morph-1pe": "sweep tangprimer25k-synth-2026-08-10.json",
-    "gpu-lane1": "sweep tangprimer25k-synth-2026-08-10.json",
-    "ax2": "sweep tangprimer25k-synth-2026-08-10.json (failing)",
-    "runtime": "in-tree build 2026-08-10: make fpga-loader-primer, seed 1, routed fmax (not the post-placement estimate)",
-    "tpu": "in-tree rebuild after the 77553a2 regression fix; the sweep predates that fix and recorded tpu as failing"
-  },
-  "known_stale_rows": {
-    "gpu-lane1": "Locked from the sweep at 12,281 LUT4 / 33.61 MHz. A current build measures 13,393 / 35.73 because sw/baremetal/examples/gpu_lane1.c gained volatile reference arrays after that sweep ran. Re-lock from a fresh sweep.",
-    "morph-1pe": "Same situation: sw/baremetal/examples/morph.c changed after the sweep. The in-tree build that was loaded on the board measured 20,176 / 29.20 against the locked 19,158 / 32.01.",
-    "note": "These two rows will flag on the next sweep. That is the gate working, not a hardware problem; re-lock them deliberately once a post-fix sweep exists."
+    "cpu": "sweep tangprimer25k-synth-2026-08-12.json",
+    "gpu": "sweep tangprimer25k-synth-2026-08-12.json",
+    "runtime-gpu": "sweep tangprimer25k-synth-2026-08-12.json",
+    "morph-1pe": "sweep tangprimer25k-synth-2026-08-12.json",
+    "gpu-lane1": "sweep tangprimer25k-synth-2026-08-12.json",
+    "ax2": "sweep tangprimer25k-synth-2026-08-12.json",
+    "runtime": "sweep tangprimer25k-synth-2026-08-12.json",
+    "tpu": "sweep tangprimer25k-synth-2026-08-12.json",
+    "runtime-ax2": "sweep tangprimer25k-synth-2026-08-12.json",
+    "runtime-gpu4": "sweep tangprimer25k-synth-2026-08-12.json",
+    "runtime-tpu": "sweep tangprimer25k-synth-2026-08-12-runtime-tpu.json",
+    "note": "Ten rows come from the 11-profile sweep tangprimer25k-synth-2026-08-12.json. `runtime-tpu` is re-locked from its own later single-profile run because the main sweep predates pinning `pnr_seed: 2` in its config and therefore recorded it failing at seed 1. Checking the lock against the main sweep alone will flag `runtime-tpu` for that reason and no other; the next full sweep will cover all eleven coherently."
   }
 }

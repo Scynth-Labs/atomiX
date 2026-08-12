@@ -177,13 +177,21 @@ gowin-evidence: all
 	  $(if $(EVIDENCE_RUNTIME_GATE),--gate "runtime-fast-switch=$(EVIDENCE_RUNTIME_GATE)") \
 	  --output "$(EVIDENCE)"
 
+# An installed-but-unsourced OSS CAD Suite looks exactly like a missing one,
+# and a bare "missing: nextpnr-himbaechel" sends the reader off to install a
+# toolchain they already have.  Say so when the suite is sitting right there.
+OSS_CAD_SUITE ?= $(HOME)/opt/oss-cad-suite
+SOURCE_HINT = $(if $(wildcard $(OSS_CAD_SUITE)/environment),\n  the OSS CAD Suite is installed but not on PATH: source $(OSS_CAD_SUITE)/environment,)
 check-tools:
-	@command -v $(YOSYS) >/dev/null || { echo "missing: $(YOSYS)"; exit 2; }
-	@command -v $(NEXTPNR_HIMBAECHEL) >/dev/null || { echo "missing: $(NEXTPNR_HIMBAECHEL) (Gowin nextpnr; from apicula/OSS CAD Suite)"; exit 2; }
-	@command -v $(GOWIN_PACK) >/dev/null || { echo "missing: $(GOWIN_PACK) (apicula)"; exit 2; }
+	@command -v $(YOSYS) >/dev/null || { printf 'missing: $(YOSYS)$(SOURCE_HINT)\n'; exit 2; }
+	@command -v $(NEXTPNR_HIMBAECHEL) >/dev/null || { printf 'missing: $(NEXTPNR_HIMBAECHEL) (Gowin nextpnr; from apicula/OSS CAD Suite)$(SOURCE_HINT)\n'; exit 2; }
+	@command -v $(GOWIN_PACK) >/dev/null || { printf 'missing: $(GOWIN_PACK) (apicula)$(SOURCE_HINT)\n'; exit 2; }
 
+# Which yosys matters as much as which nextpnr: the locked baseline was made
+# with the suite's build, and a different one moves the numbers it pins.
 toolchain-report: check-tools
 	@$(YOSYS) -V
+	@echo "  yosys path: $$(command -v $(YOSYS))"
 	@$(NEXTPNR_HIMBAECHEL) --version 2>&1 | head -1
 	@if command -v $(OPENFPGALOADER) >/dev/null; then $(OPENFPGALOADER) --version; else echo "openFPGALoader: not found (programming only)"; fi
 

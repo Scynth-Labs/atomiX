@@ -50,6 +50,12 @@ def main() -> int:
     parser.add_argument("--ram-bytes", type=int, default=32768)
     parser.add_argument("--max-cycles", type=int, default=12000000)
     parser.add_argument("--label", default="payload")
+    # The boards set SYNC_READ=1 so RAM and the boot ROM map to BSRAM instead of
+    # LUTs, which costs one wait state per access.  Default to that timing: this
+    # gate exists to stand behind a physical claim, so it should run the read
+    # timing the board runs, not the simulator-friendly combinational one.
+    parser.add_argument("--sync-read", type=int, default=1, choices=(0, 1),
+                        help="ROM/RAM read timing (1 = registered, as on board)")
     args = parser.parse_args()
 
     payload = pathlib.Path(args.payload).read_bytes()
@@ -81,8 +87,9 @@ def main() -> int:
             "run", f"COMPONENT_CONFIG={CONFIG}",
             f"RAM_INIT_FILE={BLANK_RAM}", f"ROM_INIT_FILE={boot_rom}",
             f"RAM_BYTES={args.ram_bytes}", "RESET_PC=0x00001000",
+            f"SYNC_READ={args.sync_read}",
             f"UART_INPUT_FILE={uart.name}", f"MAX_CYCLES={args.max_cycles}",
-            "BUILD_ID=payload-boot",
+            f"BUILD_ID=payload-boot-sync{args.sync_read}",
         ], cwd=ROOT, capture_output=True, timeout=1800)
 
     transcript = result.stdout
@@ -94,8 +101,9 @@ def main() -> int:
     if ack not in transcript:
         return fail(f"{args.label}: loader did not accept the upload "
                     f"(no AXOK for {len(payload)} bytes)")
+    timing = "registered (board)" if args.sync_read else "combinational"
     print(f"{args.label}: PASS (loader accepted {len(payload)} bytes into "
-          f"blank RAM and started them)")
+          f"blank RAM and started them; {timing} ROM/RAM reads)")
 
     for wanted in args.expect:
         if wanted.encode() not in transcript:

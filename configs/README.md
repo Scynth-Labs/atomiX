@@ -67,8 +67,27 @@ custom component may define its own knobs without changing the common resolver.
 | `tangprimer25k.json` | Tang Primer 25K Dock/GW5A BRAM-only board target |
 | `tangprimer25k-ax2.json` | Primer max CPU: dual-issue AX2, 2 KiB I-cache, 64-entry BTB |
 | `tangprimer25k-gpu.json` | Primer verified GPU: minimal host plus 4-lane SIMT engine using 12 DSPs |
-| `tangprimer25k-runtime-gpu.json` | Primer kernel platform: ROM reset, blank RAM, runtime-uploaded aXos, and programmable 1-lane GPU |
 | `tangprimer25k-tpu.json` | Primer max TPU: folded 24-MAC int8 GEMM engine |
+
+The four profiles above bake a program into synthesis, which makes each one a
+claim about a *machine plus one program*. Every one of them has a loader
+counterpart below: identical hardware, reset into the ROM, blank RAM, and no
+payload named anywhere. Those are the ones to build and ship; the baked forms
+remain for first bring-up of a board with no loader image.
+
+| Loader profile | Decouples | Purpose |
+|---|---|---|
+| `tangprimer25k-runtime.json` | `tangprimer25k.json` | the shipping Primer image: reference CPU, no role, 32 KiB RAM, 921600-baud console |
+| `tangprimer25k-runtime-ax2.json` | `tangprimer25k-ax2.json` | dual-issue AX2 with the loader instead of a baked `hello` |
+| `tangprimer25k-runtime-gpu4.json` | `tangprimer25k-gpu.json` | minimal host plus the 4-lane SIMT engine, 16 KiB RAM (12 KiB payload budget) |
+| `tangprimer25k-runtime-tpu.json` | `tangprimer25k-tpu.json` | reference CPU plus the folded int8 GEMM engine |
+| `tangprimer25k-runtime-gpu.json` | — | Primer kernel platform: ROM reset, blank RAM, runtime-uploaded aXos, and a programmable 1-lane GPU. Not the loader form of `-gpu.json`: it is a different machine (reference core, one lane, 32 KiB), which is why the 4-lane one is named `-gpu4` |
+
+Kernel composition profiles (`sw/kernel`, selected with `KERNEL_CONFIG`) are a
+separate axis and never reach synthesis:
+
+| Profile | Purpose |
+|---|---|
 | `kernel-default.json` | aXos round-robin scheduling with the reference Sv32 VM |
 | `kernel-cooperative.json` | aXos cooperative-until-blocked scheduling with the reference Sv32 VM |
 | `kernel-primer-monitor.json` | aXos sized for the Primer's 32 KiB RAM, with the compact `shell.monitor` console |

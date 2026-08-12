@@ -51,6 +51,11 @@ module soc_top #(
   // construction, nothing can happen until an input changes.
   output logic       cpu_idle
 );
+  // One source of truth for the boot ROM window. Both bus muxes decode it, the
+  // ROM instance is based at it, and the reset-into-ROM test that selects the
+  // ROM's read timing compares against it.
+  localparam logic [31:0] ROM_BASE = 32'h0000_1000;
+
   logic ibus_valid, ibus_ready, ibus_err;
   logic [31:0] ibus_addr, ibus_rdata, ibus_wdata;
   logic [3:0] ibus_wstrb;
@@ -219,7 +224,7 @@ module soc_top #(
     end
   endgenerate
 
-  axbus_mux #(.RAM_SIZE(RAM_BYTES)) u_ibus_mux (
+  axbus_mux #(.ROM_BASE(ROM_BASE), .RAM_SIZE(RAM_BYTES)) u_ibus_mux (
     .m_valid(i_bus_valid), .m_addr(i_bus_addr), .m_ready(i_bus_ready),
     .m_rdata(i_bus_rdata), .m_err(i_bus_err),
     .rom_valid(i_rom_valid), .rom_ready(i_rom_ready), .rom_rdata(i_rom_rdata), .rom_err(i_rom_err),
@@ -233,7 +238,7 @@ module soc_top #(
     .role_valid(i_role_valid), .role_ready(i_role_ready), .role_rdata(i_role_rdata), .role_err(i_role_err)
   );
 
-  axbus_mux #(.RAM_SIZE(RAM_BYTES)) u_dbus_mux (
+  axbus_mux #(.ROM_BASE(ROM_BASE), .RAM_SIZE(RAM_BYTES)) u_dbus_mux (
     .m_valid(d_bus_valid), .m_addr(d_bus_addr), .m_ready(d_bus_ready),
     .m_rdata(d_bus_rdata), .m_err(d_bus_err),
     .rom_valid(d_rom_valid), .rom_ready(d_rom_ready), .rom_rdata(d_rom_rdata), .rom_err(d_rom_err),
@@ -247,8 +252,21 @@ module soc_top #(
     .role_valid(d_role_valid), .role_ready(d_role_ready), .role_rdata(d_role_rdata), .role_err(d_role_err)
   );
 
-  axrom #(.INIT_FILE(ROM_INIT_FILE)) u_rom (
-    .clk(clk), .i_valid(i_rom_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
+  // The boot ROM takes the board's registered-read timing only when the machine
+  // actually resets into it. That is the whole population of profiles that
+  // execute from ROM: the loader jumps to RAM and never returns, so a profile
+  // resetting at RAM carries a baked payload and never fetches a ROM word.
+  //
+  // The distinction is not cosmetic. With no INIT_FILE the asynchronous form
+  // optimises away completely, while the registered form leaves a handshake
+  // behind and re-rolls packing -- measured at -252 LUT4 on `cpu` but +427 on
+  // `morph-1pe`, which was enough to push both `role.morph` and `role.tpu-lite`
+  // off a legal placement at 78-87% utilisation. Scoping it here means a baked
+  // profile is bit-identical to one built before the ROM gained SYNC_READ,
+  // while every loader profile still gets its 4 KiB ROM in BSRAM.
+  localparam int unsigned ROM_SYNC_READ = (RESET_PC == ROM_BASE) ? SYNC_READ : 0;
+  axrom #(.BASE(ROM_BASE), .SYNC_READ(ROM_SYNC_READ), .INIT_FILE(ROM_INIT_FILE)) u_rom (
+    .clk(clk), .rst(rst), .i_valid(i_rom_valid), .i_addr(i_bus_addr), .i_wdata(i_bus_wdata),
     .i_wstrb(i_bus_wstrb), .i_ready(i_rom_ready), .i_rdata(i_rom_rdata), .i_err(i_rom_err),
     .d_valid(d_rom_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata),
     .d_wstrb(d_bus_wstrb), .d_ready(d_rom_ready), .d_rdata(d_rom_rdata), .d_err(d_rom_err)

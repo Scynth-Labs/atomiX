@@ -57,6 +57,18 @@ Profiles already build in separate directories, so they contend only for CPU
 and RAM. Expect the full sweep to drop from about 79 minutes to roughly 30 at
 `--jobs 3`.
 
+**Concurrency is also safe for the lock, now measured rather than assumed.**
+`--threads 6` was checked when it was adopted, but `--jobs` never was, and
+"contends only for CPU and RAM" is an argument, not evidence — three nextpnr
+processes each asking for six threads on six cores is exactly where a
+timing-driven placer might diverge. On 2026-08-12 the `cpu` profile was rebuilt
+alone, seed 1, nothing else running, and came out **bit-identical** to the same
+profile inside an 11-profile `--jobs 3` sweep: 13,592 LUT4, 3,142 DFF, 36
+BSRAM, 31.79 MHz on both. So a concurrent sweep is a valid basis for a re-lock,
+and deviations it reports are real rather than artifacts of the harness. Worth
+re-checking if `--jobs` is ever raised past the memory budget, where swapping
+could change placer behaviour.
+
     python3 tools/tangprimer_synth_benchmark.py --jobs 3 --output <report.json>
 
 ## Fresh synthesis and place-and-route — 2026-08-10

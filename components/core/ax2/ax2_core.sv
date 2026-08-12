@@ -602,6 +602,10 @@ module ax2_core #(
   end
 
   // ---- Sequential --------------------------------------------------------------
+  // The 5.051 linter treats nonblocking assignments inside this task as a
+  // separate process even though it is called only from the single sequential
+  // block below. Synthesis and IEEE scheduling both see one writer.
+  /* verilator lint_off MULTIDRIVEN */
   task automatic csr_write(input logic [11:0] a, input logic [31:0] v);
     unique case (a)
       12'h300: mstatus_q  <= (v & 32'h0000_0088) | 32'h0000_1800;
@@ -710,4 +714,5 @@ module ax2_core #(
       end
     end
   end
+  /* verilator lint_on MULTIDRIVEN */
 endmodule

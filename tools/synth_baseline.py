@@ -25,7 +25,9 @@ they must match exactly.
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -135,16 +137,135 @@ def cmd_check(args) -> int:
     return 0
 
 
+def cmd_relock(args) -> int:
+    """Rewrite the lock from a sweep, printing every field it moves.
+
+    Transcribing eight profiles by hand into the one file whose entire job is
+    precision is how a lock quietly stops describing the hardware.  This does
+    the copy mechanically and prints old -> new for each field, so the human
+    part of a deliberate re-lock is reading the deltas rather than retyping
+    them.
+    """
+    baseline = load(BASELINE)
+    report = load(args.report)
+    if report.get("status") != "COMPLETE":
+        raise SystemExit(
+            f"synth baseline: {args.report} has status "
+            f"{report.get('status')!r}, not COMPLETE; re-lock only from a "
+            "sweep that finished")
+    results = {r["profile"]: r for r in report.get("results", [])}
+    names = args.profile or sorted(results)
+    missing = [n for n in names if n not in results]
+    if missing:
+        raise SystemExit(f"synth baseline: not in the report: {', '.join(missing)}")
+
+    profiles = baseline["profiles"]
+    unlocked = baseline.get("unlocked_rows", {})
+    stale = baseline.get("known_stale_rows", {})
+    for name in names:
+        got = observed(results[name])
+        passed = got["status"] == "PASS"
+        row = profiles.get(name)
+        if row is None:
+            # A profile that had no locked row: take its config and any note
+            # from unlocked_rows so the reason it exists survives the move.
+            pending = unlocked.get(name, {})
+            row = {
+                "config": pending.get("config", results[name]["config"]["path"]),
+                "program": None,
+                "expect": "pass" if passed else "fail",
+                "lut4": None, "dff": None, "bsram": None, "dsp": None,
+                "fmax_mhz": None,
+            }
+            if pending.get("note"):
+                row["note"] = pending["note"]
+            profiles[name] = row
+            print(f"{name}: NEW row, expect={row['expect']}")
+        expect = "pass" if passed else "fail"
+        if row["expect"] != expect:
+            print(f"{name}: expect {row['expect']} -> {expect}")
+            row["expect"] = expect
+        for field in ("lut4", "dff", "bsram", "dsp", "fmax_mhz"):
+            after = got[field]
+            # A build that failed to place reports no utilisation at all. Do not
+            # let that null out the row: `ax2` is locked as a known failure and
+            # its last known counts are what tell a reader *how far* over the
+            # device it is. Only fields the sweep actually measured are written.
+            if after is None:
+                continue
+            if field == "fmax_mhz":
+                after = round(after, 2)
+            before = row.get(field)
+            if before != after:
+                print(f"{name}: {field} {before} -> {after}")
+            row[field] = after
+        baseline.setdefault("provenance", {})[name] = f"sweep {args.report.name}"
+        stale.pop(name, None)
+        unlocked.pop(name, None)
+
+    baseline["locked_on"] = dt.date.today().isoformat()
+    baseline["locked_at_commit"] = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=ROOT, check=True, text=True,
+        stdout=subprocess.PIPE).stdout.strip()
+    # Keep the baseline's own tool vocabulary; the report's raw strings go in
+    # one place rather than merging keys that mean different things. (The sweep
+    # records gowin_pack's "version" as whatever it prints, which can be a
+    # warning line, so it is evidence rather than a version field.)
+    tools = dict(baseline.get("tools", {}))
+    reported = report.get("tools", {})
+    if reported.get("yosys"):
+        tools["yosys"] = reported["yosys"]
+    tools["sweep_tool_versions"] = reported
+    baseline["tools"] = tools
+    # An empty note-only container is noise; drop it once nothing is pending.
+    for key in ("known_stale_rows", "unlocked_rows"):
+        container = baseline.get(key, {})
+        if set(container) <= {"note"}:
+            baseline.pop(key, None)
+
+    BASELINE.write_text(json.dumps(baseline, indent=2) + "\n", encoding="utf-8")
+    print(f"\nre-locked {len(names)} profile(s) on {baseline['locked_on']} at "
+          f"{baseline['locked_at_commit'][:12]} from {args.report.name}")
+    print(f"Review the deltas above, then commit {BASELINE.relative_to(ROOT)} "
+          "with the change that caused them.")
+    return 0
+
+
 def cmd_show(args) -> int:
     baseline = load(BASELINE)
+    stale = {k: v for k, v in baseline.get("known_stale_rows", {}).items()
+             if k != "note"}
+    unlocked = {k: v for k, v in baseline.get("unlocked_rows", {}).items()
+                if k != "note"}
     print(f"locked {baseline['locked_on']} at {baseline['locked_at_commit'][:12]}")
-    header = f"{'profile':<13}{'expect':<8}{'LUT4':>7}{'DFF':>7}{'BSRAM':>7}{'DSP':>5}{'fmax':>9}"
+    header = (f"{'profile':<13}{'expect':<8}{'LUT4':>7}{'DFF':>7}{'BSRAM':>7}"
+              f"{'DSP':>5}{'fmax':>9}  ")
     print(header)
     print("-" * len(header))
     for name, want in baseline["profiles"].items():
-        fmax = f"{want['fmax_mhz']:.2f}" if want["fmax_mhz"] else "-"
-        print(f"{name:<13}{want['expect']:<8}{want['lut4']:>7}{want['dff']:>7}"
-              f"{want['bsram']:>7}{want['dsp']:>5}{fmax:>9}")
+        # A row for a build that has never placed carries no counts at all, so
+        # every column has to survive a missing value.
+        cell = lambda f: "-" if want.get(f) is None else str(want[f])  # noqa: E731
+        fmax = f"{want['fmax_mhz']:.2f}" if want.get("fmax_mhz") else "-"
+        print(f"{name:<13}{want['expect']:<8}{cell('lut4'):>7}{cell('dff'):>7}"
+              f"{cell('bsram'):>7}{cell('dsp'):>5}{fmax:>9}  "
+              f"{'STALE' if name in stale else ''}")
+    # A locked number that is already known to be wrong is worse than no number
+    # if the reader cannot tell which is which, so say so here rather than only
+    # in the file.
+    if stale:
+        print(f"\n{len(stale)} row(s) known stale; they will flag on the next "
+              "sweep and must be re-locked deliberately:")
+        for name in stale:
+            print(f"  {name}: {stale[name]}")
+    if unlocked:
+        print(f"\n{len(unlocked)} profile(s) with no locked row yet "
+              "(add them from the first sweep that includes them):")
+        for name, entry in unlocked.items():
+            # No `expect` here on purpose: whether one of these places is what
+            # the sweep is for, not something to declare in advance.
+            print(f"  {name} -> decouples {entry.get('decouples', '?')} "
+                  f"({entry['config']})")
     return 0
 
 
@@ -156,6 +277,12 @@ def main() -> int:
     p.add_argument("--partial", action="store_true",
                    help="only check profiles present in the report")
     p.set_defaults(func=cmd_check)
+    p = sub.add_parser("relock", help="rewrite the lock from a finished sweep")
+    p.add_argument("report", type=Path)
+    p.add_argument("--profile", action="append",
+                   help="re-lock only this profile (repeatable; default: every "
+                        "profile in the report)")
+    p.set_defaults(func=cmd_relock)
     p = sub.add_parser("show", help="print the locked baseline")
     p.set_defaults(func=cmd_show)
     args = parser.parse_args()

@@ -411,6 +411,10 @@ module gpu1_engine #(
   wire div_signed = (op == OP_DIV) || (op == OP_REM);
 
   // ---- Job control -----------------------------------------------------------
+  // The 5.051 linter treats nonblocking assignments inside these tasks as a
+  // separate process even though both are called only from the single
+  // sequential block below. Synthesis and IEEE scheduling both see one writer.
+  /* verilator lint_off MULTIDRIVEN */
   task automatic apply_reg_write(input logic [15:0] off,
                                  input logic [31:0] wdata,
                                  input logic [3:0] strb);
@@ -672,4 +676,5 @@ module gpu1_engine #(
       end
     end
   end
+  /* verilator lint_on MULTIDRIVEN */
 endmodule

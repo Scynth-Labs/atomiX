@@ -1,0 +1,104 @@
+{
+  "generated_at_utc": "2026-08-12T02:40:29.383693+00:00",
+  "host": {
+    "logical_cpus": 6,
+    "platform": "Linux-5.15.167.4-microsoft-standard-WSL2-x86_64-with-glibc2.43"
+  },
+  "jobs": 1,
+  "method": "fresh isolated synthesis, then place/route/pack; one process",
+  "results": [
+    {
+      "bitstream": {
+        "bytes": 7338142,
+        "sha256": "e68c085ad9a78c60d1418b254ba801b620810a3897b21b8d66d08adf3657bd6a"
+      },
+      "clocks_mhz": {
+        "clk_25mhz": {
+          "achieved": 32.75144958496094,
+          "constraint": 25
+        }
+      },
+      "config": {
+        "path": "configs/tangprimer25k-runtime-tpu.json",
+        "sha256": "8b2f09113839a76e1a6f9e060ce34b469009a32e16b2e32efaba2efae899c378"
+      },
+      "place_route_pack_ms": 1306395.872,
+      "place_route_status": "PASS",
+      "profile": "runtime-tpu",
+      "synthesis_log_sha256": "5c51fe41aed955b5fa9a48d2e65aaec6b8e56bac1c3f7fa945c79722e311e9bf",
+      "synthesis_ms": 34815.156,
+      "synthesis_status": "PASS",
+      "timing_report_sha256": "f67ac57aa0a1198e72edfddbfd29ee3e610abaf6923a3eab60c992ae232fa04a",
+      "total_build_ms": 1341211.028,
+      "utilization": {
+        "ALU": {
+          "available": 17280,
+          "used": 2874
+        },
+        "BSRAM": {
+          "available": 56,
+          "used": 50
+        },
+        "CLKDIV": {
+          "available": 16,
+          "used": 1
+        },
+        "DFF": {
+          "available": 23040,
+          "used": 3724
+        },
+        "GND": {
+          "available": 1,
+          "used": 1
+        },
+        "GSR": {
+          "available": 1,
+          "used": 1
+        },
+        "IOB": {
+          "available": 240,
+          "used": 4
+        },
+        "LUT4": {
+          "available": 23040,
+          "used": 18403
+        },
+        "MULT12X12": {
+          "available": 56,
+          "used": 24
+        },
+        "MUX2_LUT5": {
+          "available": 11520,
+          "used": 4590
+        },
+        "MUX2_LUT6": {
+          "available": 5760,
+          "used": 1422
+        },
+        "MUX2_LUT7": {
+          "available": 2880,
+          "used": 600
+        },
+        "MUX2_LUT8": {
+          "available": 2880,
+          "used": 217
+        },
+        "PINCFG": {
+          "available": 1,
+          "used": 1
+        },
+        "VCC": {
+          "available": 1,
+          "used": 1
+        }
+      }
+    }
+  ],
+  "schema": 1,
+  "status": "COMPLETE",
+  "tools": {
+    "gowin_pack": "/home/shubhgau/opt/oss-cad-suite/lib/python3.11/site-packages/apycula/bitmatrix.py:60: UserWarning: Numpy is not available, performance will be degraded.",
+    "nextpnr_himbaechel": "\"nextpnr-himbaechel\" -- Next Generation Place and Route (Version nextpnr-0.10-105-g77e1f19f)",
+    "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty, Release, Clang /usr/bin/clang++ 21.1.8)"
+  }
+}

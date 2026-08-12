@@ -181,6 +181,43 @@ The endgame architecture. The FPGA design is split into two parts:
   for first bring-up of a profile that has no loader image yet, and every use
   of it says so. SD boot remains a separate persistent-storage mode, not the
   development fast path.
+- **The loader has to be cheaper than the coupling it removes.** It was not, at
+  first: `axrom` read combinationally, and an asynchronous read cannot map to a
+  Gowin BSRAM, so the 4 KiB boot ROM became a LUT ROM and the loader image cost
+  about 1,534 LUT4 more than a baked one (15,425 against 13,891 on the same
+  profile). A profile near the device limit then had a real reason to refuse
+  the decoupling, which would have left the invariant true only where it was
+  free. `axrom` now carries the same `SYNC_READ` parameter `axram` does, and the
+  boards set it: the read and its completion are registered, the array infers
+  BSRAM, and the ROM costs blocks instead of logic. It is a 0W2R memory, so the
+  synthesiser maps both read ports onto the same two initialised blocks; the
+  price is one wait state on ROM fetches, paid only while the loader itself is
+  executing. Routed, the shipping `tangprimer25k-runtime` image goes from
+  15,425 LUT4 / 36 BSRAM / 29.72 MHz to **13,387 / 38 / 31.21** — smaller and
+  faster — and lands **457 LUT4 below the baked `cpu` image it replaces**. The
+  decoupling is no longer something a tight profile has a reason to refuse; it
+  is the cheaper option. It is not uniform, though: the 4-lane GPU pays 829
+  LUT4 for its loader and the TPU pays 766 plus the ROM's 2 BSRAMs, which on
+  that profile lands at 50 of 56 blocks alongside 24 multipliers. Everything
+  fits; what runs out is *placement freedom*, since Gowin BSRAM and DSP columns
+  are fixed. `runtime-tpu` legalises on one seed in five (FAIL/PASS/FAIL/FAIL/
+  FAIL for seeds 1–5), so it pins `pnr_seed: 2`. Every Primer profile except
+  `ax2` can therefore run the loader, and `ax2` is excluded by arithmetic
+  rather than luck: 25,569 LUT4 against 23,040, with the 64-entry BTB alone
+  costing 5,820 LUT-family cells because a predictor consulted at fetch time
+  must read combinationally and so can never reach block RAM.
+- **A boot ROM only earns block RAM on a machine that boots from it.** The
+  registered ROM is scoped by `ROM_SYNC_READ = (RESET_PC == ROM_BASE)`, because
+  a profile resetting into RAM has a baked payload and never fetches a ROM
+  word. Left global, the registered form leaves a handshake behind in designs
+  that never use it and re-rolls packing — erratically, −252 LUT4 on one
+  profile and +427 on another — which was enough to push `role.tpu-lite` and
+  `role.morph` off a legal placement while they sat at 78–87% utilisation. Two
+  locked profiles went from placing to not placing because of a ROM neither of
+  them reads. Scoping it restores both to bit-identical-to-HEAD while the
+  loader profiles keep every gain. The general rule: a shared component's
+  "better" implementation is only better where the component is used, and on an
+  FPGA near its limit, structure moves placement even when it removes logic.
 - **Host driver (`axhost`)** = userspace tool/daemon on the host PC speaking a
   small framed protocol over USB: bitstream upload, buffer read/write, work
   submission, completion events. It knows the shell protocol, never the role

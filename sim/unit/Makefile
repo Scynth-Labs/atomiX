@@ -67,7 +67,7 @@ SOC_SVS := $(CORE_SOURCES) \
   $(ROLE_REFERENCE)/axrole.sv \
   $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv $(SOC_REFERENCE)/soc_top.sv
 
-test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
+test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axrom run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
 
 # The alternate muldiv component passes the identical latency-agnostic
 # testbench; a swapped unit earns the same evidence as the reference.
@@ -221,6 +221,20 @@ run-axcache: $(CACHE_REFERENCE)/axcache.sv $(MEMORY_REFERENCE)/axdram_model.sv a
 	$(VERILATOR) $(VFLAGS) --top-module axcache_test_top --Mdir obj_dir_axcache \
 	  --exe --build -o tb_axcache $^ >/dev/null
 	./obj_dir_axcache/tb_axcache
+
+# The boot ROM in both read timings.  SYNC_READ=1 is what the boards build, so
+# the loader's ROM maps to BSRAM instead of LUTs; SYNC_READ=0 is the
+# combinational read the simulator profiles use.  Same contents, same faults,
+# same immutability -- one extra cycle.
+run-axrom: $(ROM_REFERENCE)/axrom.sv tb_axrom.cpp data/axrom.hex
+	$(VERILATOR) $(VFLAGS) --top-module axrom --Mdir obj_dir_axrom_async \
+	  -GBYTES=64 -GSYNC_READ=0 -GINIT_FILE=\"$(CURDIR)/data/axrom.hex\" \
+	  --exe --build -o tb_axrom $< $(CURDIR)/tb_axrom.cpp >/dev/null
+	./obj_dir_axrom_async/tb_axrom 0
+	$(VERILATOR) $(VFLAGS) --top-module axrom --Mdir obj_dir_axrom_sync \
+	  -GBYTES=64 -GSYNC_READ=1 -GINIT_FILE=\"$(CURDIR)/data/axrom.hex\" \
+	  --exe --build -o tb_axrom $< $(CURDIR)/tb_axrom.cpp >/dev/null
+	./obj_dir_axrom_sync/tb_axrom 1
 
 run-axspi: $(SPI_REFERENCE)/axspi.sv tb_axspi.cpp
 	$(VERILATOR) $(VFLAGS) --top-module axspi --Mdir obj_dir_axspi \

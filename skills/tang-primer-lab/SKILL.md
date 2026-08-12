@@ -40,7 +40,11 @@ device paths or BUSID.
   program its own bitstream, its own placement, and its own hash, which is how
   `role.tpu-lite` once stopped fitting after a software change. Reach for
   `make fpga PROGRAM=<name>` only for first bring-up of a profile that has no
-  loader image.
+  loader image. `make fpga-loader-primer` builds the plain one;
+  `make fpga-loader LOADER_CONFIG=configs/tangprimer25k-runtime-{ax2,gpu4,tpu}.json`
+  builds the role-carrying ones. Their rows are not locked yet — no P&R sweep
+  has run since they were added — so measure before claiming a fit, especially
+  for `runtime-tpu`, which synthesises about 7% larger than its baked form.
 - Use `make -C rtl/fpga program ...` or `openFPGALoader -b tangprimer25k
   <image>` for reversible SRAM loading.
 - Never use `make flash`, `openFPGALoader -f`, or another persistent write

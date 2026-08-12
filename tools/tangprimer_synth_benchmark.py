@@ -43,6 +43,15 @@ PRESETS = {
             f"ROM_INIT_FILE={ROOT / 'sw/bootrom/build/uart-ram32768/bootrom.hex'}",
         ],
     ),
+    # The loader form of each remaining baked row: identical hardware, but reset
+    # into the ROM with blank RAM, so the row measures a machine instead of a
+    # machine-plus-one-program. `reset_pc: 0x00001000` is what selects that, and
+    # rtl/fpga/Makefile derives the blank RAM and the correctly sized UART ROM
+    # from it, so these presets need no payload arguments at all -- which is the
+    # point: there is no payload to name.
+    "runtime-ax2": ("configs/tangprimer25k-runtime-ax2.json", []),
+    "runtime-gpu4": ("configs/tangprimer25k-runtime-gpu4.json", []),
+    "runtime-tpu": ("configs/tangprimer25k-runtime-tpu.json", []),
 }
 
 
