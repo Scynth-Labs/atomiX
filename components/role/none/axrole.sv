@@ -24,11 +24,23 @@ module axrole (
   // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
   // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+
+  // One-cycle pulse per descriptor or job this role refused, for the shell's
+  // Live FPGA telemetry (docs/live-fpga.md).  A role with no descriptor to
+  // refuse ties it low; see axroleiso.sv for the shell-side contract.
+  output logic        reject_event
+`endif
 );
-  // No engine, so nothing ever completes: the line is tied low rather than
-  // left unconnected, which keeps the PLIC source well defined when a profile
-  // selects no role.
-  assign irq = 1'b0;
+  // No engine, so nothing ever completes and nothing is ever refused: both
+  // lines are tied low rather than left unconnected, which keeps the PLIC
+  // source and the rejection counter well defined when a profile selects no
+  // role.
+  assign irq          = 1'b0;
+`ifdef AX_LIVE_ROLE_EVENTS
+  assign reject_event = 1'b0;
+`endif
 
   always_comb begin
     i_ready = i_valid;

@@ -59,6 +59,15 @@ module axrole #(
   // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
   // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+
+  // One-cycle pulse per descriptor or job this role refused (docs/live-fpga.md).
+  // The loopback role has no descriptor it can refuse -- addresses are truncated
+  // into its own buffer and a zero-length job completes immediately -- so it
+  // reports no rejections rather than pretending to a check it does not make.
+  output logic        reject_event
+`endif
 );
   localparam logic [31:0] ROLE_ID      = 32'h4c4f_4f50;  // "LOOP"
   localparam logic [31:0] ROLE_VERSION = 32'h0000_0001;
@@ -134,6 +143,13 @@ module axrole #(
   // handler deasserts it by clearing DONE, which is the same write the
   // polling driver already does.
   assign irq = done_q;
+
+  // Nothing here can refuse a job, so the shell counts no rejections for this
+  // role.  Tied low at the boundary rather than left off it, so the shell keeps
+  // one wiring for every role that takes the line at all.
+`ifdef AX_LIVE_ROLE_EVENTS
+  assign reject_event = 1'b0;
+`endif
 
   always_comb begin
     i_ready = i_valid;

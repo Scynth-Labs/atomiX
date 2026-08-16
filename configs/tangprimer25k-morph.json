@@ -21,6 +21,9 @@
     "reset_pc": "0x80000000"
   },
   "parameters": {
+    "soc": {
+      "live_role_events": 0
+    },
     "role": {
       "pes": 1,
       "data_words": 256

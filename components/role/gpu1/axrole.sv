@@ -50,7 +50,20 @@ module axrole #(
   // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
   // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+
+  // One-cycle pulse per descriptor or job this role refused (docs/live-fpga.md).
+  // The gpu1 engine validates nothing at the window: lane, bank, and buffer
+  // addresses are truncated into its own storage, so a malformed job is a wrong
+  // result rather than a refused one, and the shell counts no rejections here.
+  output logic        reject_event
+`endif
 );
+`ifdef AX_LIVE_ROLE_EVENTS
+  assign reject_event = 1'b0;
+`endif
+
   gpu1_engine #(
     .BASE(BASE),
     .NLANES(`GPU1_LANES),

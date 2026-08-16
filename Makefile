@@ -43,7 +43,7 @@ help:
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make personality-check  # validate open compute-personality contracts"
 	@echo "  make comparison-check   # validate research comparison/evidence contracts"
-	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL"
+	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL, unit and SoC"
 	@echo "  make evolution-check    # bounded kernel-evolve tiers in Primer RAM"
 	@echo "  make fitness-check      # deterministic Live FPGA fitness contract"
 	@echo "  make registry-check     # content-addressed evolution candidates"
@@ -140,8 +140,14 @@ comparison-check: personality-check
 	$(PYTHON) tools/comparison_contract.py check research/comparisons
 	$(PYTHON) tools/comparison_contract.py self-test
 
+# The unit benches prove the monitor and the fence; check-livecount proves the
+# wiring between them in an assembled SoC.  That last one is not optional
+# padding: DESCRIPTOR_REJECTIONS read zero for every possible input until
+# 2026-08-13 because soc_top tied its producer off, and a gate that only ran
+# unit benches is what let that survive.
 live-check:
-	$(MAKE) -C sim/unit run-axlivemon run-axroleiso
+	$(MAKE) -C sim/unit run-axlivemon run-axroleiso run-axroleiso-no-role-events
+	$(MAKE) -C sw/baremetal check-livecount
 
 evolution-check:
 	$(MAKE) -C sw/kernel evolution-check

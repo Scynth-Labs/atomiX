@@ -127,9 +127,15 @@ What that covers, all on silicon:
 | Flash written | no |
 
 `rejects=0 watchdogs=0 generation=0` is not a pass — it confirms from the
-telemetry side that `soc_top.sv` still ties `role_reject_event`,
-`watchdog_event` and the activation event to zero, so those counters cannot
-advance in a real SoC. Wiring them is open work.
+telemetry side that `soc_top.sv` tied `role_reject_event`, `watchdog_event` and
+the activation event to zero at the time of this run, so those counters could
+not advance in a real SoC.
+
+Rejection and the watchdog were wired on 2026-08-13 (see
+[live-fpga.md](../live-fpga.md)), which does not retroactively change what this
+board run observed: it read the tied-off zeros, and a board result for the
+wired counters needs a new run. The activation event is still explicit and
+host-driven by design.
 
 ### Morph fabric (R2) — 2026-08-10
 

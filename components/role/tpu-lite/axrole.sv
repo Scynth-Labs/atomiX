@@ -59,6 +59,14 @@ module axrole #(
   // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
   // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+
+  // One-cycle pulse per descriptor or job this role refused (docs/live-fpga.md).
+  // The tile geometry is fixed and every operand address is truncated into the
+  // role's own buffers, so there is no descriptor here that can be refused.
+  output logic        reject_event
+`endif
 );
   localparam logic [31:0] ROLE_ID      = 32'h5450_554c;  // "TPUL"
   localparam logic [31:0] ROLE_VERSION = 32'h0000_0001;
@@ -156,6 +164,9 @@ module axrole #(
   // handler deasserts it by clearing DONE, which is the same write the
   // polling driver already does.
   assign irq = done_q;
+`ifdef AX_LIVE_ROLE_EVENTS
+  assign reject_event = 1'b0;
+`endif
 
   always_comb begin
     i_ready = i_valid;

@@ -120,6 +120,16 @@ check-gpu-lane1: $(BUILD_DIR)/gpu_lane1.hex
 	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/gpu_lane1.hex) RESET_PC=0x80000000 \
 	  MAX_CYCLES=2000000
 
+# The Live FPGA counters through an assembled SoC rather than a unit bench:
+# a descriptor the role refuses must reach the shell's DESCRIPTOR_REJECTIONS,
+# and rediscovery reads against a fenced window must not.  Needs a role with
+# descriptors to refuse, so it runs on sim-morph.  RTL-only.
+check-livecount: $(BUILD_DIR)/livecount.hex
+	$(MAKE) -C ../../sim/soc run \
+	  COMPONENT_CONFIG=../../configs/sim-morph.json \
+	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/livecount.hex) RESET_PC=0x80000000 \
+	  MAX_CYCLES=2000000
+
 # R1 on silicon: the role-window fence and Live FPGA telemetry, exercised
 # through a real personality change.  RTL-only; the ISS models neither.
 check-roleiso: $(BUILD_DIR)/roleiso.hex
@@ -285,4 +295,4 @@ check-suite-ax2: $(BUILD_DIR)/hello.hex $(BUILD_DIR)/timer.hex $(BUILD_DIR)/pree
 clean:
 	rm -rf build
 
-.PHONY: all images run-iss run-qemu run-rtl check-hello check-timer check-preempt check-fencei check-spi check-sd check-role check-role-irq check-roleiso check-morph check-gpu-lane1 check-game2048 check-snake check-snake-loader check-tpu check-gpu check-gpu-perf check-gpu1 check-cpu-perf check-suite-minimal check-suite-ax2 clean
+.PHONY: all images run-iss run-qemu run-rtl check-hello check-timer check-preempt check-fencei check-spi check-sd check-role check-role-irq check-roleiso check-livecount check-morph check-gpu-lane1 check-game2048 check-snake check-snake-loader check-tpu check-gpu check-gpu-perf check-gpu1 check-cpu-perf check-suite-minimal check-suite-ax2 clean

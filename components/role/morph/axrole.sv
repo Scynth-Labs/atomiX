@@ -29,6 +29,10 @@ module axrole #(
   output logic [31:0] d_rdata,
   output logic        d_err,
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+  output logic        reject_event
+`endif
 );
   morph_fabric #(
     .BASE(BASE),

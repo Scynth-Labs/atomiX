@@ -148,6 +148,27 @@ The endgame architecture. The FPGA design is split into two parts:
   doorbell, a status register, and role-defined descriptor registers and
   windows, plus an interrupt line via PLIC when it exists. aXos discovers
   the role via `ROLE_ID`, feeds it work, and exposes it over the host link.
+
+**Writing your own role.** A role is one SystemVerilog module named `axrole`
+plus a `components/role/<name>/component.json` naming its sources; selecting it
+is a one-line change in a profile. The module's ports are the whole contract:
+
+| Port | Direction | Meaning |
+|---|---|---|
+| `clk`, `rst` | in | `rst` is the shell's role reset, which the fence can assert on its own |
+| `i_*`, `d_*` | aXbus slave | fetch and data ports for the 64 KiB window; the fetch port need only decode the register page |
+| `irq` | out | level-sensitive completion, held while `STATUS.DONE` stands |
+| `reject_event` | out | one-cycle pulse per descriptor or job the role refused, for Live FPGA telemetry |
+
+`reject_event` exists only in builds that take the Live FPGA role-event
+producers (`soc.live_role_events`, on by default), so guard it with
+`` `ifdef AX_LIVE_ROLE_EVENTS `` exactly as the supplied roles do. Carrying the
+line is mandatory; *reporting* on it is not — a role with no descriptor it can
+refuse ties it low and says so, which is a statement about that role rather
+than a gap in the shell. Copy `components/role/loopback/` as the smallest
+complete example: it implements the full header, doorbell, status, and a
+block-RAM-shaped buffer, and its component manifest shows how to declare
+capabilities and tunable parameters.
   Under Sv32, aXos uses a supervisor-only `0x5000_0000` virtual alias for this
   physical aperture, leaving user text at virtual `0x4000_0000`; U-mode submits
   checked jobs through `role_info`/`role_submit`/`role_wait`, never raw MMIO.

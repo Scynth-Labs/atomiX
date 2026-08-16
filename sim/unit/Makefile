@@ -246,13 +246,36 @@ run-axlivemon: $(LIVE_MONITOR) tb_axlivemon.cpp
 	  --exe --build -o tb_axlivemon $^ >/dev/null
 	./obj_dir_axlivemon/tb_axlivemon
 
+# The watchdog threshold is pinned small here so the testbench can sit either
+# side of an episode boundary without simulating thousands of idle cycles. It
+# goes through AX_LIVE_WATCHDOG_CYCLES -- the same define a profile sets via
+# `soc.watchdog_cycles` -- so the test exercises the real knob rather than a
+# testbench-only override. It must match kWatchdogCycles in tb_axroleiso.cpp;
+# the default is 4096.
 run-axroleiso: $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv tb_axroleiso.cpp
 	$(VERILATOR) $(VFLAGS) --top-module axroleiso --Mdir obj_dir_axroleiso \
+	  +define+AX_LIVE_WATCHDOG_CYCLES=16 +define+AX_LIVE_ROLE_EVENTS=1 \
+	  -CFLAGS -DTB_ROLE_EVENTS \
 	  --exe --build -o tb_axroleiso $^ >/dev/null
 	./obj_dir_axroleiso/tb_axroleiso
 
+# The same bench against a profile that declined the two role-event producers,
+# which is what every Tang Primer profile does: enabling them costs 2,251 LUT4
+# and the tightest profile stops placing.  Declining must leave the counters at
+# zero and change nothing else -- the fence, the register window, and the other
+# four counters all still have to behave, which is the difference between this
+# and AX_LIVE_MONITOR=0.
+run-axroleiso-no-role-events: $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv tb_axroleiso.cpp
+	$(VERILATOR) $(VFLAGS) --top-module axroleiso \
+	  --Mdir obj_dir_axroleiso_no_role_events \
+	  +define+AX_LIVE_WATCHDOG_CYCLES=16 \
+	  --exe --build -o tb_axroleiso $^ >/dev/null
+	./obj_dir_axroleiso_no_role_events/tb_axroleiso
+
+# The bench samples reject_event, so this build takes the role-event producers.
 run-morph-fabric: $(COMPONENTS)/role/common/ax_gw5a_mul.sv $(ROLE_MORPH)/morph_fabric.sv tb_morph_fabric.cpp
 	$(VERILATOR) $(VFLAGS) --top-module morph_fabric --Mdir obj_dir_morph_fabric \
+	  +define+AX_LIVE_ROLE_EVENTS=1 \
 	  --exe --build -o tb_morph_fabric $^ >/dev/null
 	./obj_dir_morph_fabric/tb_morph_fabric
 

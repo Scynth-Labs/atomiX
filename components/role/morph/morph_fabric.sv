@@ -98,6 +98,15 @@ module morph_fabric #(
   output logic [31:0] d_rdata,
   output logic        d_err,
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+
+  // One-cycle pulse per refused descriptor, for the shell's Live FPGA
+  // telemetry (docs/live-fpga.md).  The role already counts these in REJECTS;
+  // the shell needs its own view because a role being reconfigured is exactly
+  // the component whose self-reported registers may be about to disappear.
+  output logic        reject_event
+`endif
 );
   localparam logic [31:0] ROLE_ID      = 32'h4D52_5048;  // "MRPH"
   localparam logic [31:0] ROLE_VERSION = 32'h0000_0001;
@@ -272,6 +281,15 @@ module morph_fabric #(
   wire range_ok   = a_last < 32'(DATA_WORDS) && b_last < 32'(DATA_WORDS) &&
                     c_last < 32'(DATA_WORDS);
   wire accept     = mode_ok && nconfig_ok && dims_ok && lanes_ok && range_ok;
+
+  // The shell-visible rejection: the same condition that increments REJECTS in
+  // the sequencer below, exported as a one-cycle pulse.  It is one cycle per
+  // refused doorbell because a register write retires in a single cycle here --
+  // the same property that stops one doorbell counting twice.
+`ifdef AX_LIVE_ROLE_EVENTS
+  assign reject_event = d_reg_hit && |d_wstrb && d_off == OFF_DOORBELL &&
+                        !busy_q && !accept;
+`endif
 
   // ---------------------------------------------------------- PE datapath
   // Each PE computes (a + b) * c + d.  The multiply goes through the shared

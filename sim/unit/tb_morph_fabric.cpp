@@ -80,9 +80,16 @@ class Fabric {
   void tick() {
     dut_.clk = 0;
     dut_.eval();
+    sample_events();
     dut_.clk = 1;
     dut_.eval();
   }
+
+  // The shell counts what this line reports, so the bench counts it the same
+  // way the shell does: once per clock the pulse is high.  Sampled with the
+  // clock low and the combinational outputs settled, which is the value the
+  // rising edge will see.
+  uint64_t reject_pulses() const { return reject_pulses_; }
 
   // Both accessors follow the real aXbus handshake: hold the request until the
   // slave asserts ready, sample on that cycle, then release.  Driving fixed
@@ -97,6 +104,7 @@ class Fabric {
       dut_.clk = 0;
       dut_.eval();
       bool ready = dut_.d_ready;
+      sample_events();
       dut_.clk = 1;
       dut_.eval();
       if (ready) break;
@@ -116,6 +124,7 @@ class Fabric {
       dut_.eval();
       bool ready = dut_.d_ready;
       if (ready) value = dut_.d_rdata;
+      sample_events();
       dut_.clk = 1;
       dut_.eval();
       if (ready) break;
@@ -170,6 +179,11 @@ class Fabric {
   }
 
   Vmorph_fabric dut_;
+
+ private:
+  void sample_events() { reject_pulses_ += dut_.reject_event ? 1 : 0; }
+
+  uint64_t reject_pulses_ = 0;
 };
 
 // Builds the thirteen-word genome.  Every personality below differs only in
@@ -327,6 +341,13 @@ int main(int argc, char** argv) {
     uint32_t count_before = fabric.read(kCount);
     uint32_t canary = fabric.peek(160);
     uint32_t rejects_before = fabric.read(kRejects);
+    // The shell sees rejections only through this line, so it has to agree
+    // with REJECTS exactly: the three accepted jobs above must have produced
+    // no pulse at all, or the shell's counter reports refusals that never
+    // happened and every trial spanning a normal job becomes ineligible.
+    check(fabric.reject_pulses() == 0,
+          "an accepted descriptor never pulses the shell's reject line");
+    const uint64_t pulses_before = fabric.reject_pulses();
     uint32_t pe = pe_desc(SRC_A, SRC_ZERO, SRC_IMM0, SRC_B, ACC_LOAD);
 
     struct Case {
@@ -374,6 +395,8 @@ int main(int argc, char** argv) {
           "rejected descriptors never modified the previous result");
     check(fabric.read(kRejects) == rejects_before + cases.size(),
           "every rejection was counted");
+    check(fabric.reject_pulses() == pulses_before + cases.size(),
+          "every rejection raised exactly one pulse on the shell's line");
   }
 
   // A rejected descriptor must not poison the fabric: the last good genome

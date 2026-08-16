@@ -351,16 +351,62 @@ and the later
   program words, so authoring cannot disagree with validation.  A signed-off
   request carries `actuation: org.atomix.not-authorized` and the checker
   rejects any record that claims otherwise.
-- [~] **No hardware:** add watchdog, canary workload, last-known-good selection,
+- [x] **No hardware:** add watchdog, canary workload, last-known-good selection,
   and rollback tests using fault-injected candidates.  Canary, last-known-good
   and rollback are done in both RTL and hardware — see the A/B trial below.
   The decisive case is a fault-injected candidate that clamps its input to the
   primary workload's value range: it passes every static gate *and* the primary
-  oracle, and only the wider-range canary catches it.  **Still open: there is no
-  fabric watchdog.**  `components/soc/reference/soc_top.sv` ties both
-  `watchdog_event` and `role_reject_event` to `1'b0`, so the `axlivemon`
-  counters for them can never advance in a real SoC; the deadline enforced
-  today is host-side and is recorded as such.
+  oracle, and only the wider-range canary catches it.
+
+  The fabric watchdog and the rejection line closed on 2026-08-13.  Until then
+  `components/soc/reference/soc_top.sv` tied both `watchdog_event` and
+  `role_reject_event` to `1'b0`, so those two `axlivemon` counters could not
+  advance for any input in a real SoC: the fitness rule requiring a zero
+  rejection and watchdog delta was reading a constant, not an observation.
+  Each now has a producer, on the side of the role boundary that can actually
+  see the event.  The shell derives the watchdog itself — a role that has
+  stopped answering cannot report that it has — counting one event per stall
+  episode past `WATCHDOG_CYCLES` (4,096 by default) rather than one per stalled
+  cycle.  Rejection is the role's own event, so the role ABI now carries a
+  `reject_event` pulse beside `irq`; `role.morph` drives it from the same
+  condition that increments its `REJECTS` register, and the five roles with no
+  descriptor to refuse tie it low at their own boundary.  Traffic the fence
+  absorbs is deliberately *not* a rejection: rediscovery reads against a fenced
+  window are the documented post-swap path and counting them would make every
+  trial spanning a swap fitness-ineligible.  Evidence: `make live-check` — both
+  derivations in `sim/unit/tb_axroleiso.cpp`, the pulse in
+  `sim/unit/tb_morph_fabric.cpp`, and `check-livecount`, an RTL SoC run that
+  proves the wiring end to end (`rejections=2 role_rejects=2 work=2
+  watchdogs=0`).
+
+  **This is simulation evidence, and on the Tang Primer it will stay that way.**
+  The producers cost 2,251 LUT4 on the GW5A-25A — the counters and their arms
+  of the 64-bit read mux had been deleted outright while their inputs were
+  constant — which takes `role.morph` at one PE from 18,660 LUT4 (81%) to
+  20,911 (90.8%) and from "places after 20 minutes of placer effort" to no
+  legal placement at any seed tried.  `soc.live_role_events` therefore compiles
+  them out, port included, and every Primer profile declines them, so those two
+  counters still read zero on that board — now by declaration rather than by
+  accident.  A board result for them needs a device with room; the earlier
+  Primer run predates the producers entirely.
+
+  One measurement from this is worth more than the feature.  Two intermediate
+  attempts left the fence handing `axlivemon` a locally declared
+  `wire live_reject_event = 1'b0` in place of the tied-off port the shell had
+  always passed — the same constant, preprocessed sources differing in nothing
+  else — and that alone cost **1,989 LUT4** (20,649 against 18,660) with
+  identical `ALU` and `DFF` counts, and cost the profile its placement.  A
+  bisect pinned it: the role's guarded port alone reproduced the old netlist
+  exactly.  The declined arm is now the original text verbatim, and the netlist
+  matches HEAD cell for cell.  **On a part near its limit, equivalent RTL is
+  not equivalent** — this is the same lesson as "placement is not a function of
+  size", one level further down, and it is why the A/B against HEAD is
+  mandatory rather than a courtesy.
+
+  The watchdog observes and does not act.  Making it isolate the role would
+  change what the fence guarantees and when a role can be torn out from under a
+  driver; that is a safety decision to take on its own, and until it is taken
+  the enforced deadline is still host-side and is recorded as such.
 - [x] Run volatile L1/L2 A/B trials on the Primer. Evidence:
   `tools/live_ab_trial.py`, `research/live-fpga/trials/ab-primer-2026-08-10.json`,
   and registry candidate `polynomial-i32-v2-horner`.  On the board, the
@@ -411,10 +457,17 @@ results above from reading as general claims.
 
 1. Build the composite hard GPU+TPU role — the last untested R2 alternative,
    and the only one that could still fit the GW5A-25A.
-2. Wire a real fabric watchdog and role-reject line in `soc_top.sv` so the
-   `axlivemon` counters stop reading zero by construction.
-3. Encode the morph genome as a bounded L3 search space now that the fabric
+2. Encode the morph genome as a bounded L3 search space now that the fabric
    exists, and compare search strategies on deterministic workloads.
-4. Validate the ECP5-85F frame-address map, which is the head of the whole R1
+3. Validate the ECP5-85F frame-address map, which is the head of the whole R1
    queue and blocks every later partial-reconfiguration item.
-5. Select a current-sense fixture so the R2 power and energy line can close.
+4. Select a current-sense fixture so the R2 power and energy line can close.
+5. Find a device with room for the Live FPGA role-event producers.  Every Tang
+   Primer profile declines them because they cost 2,251 LUT4 and `role.morph`
+   at one PE stops placing, so `DESCRIPTOR_REJECTIONS` and `WATCHDOG_EVENTS`
+   have no path to a physical result on the only board in hand.  This is the
+   binding constraint on L0 telemetry becoming hardware evidence rather than
+   simulation evidence.
+
+Closed on 2026-08-13: the fabric watchdog and role-reject producers, which
+until then left two `axlivemon` counters reading zero by construction.

@@ -107,7 +107,20 @@ module axrole #(
   // Level-sensitive completion line to the PLIC: held while STATUS.DONE is
   // set, so clearing DONE (write 1 to STATUS bit 1) is what deasserts it.
   output logic        irq
+`ifdef AX_LIVE_ROLE_EVENTS
+  ,
+
+  // One-cycle pulse per descriptor or job this role refused (docs/live-fpga.md).
+  // Program validation for this role is host-side and offline: the L2 shadow
+  // gates refuse a candidate before it is ever uploaded, so the engine itself
+  // has nothing to refuse at run time and the shell counts no rejections here.
+  output logic        reject_event
+`endif
 );
+`ifdef AX_LIVE_ROLE_EVENTS
+  assign reject_event = 1'b0;
+`endif
+
   gpu_engine #(
     .BASE(BASE),
     .NLANES(`GPU_COMPUTE_LANES),

@@ -22,6 +22,9 @@
     "reset_pc": "0x00001000"
   },
   "parameters": {
+    "soc": {
+      "live_role_events": 0
+    },
     "board": {
       "uart_baud": 921600
     },

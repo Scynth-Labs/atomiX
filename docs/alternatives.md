@@ -134,7 +134,7 @@ headline number.
 
 | Level | Mechanism | Status |
 |---|---|---|
-| L0 | shell-owned telemetry | schema defined; fabric watchdog and reject lines still tied to zero in `soc_top.sv` |
+| L0 | shell-owned telemetry | done in simulation; watchdog derived by the fence, rejection carried on the role ABI, both proven wired in an assembled SoC — the board evidence still predates them |
 | L1 | select among reviewed programs | done |
 | L2 | shadow-evaluate a candidate, request a volatile trial | done |
 | L3 | adapt a bounded overlay genome | unblocked by the morph fabric; not started |

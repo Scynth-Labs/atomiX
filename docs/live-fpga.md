@@ -261,19 +261,106 @@ reconfiguration by itself.
   the role is not isolated.
 - `MEMORY_STALLS` counts any clock with a valid role-window transaction waiting
   for `ready`; simultaneous instruction/data stalls count as one stalled cycle.
-- descriptor rejection and watchdog are explicit shell inputs.  The reference
-  SoC ties them low until those producers land; the unit tests drive both.
+- `DESCRIPTOR_REJECTIONS` counts rising edges of the role ABI's `reject_event`
+  line while the role is not isolated.
+- `WATCHDOG_EVENTS` counts stall episodes that outlast `WATCHDOG_CYCLES`
+  (4,096 by default), derived by the fence from the role window itself.
 - configuration generation comes only from `LIVE_CMD_ACTIVATE`.
 
 This distinction prevents a generic bus error from being mislabeled as a
 rejected adaptive candidate.
 
+### The two producers, and why they differ in kind
+
+Both counters were shell inputs with nothing driving them until 2026-08-13:
+`soc_top.sv` tied `role_reject_event` and `watchdog_event` to `1'b0`, so
+neither could advance for any possible input.  Every fitness trial that
+required a zero rejection and watchdog delta was therefore reading a constant,
+not an observation.  They now have producers, deliberately on opposite sides of
+the role boundary.
+
+**Rejection is the role's event.**  Only the role knows which descriptor it
+refused, so it reports one, and the role ABI carries a `reject_event` output
+beside `irq`: a one-cycle pulse per refused descriptor or job.  `role.morph`
+drives it from the same condition that increments its own `REJECTS` register.
+The roles with no descriptor to refuse — `none`, `loopback`, `gpu1`,
+`gpu-compute`, `tpu-lite` — tie it low at their own boundary, each stating why
+in its wrapper.  A zero from those roles is a fact about the role, not a shell
+that cannot count.
+
+The fence qualifies what arrives.  The line is edge-triggered, so fabric that
+comes up with it stuck high costs one event rather than one per cycle; and it
+is masked while isolated, exactly as the completion line is, because a fenced
+role's outputs describe fabric that is mid-rewrite.
+
+**The watchdog is the shell's event**, and has to be: a role that has stopped
+answering cannot report that it has stopped answering.  The fence already
+watches every role-window transaction, so it counts a stall episode that
+outlasts `WATCHDOG_CYCLES` as one watchdog event — once per episode, however
+long the hang lasts, since the per-cycle view is already `MEMORY_STALLS`.  It
+observes and does not act: making the watchdog *isolate* would change what the
+fence guarantees and when a role can be torn out from under a driver, which is
+a safety decision to take deliberately rather than as a side effect of fixing
+telemetry.  `watchdog_event` remains an input for a future shell-level
+producer.
+
+What is deliberately *not* counted as a rejection: traffic the fence absorbs
+while isolated.  Rediscovering the role by reading the fenced window is the
+documented post-swap path, so charging those reads to `DESCRIPTOR_REJECTIONS`
+would both mislabel a bus event as a refused candidate and make every trial
+spanning a swap ineligible for fitness.
+
+### What the producers cost, and who declines them
+
+They are not free, and on the Tang Primer they are not affordable.  While both
+counters were constant zero the synthesiser deleted them *and* their arms of
+the 64-bit read mux.  Enabling them takes `role.morph` at one PE from 18,660
+LUT4 (81%) to 20,911 (90.8%) on the GW5A-25A, and it then finds no legal
+placement at any seed tried — where before it placed, after 20 minutes of
+placer effort, on a profile that was already marginal.
+
+`soc.live_role_events` therefore exists, and it is **compile-time, not a
+tie-off**: `configure.py` omits the define entirely for `live_role_events: 0`
+(its `omit_when_zero` flag), so a declining profile compiles the role ABI port,
+the edge detector, and the watchdog counter out.  Every Tang Primer profile
+declines them; simulation profiles and any future, larger board take them by
+default.  This is narrower than `live_monitor: 0`, which removes the register
+window as well and makes `LIVE_ID` itself a bus error — that would break
+`roleiso`, the recorded R1 board payload, which reads that register to prove
+the monitor stays reachable while the role is fenced.
+
+#### The declined path is the original text, deliberately
+
+Compiling the producers out is not sufficient on its own, and the reason is
+worth recording because it contradicts the obvious assumption.  The first two
+attempts left the fence passing a locally declared `wire live_reject_event =
+1'b0` to the monitor instead of the tied-off `role_reject_event` port the
+shell had always passed.  That is the same constant by any reading of the
+logic, and the preprocessed sources differ only in that substitution — yet it
+synthesised **1,989 more LUT4** (20,649 against 18,660), identical `ALU` and
+`DFF` counts, and cost `role.morph` its placement at five seeds.  Gating by
+value rather than by `ifdef` behaved the same way (20,280 LUT4).
+
+So the `` `else `` arm of the monitor connection is the pre-2026-08-13 text
+verbatim, and the port stays declared unconditionally.  With that, a declining
+profile's netlist is identical to the one before the producers existed — cell
+for cell, every LUT and MUX class — which is the only definition of "unchanged"
+worth having on a part this full.  A bisect established this: the morph role's
+guarded port alone reproduces the old netlist exactly, so the perturbation was
+entirely in how the fence expressed a constant to `axlivemon`.
+
+The consequence is stated plainly rather than buried: **on the Primer these two
+counters still read zero, now by declaration instead of by accident.**  A board
+result for the wired counters needs hardware with room for them.
+
 ## What this enables next
 
-The next Live FPGA item is L2 shadow evaluation. It will resolve a candidate
-through this registry, run its oracle and safety gates in simulation, and emit
-a signed-off volatile test request. Producing that request will remain separate
-from deployment authority.
+L2 shadow evaluation, which this section once named as the next item, is done
+and recorded below.  The next Live FPGA item is L3: encoding the morph fabric's
+13-word genome as a bounded search space and comparing search strategies on
+deterministic workloads.  The ladder's authority boundary does not move for it —
+an L3 optimizer proposes genomes, and promotion still needs an oracle, a canary,
+and a rollback target.
 
 ## Evidence
 
@@ -284,4 +371,30 @@ make live-check
 The first test proves exact event and snapshot semantics, including simultaneous
 events, snapshot stability, and reset priority.  The second proves the monitor
 is reachable through the immutable shell page alongside a role that can be
-isolated.
+isolated, and covers the two derivations above: a refused descriptor counted
+once, a stuck reject line counted once rather than per cycle, a rejection from
+an isolated role not counted at all, a stall episode past the threshold raising
+exactly one watchdog event, a second episode raising a second, and a stall
+shorter than the threshold raising none.  `run-axroleiso-no-role-events` runs
+the same stimulus against a build that declined the producers, which is what
+every Primer profile does: the two counters must stay at zero while the fence,
+the register window, and the other four counters behave identically.
+
+The third — `make -C sw/baremetal check-livecount`, an RTL run of
+`sw/baremetal/examples/livecount.c` on `configs/sim-morph.json` — is the one the
+tie-off would have survived: it proves the *wiring* in an assembled SoC.  A
+descriptor the morph fabric refuses reaches `DESCRIPTOR_REJECTIONS`, twice in
+succession and in agreement with the role's own `REJECTS` register; an accepted
+job does not; and eight rediscovery reads against a fenced window do not.  The
+watchdog cannot be provoked from software on a healthy role, so that test
+requires it to stay at zero and the fault injection stays in the unit bench.
+`make live-check` runs all three.
+
+```text
+livecount: rejections=2 role_rejects=2 work=2 stalls=100 watchdogs=0
+livecount: PASS (role rejections reach the shell counter, fenced reads do not)
+```
+
+This is simulation evidence.  The counters have run on the Tang Primer — see
+[achievements/tangprimer25k.md](achievements/tangprimer25k.md) — but that board
+run predates these producers and read the tied-off zeros.

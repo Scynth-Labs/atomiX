@@ -80,6 +80,10 @@ def validate_manifest(path: Path, value: dict[str, Any]) -> dict[str, Any]:
             if not isinstance(spec["default"], int) or isinstance(spec["default"], bool):
                 raise ConfigError(
                     f"{path}: parameter {name!r} default must be an integer")
+            if "omit_when_zero" in spec and not isinstance(
+                    spec["omit_when_zero"], bool):
+                raise ConfigError(
+                    f"{path}: parameter {name!r} omit_when_zero must be true or false")
     if "defaults" in value:
         defaults = value["defaults"]
         if (not isinstance(defaults, dict) or
@@ -291,6 +295,18 @@ def to_make(resolved: dict[str, Any]) -> str:
             if not isinstance(value, int) or isinstance(value, bool):
                 raise ConfigError(
                     f"{resolved['path']}: parameter {kind}.{name} must be an integer")
+            # `omit_when_zero` exists because `ifdef` tests whether a macro is
+            # defined, not what it is worth, and a parameter that always emits
+            # `NAME=0` therefore cannot remove a module port or a port
+            # connection -- only the logic behind them.  On a part near its
+            # placement limit that distinction is the whole ballgame: gating
+            # role.morph's telemetry producers by value still left 1,620 LUT4
+            # of perturbation and cost the profile a legal placement, while
+            # compiling the port out returns the netlist to what it was.
+            # Parameters that only size or enable *logic* must not set this;
+            # they stay always-defined so the RTL has one spelling to read.
+            if value == 0 and spec.get("omit_when_zero"):
+                continue
             defines.append(f"+define+{spec['define']}={value}")
     if defines:
         make_values["COMPONENT_DEFINES"] = " ".join(defines)

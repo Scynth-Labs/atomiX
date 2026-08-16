@@ -99,6 +99,9 @@ module soc_top #(
 
   logic [PLIC_CONTEXTS-1:0] plic_irq;
   logic uart_irq_rx, role_irq, role_irq_raw, role_rst;
+`ifdef AX_LIVE_ROLE_EVENTS
+  logic role_reject;
+`endif
   logic i_role_valid, d_role_valid;
   // Bus side of the role window terminates on the isolation fence, not on the
   // role: `*_role_*` below is the fenced bus view, `*_rolei_*` the role's own.
@@ -341,7 +344,22 @@ module soc_top #(
     .role_d_rdata(d_rolei_rdata), .role_d_err(d_rolei_err),
     .role_rst(role_rst),
     .role_irq_in(role_irq_raw), .role_irq_out(role_irq),
-    .role_reject_event(1'b0), .watchdog_event(1'b0)
+    // The role's own rejection line, qualified inside the fence.  It was tied
+    // off here while no role produced one, which made DESCRIPTOR_REJECTIONS
+    // read zero by construction; role.morph now drives it and the roles with
+    // nothing to refuse tie it low at their own boundary, which is a statement
+    // about those roles rather than about the shell.  A profile that declines
+    // the producers compiles the port away entirely rather than tying it off,
+    // because tying it off still perturbs the netlist -- see axroleiso.sv.
+    // `watchdog_event` stays tied off because the fence derives the watchdog
+    // itself from the role window, and this port is the extension point for a
+    // future shell-level producer.
+`ifdef AX_LIVE_ROLE_EVENTS
+    .role_reject_event(role_reject),
+`else
+    .role_reject_event(1'b0),
+`endif
+    .watchdog_event(1'b0)
   );
 
   // The selected role component fills the fixed 0x4000_0000 window.  The
@@ -353,6 +371,9 @@ module soc_top #(
     .d_valid(d_rolei_valid), .d_addr(d_bus_addr), .d_wdata(d_bus_wdata), .d_wstrb(d_bus_wstrb),
     .d_ready(d_rolei_ready), .d_rdata(d_rolei_rdata), .d_err(d_rolei_err),
     .irq(role_irq_raw)
+`ifdef AX_LIVE_ROLE_EVENTS
+    , .reject_event(role_reject)
+`endif
   );
 
   // Device interrupts converge here, indexed by source id rather than

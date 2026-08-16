@@ -14,5 +14,10 @@
     "rom": "rom.axrom",
     "finisher": "finisher.sifive-test"
   },
-  "settings": {"ram_bytes": 32768, "caches": false, "reset_pc": "0x80000000"}
+  "settings": {"ram_bytes": 32768, "caches": false, "reset_pc": "0x80000000"},
+  "parameters": {
+    "soc": {
+      "live_role_events": 0
+    }
+  }
 }

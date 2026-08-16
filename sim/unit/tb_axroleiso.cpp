@@ -35,6 +35,29 @@ static constexpr uint32_t kLiveVersion10 = 0x00010000u;
 static constexpr uint32_t kLiveSnapshot = 1u;
 static constexpr uint32_t kLiveActivate = 2u;
 
+// Must match -GWATCHDOG_CYCLES in the Makefile rule. The RTL default is much
+// larger; this build pins a small threshold so a test can sit either side of
+// the episode boundary without simulating thousands of idle cycles.
+static constexpr int kWatchdogCycles = 16;
+
+// TB_ROLE_EVENTS tracks the RTL's AX_LIVE_ROLE_EVENTS: the Makefile defines
+// both together or neither.  A profile too tight to pay for the two producers
+// compiles them out -- the role ABI's reject_event port included -- so this
+// bench cannot even reference the port in that build, which is why the switch
+// is compile-time rather than a flag.  Everything the fence does apart from
+// those two counters must be identical either way, and the same stimulus runs
+// in both builds to prove it.
+#ifdef TB_ROLE_EVENTS
+static constexpr bool role_events = true;
+#else
+static constexpr bool role_events = false;
+#endif
+
+// Expected counter value: the delta only lands when the producers are built.
+static uint64_t with_events(uint64_t base, uint64_t delta) {
+  return role_events ? base + delta : base;
+}
+
 static int failures = 0;
 
 static void check(bool condition, const char* description) {
@@ -115,7 +138,9 @@ int main(int argc, char** argv) {
   top.bus_i_valid = 0;
   top.bus_d_valid = 0;
   top.role_irq_in = 0;
+#ifdef TB_ROLE_EVENTS
   top.role_reject_event = 0;
+#endif
   top.watchdog_event = 0;
   set_role(&top, true, 0xdeadbeefu, false);
   tick(&top);
@@ -133,11 +158,15 @@ int main(int argc, char** argv) {
         "LIVE_VERSION reports schema 1.0");
   check(read_reg(&top, kLiveSequence) == 0, "no telemetry snapshot after reset");
 
+#ifdef TB_ROLE_EVENTS
   top.role_reject_event = 1;
+#endif
   top.watchdog_event = 1;
   top.role_irq_in = 1;
   tick(&top);
+#ifdef TB_ROLE_EVENTS
   top.role_reject_event = 0;
+#endif
   top.watchdog_event = 0;
   top.role_irq_in = 0;
   top.eval();
@@ -146,8 +175,11 @@ int main(int argc, char** argv) {
   check(read_reg(&top, kLiveSequence) == 1, "snapshot command advances sequence");
   check(read_reg64(&top, kLiveCycles) != 0, "shell cycle counter advances");
   check(read_reg64(&top, kLiveWork) == 1, "completion rising edge is counted");
-  check(read_reg64(&top, kLiveRejections) == 1,
+  check(read_reg64(&top, kLiveRejections) == with_events(0, 1),
         "explicit descriptor rejection is counted");
+  // The watchdog *port* is not gated: it is the extension point for a
+  // shell-level producer, and a profile that declines the fence's own
+  // derivation has not declined someone else's.
   check(read_reg64(&top, kLiveWatchdogs) == 1,
         "explicit watchdog event is counted");
   check(read_reg64(&top, kLiveGeneration) == 1,
@@ -238,6 +270,126 @@ int main(int argc, char** argv) {
   // Reading zero is what makes the fence need no new software path: zero is
   // already ROLE_ID's "no role present" encoding, so discovery just works.
   check(top.bus_d_rdata == 0, "an isolated ROLE_ID reads as absent");
+
+  // ---- What the counters may and may not count.
+  //
+  // Reading the fenced window is the documented way to rediscover a role after
+  // a swap, so those reads must not be charged to DESCRIPTOR_REJECTIONS: a
+  // nonzero rejection delta makes a trial ineligible for fitness, and a normal
+  // swap would then disqualify itself.  The isolated accesses above already
+  // ran, so the counter must still stand where it did.
+  const uint64_t rejections_fenced = read_reg64(&top, kLiveRejections);
+  top.bus_d_valid = 1;
+  tick(&top);
+  top.bus_d_valid = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveRejections) == rejections_fenced,
+        "reading the fenced window is not a descriptor rejection");
+
+#ifdef TB_ROLE_EVENTS
+  // A rejection pulse arriving while the role is fenced is not counted either:
+  // a role mid-rewrite is not reporting anything the shell should believe,
+  // which is the same rule the completion line already follows.
+  top.role_reject_event = 1;
+  tick(&top);
+  top.role_reject_event = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveRejections) == rejections_fenced,
+        "a rejection reported by an isolated role is not counted");
+#endif
+
+  // Transparent again: the role's own line is what the counter is for.
+  write_ctrl(&top, 0);
+  set_role(&top, true, 0xdeadbeefu, false);
+#ifdef TB_ROLE_EVENTS
+  const uint64_t rejections_live = read_reg64(&top, kLiveRejections);
+  top.role_reject_event = 1;
+  tick(&top);
+  top.role_reject_event = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveRejections) == with_events(rejections_live, 1),
+        "a descriptor the role refuses is counted once");
+
+  // Edge-triggered, so fabric that comes up with the line stuck high costs one
+  // event rather than one per cycle for as long as it stays wrong.
+  const uint64_t rejections_stuck = read_reg64(&top, kLiveRejections);
+  top.role_reject_event = 1;
+  for (int cycle = 0; cycle < 8; cycle++) tick(&top);
+  top.role_reject_event = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveRejections) == with_events(rejections_stuck, 1),
+        "a stuck rejection line is one event, not one per cycle");
+#endif
+
+  // Ordinary role traffic is not a rejection: the counter has to separate
+  // "refused" from "served", or it just counts role traffic.
+  const uint64_t rejections_transparent = read_reg64(&top, kLiveRejections);
+  top.bus_d_valid = 1;
+  tick(&top);
+  top.bus_d_valid = 0;
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveRejections) == rejections_transparent,
+        "a served access is not counted as a rejection");
+
+  // ---- The watchdog must be able to move on its own.
+  //
+  // It was once supplied only by the input port, which the shell tied to zero,
+  // so the telemetry reported "no watchdog events" for every possible input.
+  // A counter that cannot increment is not evidence, so the tests below drive
+  // the *derived* source with the port held low: if anyone ties the derivation
+  // off again, these fail rather than silently reading zero.
+  check(top.watchdog_event == 0, "the derived watchdog runs with its port low");
+
+  // A role that stops answering holds the transfer outstanding.
+  // WATCHDOG_CYCLES is pinned small for this build so the episode boundary is
+  // checkable; the mechanism does not depend on the threshold.
+  const uint64_t watchdogs_before = read_reg64(&top, kLiveWatchdogs);
+  set_role(&top, false, 0, false);
+  top.bus_d_valid = 1;
+  top.eval();
+  for (int cycle = 0; cycle < kWatchdogCycles * 3; cycle++) tick(&top);
+  top.bus_d_valid = 0;
+  set_role(&top, true, 0xdeadbeefu, false);
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveWatchdogs) == with_events(watchdogs_before, 1),
+        "a role that stops answering raises exactly one watchdog event");
+
+  // One hung job is one event however long it hangs -- otherwise the count is
+  // just a slow copy of the stall counter and says nothing extra.
+  const uint64_t watchdogs_after_first = read_reg64(&top, kLiveWatchdogs);
+  set_role(&top, false, 0, false);
+  top.bus_d_valid = 1;
+  top.eval();
+  for (int cycle = 0; cycle < kWatchdogCycles * 2; cycle++) tick(&top);
+  top.bus_d_valid = 0;
+  set_role(&top, true, 0xdeadbeefu, false);
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveWatchdogs) == with_events(watchdogs_after_first, 1),
+        "a second stall episode is a second event, not a per-cycle count");
+
+  // A brief stall is not a watchdog: the shell must not report a role dead for
+  // being slow, or the counter cannot be used to justify tearing one out.
+  const uint64_t watchdogs_before_brief = read_reg64(&top, kLiveWatchdogs);
+  set_role(&top, false, 0, false);
+  top.bus_d_valid = 1;
+  top.eval();
+  for (int cycle = 0; cycle < kWatchdogCycles - 2; cycle++) tick(&top);
+  top.bus_d_valid = 0;
+  set_role(&top, true, 0xdeadbeefu, false);
+  top.eval();
+  write_reg(&top, kLiveCommand, kLiveSnapshot);
+  check(read_reg64(&top, kLiveWatchdogs) == watchdogs_before_brief,
+        "a stall shorter than the threshold raises no watchdog event");
+
+  write_ctrl(&top, kIsolate);
+  top.eval();
 
   // Fabric coming up in an unknown state must not storm the PLIC with a
   // level-sensitive line nothing will ever clear.

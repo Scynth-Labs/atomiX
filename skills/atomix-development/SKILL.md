@@ -74,6 +74,28 @@ A change that removes logic can still break a design whose BSRAM and DSP
 placement pins it. Never infer "smaller, so it still fits" — run P&R, and when a
 locked row moves, A/B it against HEAD before attributing the cause.
 
+And one level below that: **equivalent RTL is not equivalent.** When a profile
+opts out of a feature, the opted-out build must be the *original text*, not code
+that means the same thing. Handing `axlivemon` a locally declared
+`wire live_reject_event = 1'b0` instead of the tied-off `role_reject_event` port
+the shell had always passed — the same constant, preprocessed sources differing
+in nothing else — synthesised 1,989 more LUT4 (20,649 against 18,660) with
+identical `ALU` and `DFF` counts, and cost `role.morph` its placement at five
+seeds. Restoring the original text as the `` `else `` arm returned the netlist to
+HEAD cell for cell.
+
+So when adding a feature that a tight profile must be able to decline:
+
+- gate it with `` `ifdef ``, not with a parameter compared to zero — a declared
+  parameter always emits its define, so a value test can remove logic but never
+  a port or a port connection;
+- declare the opt-out in `components/*/component.json` with
+  `"omit_when_zero": true` so `configure.py` omits the define entirely;
+- make the declined arm the pre-existing text verbatim, and prove it by
+  comparing Yosys cell counts against HEAD, not by reasoning about equivalence;
+- bisect by copying individual files into a HEAD worktree when the counts move —
+  it is far cheaper than a P&R per hypothesis, and it is how the above was found.
+
 Baking a payload is legitimate for exactly two cases, and both must say so:
 first bring-up of a board that has no loader image yet, and a part too small to
 carry the ROM. Never for a shipped example, and never as the flow a reader is

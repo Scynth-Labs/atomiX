@@ -20,6 +20,9 @@
     "reset_pc": "0x00001000"
   },
   "parameters": {
+    "soc": {
+      "live_role_events": 0
+    },
     "core": {
       "issue_width": 2,
       "icache_kb": 2,

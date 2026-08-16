@@ -45,8 +45,43 @@
 `ifndef AX_LIVE_MONITOR
   `define AX_LIVE_MONITOR 1
 `endif
+// AX_LIVE_ROLE_EVENTS is defined-or-absent rather than 1-or-0, because a
+// profile that declines the role-event producers has to compile them out
+// entirely -- port included -- not merely tie them off.  Gating the logic by
+// value still left 1,620 LUT4 of perturbation on role.morph and cost it a
+// legal placement on the GW5A-25A; a profile declining the feature must build
+// what it built before the feature existed.
+//
+// There is deliberately no `ifndef` default here.  `configure.py` emits the
+// define for `live_role_events: 1` and omits it entirely for 0 (see its
+// `omit_when_zero`), so "absent" has to mean declined -- a fallback that
+// turned it on when undefined would make the omission a no-op and put the
+// producers straight back into every Tang Primer bitstream.  A bare
+// `verilator` or `yosys` invocation therefore builds the shell without them,
+// which is why sim/unit passes the define explicitly for the tests that want
+// the producers and omits it for the ones that prove declining works.
+//
+// The watchdog threshold, by contrast, is an ordinary always-defined knob: it
+// changes a value, not whether logic exists, so it needs no such care.
+`ifndef AX_LIVE_WATCHDOG_CYCLES
+  `define AX_LIVE_WATCHDOG_CYCLES 4096
+`endif
 module axroleiso #(
-  parameter logic [31:0] BASE = 32'h1002_0000
+  parameter logic [31:0] BASE = 32'h1002_0000,
+  // Cycles a single role transfer may stay outstanding before the shell counts
+  // a watchdog event.  The default is generous by design: the slowest
+  // legitimate role operation here is a folded GEMM tile, and the counter
+  // exists to notice a role that has stopped participating entirely, not to
+  // police latency.  Unused when the profile declines the producers, and
+  // measured to cost nothing there.
+  //
+  // "How long is too long" is a property of the role and the clock, not of the
+  // fence, so it belongs to the profile: set `soc.watchdog_cycles`.  A slow
+  // role on a fast clock wants a larger value; a hard-real-time profile that
+  // would rather notice a stall early wants a smaller one.  The parameter
+  // takes the profile's define so a board manifest can express it without
+  // editing this file.
+  parameter int unsigned WATCHDOG_CYCLES = `AX_LIVE_WATCHDOG_CYCLES
 ) (
   input  logic        clk,
   input  logic        rst,
@@ -96,10 +131,23 @@ module axroleiso #(
   input  logic        role_irq_in,
   output logic        role_irq_out,
 
-  // Explicit Live FPGA events. These stay separate from generic bus errors:
-  // a malformed MMIO access is not automatically an adaptive rejection, and
-  // a real watchdog will remain shell-owned when it is connected here.
+  // Explicit Live FPGA events.  These stay separate from generic bus errors:
+  // a malformed MMIO access is not automatically an adaptive rejection.
+  //
+  // `role_reject_event` is the role ABI's rejection line: a one-cycle pulse per
+  // descriptor or job the role refused.  It is an input rather than something
+  // the fence derives, because only the role knows what it refused; the fence
+  // decides whether the pulse is believable (see the edge detector below).  A
+  // role with no descriptor to refuse ties it low.  When the profile declines
+  // the producers this port stays, tied off by the shell exactly as it was
+  // before they existed -- see the monitor connection below for why the
+  // declined path is the old text rather than a constant of its own.
   input  logic        role_reject_event,
+
+  // `watchdog_event` is an additional shell-level input, kept for a future
+  // producer outside this module.  The fence derives its own watchdog from the
+  // role window below, so this port being tied off no longer means the counter
+  // cannot move.
   input  logic        watchdog_event
 );
   localparam logic [31:0] SHELL_ID       = 32'h6158_5348;  // "aXSH"
@@ -250,6 +298,77 @@ module axroleiso #(
   wire live_stall_event = !isolate_q &&
       ((bus_i_valid && !role_i_ready) || (bus_d_valid && !role_d_ready));
 
+  // ---- Rejections and the fabric watchdog -----------------------------------
+  // Both counters were previously supplied only through the input ports above,
+  // and the reference shell tied those to zero, so neither could increment for
+  // any input: the telemetry read "no rejections, no watchdog events" by
+  // construction rather than by observation, which is not evidence of anything.
+  // Each now has a producer, and they are deliberately different in kind.
+  //
+  // A rejection is the role's own event -- only the role knows which
+  // descriptor it refused -- so it arrives on the role ABI's reject line and
+  // the fence qualifies it two ways.  It is edge-triggered, so a role that
+  // comes up with the line stuck high contributes one event rather than one
+  // per cycle; and it is masked while isolated, exactly as the completion line
+  // is, because a fenced role's outputs describe fabric that is mid-rewrite.
+  //
+  // What is deliberately *not* counted here: traffic the fence absorbs while
+  // isolated.  Reading the fenced window is the documented way to rediscover a
+  // role after a swap, so counting those reads as descriptor rejections would
+  // both mislabel them -- the distinction docs/live-fpga.md draws between a bus
+  // event and a refused candidate -- and make every trial that spans a swap
+  // ineligible for fitness, which requires a zero rejection delta.
+  //
+  // The `ifdef` around both producers is not decoration.  They are not free:
+  // while both counters were constant zero the synthesiser deleted them *and*
+  // their arms of the 64-bit read mux, and giving them real inputs costs 2,251
+  // LUT4 on a GW5A-25A, taking role.morph at one PE from 81% to 90.8%
+  // utilisation and past the point where it places at all.  Gating them by
+  // *value* was tried first and was not enough -- the netlist still moved by
+  // 1,620 LUT4 and still failed to place at five seeds -- so a declining
+  // profile compiles them out instead and builds what it built before.  This
+  // is narrower than AX_LIVE_MONITOR=0, which removes the register window as
+  // well and makes LIVE_ID itself a bus error.
+`ifdef AX_LIVE_ROLE_EVENTS
+  logic role_reject_q;
+  always_ff @(posedge clk) begin
+    role_reject_q <= rst ? 1'b0 : role_reject_event;
+  end
+  wire live_reject_event =
+      role_reject_event && !role_reject_q && !isolate_q;
+`endif
+
+  // The watchdog is the escalation of a stall.  aXbus requires a target to
+  // complete, so a request that stays outstanding is a role that has stopped
+  // participating -- which is exactly the failure the header describes the
+  // fence as existing to contain, and it is observable without decoding a
+  // single role register.  It fires once per episode, not once per stalled
+  // cycle, so one hung job counts as one event however long it hangs; the
+  // per-cycle view is already `live_stall_event`.
+  //
+  // Deliberately observational: this counts, and does not isolate.  Making the
+  // watchdog *act* changes what the fence guarantees and when a role can be
+  // torn out from under a driver, which is a safety decision to take on its
+  // own rather than as a side effect of fixing telemetry.
+`ifdef AX_LIVE_ROLE_EVENTS
+  localparam int unsigned WATCHDOG_BITS = $clog2(WATCHDOG_CYCLES);
+  logic [WATCHDOG_BITS-1:0] watchdog_count_q;
+  logic                     watchdog_fired_q;
+  wire watchdog_expired = watchdog_count_q == WATCHDOG_BITS'(WATCHDOG_CYCLES - 1);
+  wire live_watchdog_event =
+      live_stall_event && watchdog_expired && !watchdog_fired_q;
+
+  always_ff @(posedge clk) begin
+    if (rst || !live_stall_event) begin
+      watchdog_count_q <= '0;
+      watchdog_fired_q <= 1'b0;
+    end else begin
+      if (!watchdog_expired) watchdog_count_q <= watchdog_count_q + 1'b1;
+      if (live_watchdog_event) watchdog_fired_q <= 1'b1;
+    end
+  end
+`endif
+
   // The telemetry counters are optional; the fence is not.  A profile that
   // sets AX_LIVE_MONITOR to 0 keeps ISO_CTRL/ISO_STATUS and the monitor's
   // register window — reads simply return zero — so software needs no
@@ -260,8 +379,18 @@ generate if (LIVE_MON) begin : g_livemon
     .snapshot_event(live_snapshot_event),
     .work_completed_event(live_work_event),
     .memory_stall_event(live_stall_event),
+    // The declined arm is deliberately the pre-2026-08-13 text, not a locally
+    // declared constant that means the same thing.  Substituting an equivalent
+    // constant wire is not free on a design at 81% utilisation: it synthesised
+    // 1,989 more LUT4 for identical logic and cost role.morph its placement.
+    // Measured, not assumed -- see docs/live-fpga.md.
+`ifdef AX_LIVE_ROLE_EVENTS
+    .descriptor_rejected_event(live_reject_event),
+    .watchdog_event(watchdog_event || live_watchdog_event),
+`else
     .descriptor_rejected_event(role_reject_event),
     .watchdog_event(watchdog_event),
+`endif
     .configuration_activated_event(live_activation_event),
     .snapshot_sequence(live_sequence),
     .snapshot_cycles(live_cycles),
@@ -284,6 +413,9 @@ end else begin : g_no_livemon
   wire _unused_live = &{1'b0, live_snapshot_event, live_work_event,
                         live_stall_event, role_reject_event, watchdog_event,
                         live_activation_event, 1'b0};
+`ifdef AX_LIVE_ROLE_EVENTS
+  wire _unused_role_events = &{1'b0, live_reject_event, live_watchdog_event};
+`endif
 end
 endgenerate
 
