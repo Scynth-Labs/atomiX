@@ -30,15 +30,27 @@ map without needing to guess its algebraic form first.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
 from typing import Any
 
+try:
+    from .ecp5_bitstream import (
+        NotCompressedBitstream, extract_compressed_frames_bytes,
+    )
+except ImportError:
+    from ecp5_bitstream import (
+        NotCompressedBitstream, extract_compressed_frames_bytes,
+    )
+
 DB = Path(os.environ.get(
     "TRELLIS_DB",
     Path.home() / "opt/oss-cad-suite/share/trellis/database")) / "devices.json"
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_RECORD = ROOT / "research/partial-reconfig/ecp5-85f-frame-decode.json"
 
 SYNC = b"\xbd\xb3"
 DUMMY = 0xFF
@@ -72,11 +84,24 @@ def parse(path: Path, frame_bytes: int) -> dict[str, Any]:
     start = data.find(SYNC)
     if start < 0:
         raise SystemExit(f"{path}: no 0xBDB3 sync word")
+    try:
+        compressed_frames = extract_compressed_frames_bytes(
+            data, expected_frame_bytes=frame_bytes)
+    except NotCompressedBitstream:
+        compressed_frames = None
+    except ValueError as exc:
+        raise SystemExit(f"{path}: {exc}") from exc
+    if compressed_frames is not None:
+        return {
+            "frames": [(None, payload) for payload in compressed_frames],
+            "explicit_addresses": [],
+            "compressed": True,
+        }
+
     i = start + 2
     frames: list[tuple[int | None, bytes]] = []
     explicit: list[int] = []
     address: int | None = None
-    compressed = False
     while i < len(data):
         op = data[i]
         if op == DUMMY:
@@ -88,15 +113,7 @@ def parse(path: Path, frame_bytes: int) -> dict[str, Any]:
         elif op == LSC_INIT_ADDRESS:
             address = 0
             i += 4
-        elif op in (LSC_PROG_INCR_RTI, LSC_PROG_INCR_CMP):
-            # A compressed stream stores frames at variable length against a
-            # dictionary, so the fixed stride below would silently produce
-            # `count` garbage slices and a frame total that looks correct
-            # because it was read from the header.  Refuse instead.
-            if op == LSC_PROG_INCR_CMP:
-                raise SystemExit(
-                    f"{path}: compressed bitstream (LSC_PROG_INCR_CMP); "
-                    "repack without --compress before frame analysis")
+        elif op == LSC_PROG_INCR_RTI:
             flags = data[i + 1]
             count = int.from_bytes(data[i + 2:i + 4], "big")
             crc = 2 if flags & 0x80 else 0
@@ -113,15 +130,17 @@ def parse(path: Path, frame_bytes: int) -> dict[str, Any]:
                     address += 1
         elif op in (LSC_RESET_CRC, ISC_PROGRAM_DONE, LSC_PROG_SED_CRC):
             i += 4
-        elif op in (VERIFY_ID, LSC_PROG_CNTRL0, ISC_PROGRAM_USERCODE,
-                    LSC_WRITE_COMP_DIC):
+        elif op in (VERIFY_ID, LSC_PROG_CNTRL0, ISC_PROGRAM_USERCODE):
             i += 8
+        elif op == LSC_WRITE_COMP_DIC:
+            # Four-byte command header plus the eight dictionary patterns.
+            i += 12
         elif op == JUMP:
             break
         else:
             i += 1
     return {"frames": frames, "explicit_addresses": explicit,
-            "compressed": compressed}
+            "compressed": False}
 
 
 def load_frames(path: Path, frame_bytes: int) -> list[bytes]:
@@ -134,11 +153,16 @@ def cmd_frames(args) -> int:
     count = len(parsed["frames"])
     print(f"{args.path.name}: {count} frames of {geo['frame_bytes']} bytes "
           f"({'compressed' if parsed['compressed'] else 'uncompressed'})")
+    explicit = len(parsed["explicit_addresses"])
+    print(f"explicit LSC_WRITE_ADDRESS commands: {explicit}")
+    if explicit:
+        matched = explicit == count
+        print(f"addressed partial frames: {'MATCH' if matched else 'MISMATCH'}")
+        return 0 if matched else 1
+    matched = count == geo["frames"]
     print(f"expected {geo['frames']} for {args.device}: "
-          f"{'MATCH' if count == geo['frames'] else 'MISMATCH'}")
-    print(f"explicit LSC_WRITE_ADDRESS commands: "
-          f"{len(parsed['explicit_addresses'])}")
-    return 0 if count == geo["frames"] else 1
+          f"{'MATCH' if matched else 'MISMATCH'}")
+    return 0 if matched else 1
 
 
 def cmd_diff(args) -> int:
@@ -177,6 +201,39 @@ def cmd_probe_map(args) -> int:
     return 0
 
 
+def cmd_check_record(args) -> int:
+    try:
+        record = json.loads(args.path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"{args.path}: {exc}") from exc
+    if record.get("schema") != "org.atomix.ecp5-frame-decode.v1" or \
+            record.get("kind") != "ecp5-frame-decode-evidence":
+        raise SystemExit(f"{args.path}: unsupported evidence schema or kind")
+    for relative, expected in record.get("sources", {}).items():
+        source = ROOT / relative
+        observed = "sha256:" + hashlib.sha256(source.read_bytes()).hexdigest()
+        if observed != expected:
+            raise SystemExit(
+                f"{args.path}: stale source digest for {relative}: {observed}")
+
+    result = record.get("decode", {})
+    geo = geometry(result.get("device", ""))
+    if result.get("status") != "org.atomix.pass" or \
+            result.get("frames") != geo["frames"] or \
+            result.get("frame_bytes") != geo["frame_bytes"] or \
+            result.get("cram_bytes") != geo["frames"] * geo["frame_bytes"]:
+        raise SystemExit(f"{args.path}: decode result disagrees with device geometry")
+    padded = geo["frame_bytes"] + (7 - ((geo["frame_bytes"] - 1) % 8))
+    if result.get("serialized_padded_bytes") != geo["frames"] * padded:
+        raise SystemExit(f"{args.path}: compressed padding total is inconsistent")
+    if record.get("tests", {}).get("cases", 0) < 1 or \
+            record.get("tests", {}).get("status") != "org.atomix.pass":
+        raise SystemExit(f"{args.path}: deterministic decoder tests are not passing")
+    print(f"ECP5 frame evidence: PASS ({result['device']}, "
+          f"{result['frames']}x{result['frame_bytes']}-byte frames)")
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--device", default="LFE5U-85F")
@@ -193,6 +250,9 @@ def main() -> int:
     p.add_argument("probe", type=Path)
     p.add_argument("delta", type=Path)
     p.set_defaults(func=cmd_probe_map)
+    p = sub.add_parser("check-record", help="validate the maintained 85F decode evidence")
+    p.add_argument("path", nargs="?", type=Path, default=DEFAULT_RECORD)
+    p.set_defaults(func=cmd_check_record)
     args = parser.parse_args()
     return args.func(args)
 

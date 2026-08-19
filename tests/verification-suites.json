@@ -20,8 +20,8 @@
       "requires": ["make", "python3"]
     },
     "research-contracts": {
-      "label": "Personality and comparison research contracts",
-      "command": ["make", "comparison-check"],
+      "label": "Personality, comparison, and ECP5 frame research contracts",
+      "command": ["make", "comparison-check", "ecp5-frame-check"],
       "timeout_seconds": 300,
       "requires": ["make", "python3"]
     },

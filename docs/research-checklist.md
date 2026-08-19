@@ -96,7 +96,14 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   `research/partial-reconfig/ecp5-45f-frame-address-probe.json`); and the
   offset is piecewise over at least nine segments and non-monotonic.  A second
   obstacle was also found: `ecppack` compresses 85F frame data even without
-  `--compress`, so that path needs a decompressor too.
+  `--compress`.  **The decompression sub-blocker is now closed:** one shared
+  prefix-free decoder serves `pr_delta.py` and `ecp5_frames.py`, a fresh seed-1
+  85F build at 27.40 MHz decodes to the database's exact 13,294x142-byte
+  geometry, the 45F cross-check retains its 7,377 full/delta frame count, and
+  malformed streams are rejected.  Evidence:
+  `research/partial-reconfig/ecp5-85f-frame-decode.json` and
+  `make ecp5-frame-check`.  Full images still carry no explicit addresses, so
+  deriving and validating the 85F address function remains open.
 
 - [~] **No hardware — now the binding constraint:** lock shell placement and
   routing, constrain the role to whole-frame-compatible columns, and show that
@@ -489,8 +496,9 @@ results above from reading as general claims.
 
 ## Immediate queue without hardware
 
-1. Validate the ECP5-85F frame-address map, which is the head of the whole R1
-   queue and blocks every later partial-reconfiguration item.
+1. Derive and validate the ECP5-85F frame-address function now that compressed
+   full-chip frames can be walked; the 45F path means this remains useful but
+   is no longer on R1's critical path.
 2. Select a current-sense fixture so the R2 power and energy line can close.
 3. Find a device with room for the Live FPGA role-event producers.  Every Tang
    Primer profile declines them because they cost 2,251 LUT4 and `role.morph`

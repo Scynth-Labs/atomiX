@@ -50,6 +50,7 @@ help:
 	@echo "  make policy-check       # L1 reviewed-program selection policy"
 	@echo "  make live-sim-check     # closed-loop virtual FPGA fault scenarios"
 	@echo "  make l3-check           # bounded morph-genome search + RTL reference"
+	@echo "  make ecp5-frame-check   # compressed/full/partial ECP5 frame decoder"
 	@echo "  make verify-smoke       # fast integrated verification ladder"
 	@echo "  make nightly-integrated # broad software/RTL suite with stage logs"
 	@echo "  make component-test"
@@ -186,6 +187,10 @@ l3-contract-check:
 
 l3-check: l3-contract-check
 	$(MAKE) -C sim/unit run-morph-fabric
+
+ecp5-frame-check:
+	$(PYTHON) tools/test_ecp5_bitstream.py
+	$(PYTHON) tools/ecp5_frames.py check-record
 
 # Hold the Primer synthesis results to their locked baseline. Give it a sweep
 # report from tools/tangprimer_synth_benchmark.py; --partial checks only the
@@ -331,4 +336,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

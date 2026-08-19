@@ -198,6 +198,34 @@ ATOMIX_PR_RESUME=1 ATOMIX_PR_ROLE_X0=1 ATOMIX_PR_ROLE_X1=13 \
 ```
 
 
+## Stage 2 progress: compressed 85F frame decoding (2026-08-20)
+
+The compression sub-blocker is closed.  `tools/pr_delta.py` had already grown
+a prefix-free decoder to compare two compressed full-chip images, but the
+dedicated frame/address tool still refused `LSC_PROG_INCR_CMP`; two independent
+parsers therefore disagreed about which inputs the project supported.  The
+decoder now lives once in `tools/ecp5_bitstream.py`, and both tools consume it.
+It handles zero, dictionary, and literal tokens, per-frame padding, CRC/dummy
+trailers, truncation, and wrong-geometry rejection.  The ordinary command
+walker remains separate for uncompressed full and explicitly addressed partial
+streams; a partial is valid when every emitted frame has its own
+`LSC_WRITE_ADDRESS`, not when it equals the full device frame count.
+
+Fresh evidence from seed 1 is in
+`research/partial-reconfig/ecp5-85f-frame-decode.json`.  The current 85F
+profile routes at 27.40 MHz against 25 MHz, and its compressed image decodes to
+exactly 13,294 frames of 142 CRAM bytes (1,887,748 bytes after removing the
+64-bit serialization padding).  Cross-validation on the maintained 45F pair
+still finds 7,377 changed frames, while its delta contains 7,377 frames and
+7,377 explicit addresses.  `make ecp5-frame-check` runs six synthetic
+format/corruption cases and validates the source-hashed evidence record.
+
+This removes no address-map uncertainty.  A full 85F stream still issues
+`LSC_INIT_ADDRESS` once and contains zero explicit addresses, so decoding its
+contents cannot reveal the index-to-`LSC_WRITE_ADDRESS` function.  This is
+synthesis/P&R plus software-decoding evidence, not a partial image or a
+physical-board result.
+
 ## Stage 2 progress: the 85F frame-address map (2026-08-10)
 
 `ecppack --delta` refuses the 85F with `FIXME: partial bitstreams only
@@ -234,12 +262,10 @@ What the pairs show, and why the map is not yet closed:
   is not monotonic: between frame indices 5,545 and 5,561 the address advances
   by 15 while the index advances by 16.
 
-A second obstacle surfaced that this document had not recorded: `ecppack`
-compresses 85F frame data even when `--compress` is not requested (492 KB
-against the 1,914,336 bytes an uncompressed image needs).  Frame-level analysis
-of the 85F therefore needs a decompressor in addition to the address map.  That
-was caught only after the parser was changed to refuse compressed streams —
-before that, a fixed-stride walk reported a confident and entirely false
-"13,294 frames, 27.1% changed", because the frame count had come from the block
-header rather than from traversing the frames.  Any tool in this area should
-refuse input it cannot actually walk.
+A second obstacle surfaced here: `ecppack` compresses 85F frame data even when
+`--compress` is not requested because the profile enables `COMPRESS_CONFIG`.
+Before the decoder was shared on 2026-08-20, a fixed-stride walk had reported a
+confident and entirely false "13,294 frames, 27.1% changed", because the frame
+count came from the block header rather than from traversing the frames.  The
+new decoder closes that obstacle and rejects truncated or malformed streams;
+the address map above remains the open problem.

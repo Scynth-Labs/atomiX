@@ -33,24 +33,14 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
+try:
+    from .ecp5_bitstream import extract_compressed_frames as extract_ecp5_frames
+except ImportError:
+    from ecp5_bitstream import extract_compressed_frames as extract_ecp5_frames
+
 TILE_RE = re.compile(r"^\.tile\s+(\S+)")
 # Tile names embed their die position, e.g. CIB_R10C3:PVT_COUNT2 -> row 10, col 3.
 POS_RE = re.compile(r"R(\d+)C(\d+)")
-
-# Project Trellis writes ECP5 configuration frames in reverse order.  The
-# frame count identifies the ECP5 geometry, and the frame width is part of the
-# public Trellis device database.  Keeping the three supported ECP5 sizes here
-# makes the report independent of pytrellis (which OSS CAD Suite does not ship
-# as an importable Python module).
-ECP5_FRAME_BYTES = {
-    7562: 74,   # 12F / 25F: 592 bits
-    9470: 106,  # 45F: 846 bits plus two pad bits
-    13294: 142,  # 85F: 1136 bits
-}
-ECP5_PREAMBLE = b"\xff\xff\xbd\xb3"
-LSC_WRITE_COMP_DIC = b"\x02\x00\x00\x00"
-LSC_PROG_INCR_CMP = 0xB8
-
 
 def parse_config(path):
     """Return {tile_name: frozenset(config lines)} plus the file's preamble.
@@ -99,86 +89,6 @@ def position(tile_name):
     if not match:
         return None
     return int(match.group(1)), int(match.group(2))
-
-
-def _read_bits(data, bit_offset, count):
-    value = 0
-    for _ in range(count):
-        if bit_offset // 8 >= len(data):
-            raise ValueError("compressed frame data ends unexpectedly")
-        value = (value << 1) | ((data[bit_offset // 8] >>
-                                (7 - bit_offset % 8)) & 1)
-        bit_offset += 1
-    return value, bit_offset
-
-
-def extract_ecp5_frames(path):
-    """Extract CRAM frame bytes from an ecppack-compressed ECP5 `.bit`.
-
-    This mirrors Project Trellis's prefix-free frame decoder.  It deliberately
-    reads only the full-chip compressed payload; BRAM initialisation and the
-    device-specific partial-frame address encoding are outside the measurement.
-    """
-    data = Path(path).read_bytes()
-    try:
-        preamble = data.index(ECP5_PREAMBLE)
-        dict_cmd = data.index(LSC_WRITE_COMP_DIC,
-                              preamble + len(ECP5_PREAMBLE))
-    except ValueError as exc:
-        raise ValueError(f"{path}: not a compressed ECP5 ecppack bitstream") from exc
-
-    dict_start = dict_cmd + len(LSC_WRITE_COMP_DIC)
-    patterns = data[dict_start:dict_start + 8]
-    if len(patterns) != 8:
-        raise ValueError(f"{path}: truncated compression dictionary")
-    dictionary = [1 << i for i in range(8)] + [0] * 8
-    # Patterns are stored pattern7 first, matching Trellis's reader.
-    for pattern, index in zip(patterns, range(15, 7, -1)):
-        dictionary[index] = pattern
-
-    payload = dict_start + 8
-    if payload + 4 > len(data) or data[payload] != LSC_PROG_INCR_CMP:
-        raise ValueError(f"{path}: compressed frame command does not follow dictionary")
-    flags = data[payload + 1]
-    frame_count = (data[payload + 2] << 8) | data[payload + 3]
-    if frame_count not in ECP5_FRAME_BYTES:
-        raise ValueError(f"{path}: unsupported ECP5 frame count {frame_count}")
-
-    frame_bytes = ECP5_FRAME_BYTES[frame_count]
-    # Compression pads each decoded frame to a whole 64-bit unit.
-    decoded_bytes = frame_bytes + (7 - ((frame_bytes - 1) % 8))
-    check_crc = bool(flags & 0x80)
-    crc_after_each = check_crc and not bool(flags & 0x40)
-    dummy_bytes = flags & 0x0F
-    byte_offset = payload + 4
-    frames = []
-
-    for frame_number in range(frame_count):
-        bit_offset = byte_offset * 8
-        decoded = bytearray()
-        for _ in range(decoded_bytes):
-            first, bit_offset = _read_bits(data, bit_offset, 1)
-            if not first:
-                decoded.append(0)
-                continue
-            second, bit_offset = _read_bits(data, bit_offset, 1)
-            if second:
-                literal, bit_offset = _read_bits(data, bit_offset, 8)
-                decoded.append(literal)
-            else:
-                index, bit_offset = _read_bits(data, bit_offset, 4)
-                decoded.append(dictionary[index])
-
-        byte_offset = (bit_offset + 7) // 8
-        if crc_after_each or (check_crc and frame_number == frame_count - 1):
-            byte_offset += 2
-        byte_offset += dummy_bytes
-        frames.append(bytes(decoded[:frame_bytes]))
-
-    # The payload is serialized highest frame first; expose native CRAM order,
-    # which is the order ecppack uses when deciding which frames differ.
-    frames.reverse()
-    return frames
 
 
 def summarize(ref_path, cand_path, ref_bit=None, cand_bit=None):
@@ -307,7 +217,7 @@ def main():
                   f"{result['frame_groups_total']} 106-frame groups touched")
 
     histogram = result["column_histogram"]
-    if histogram:
+    if histogram and args.top > 0:
         print()
         print(f"busiest columns (of {len(histogram)} touched):")
         busiest = sorted(histogram.items(), key=lambda kv: -kv[1])[: args.top]

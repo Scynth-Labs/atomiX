@@ -1,0 +1,83 @@
+{
+  "schema": "org.atomix.ecp5-frame-decode.v1",
+  "kind": "ecp5-frame-decode-evidence",
+  "id": "org.atomix.research.ecp5-85f-frame-decode",
+  "revision": 1,
+  "hypothesis": "The prefix-free decoder already used by the ECP5 delta measurement can be shared with the frame-address tool and losslessly walk a fresh compressed 85F full-chip bitstream.",
+  "success_criterion": "A fresh seed-1 LFE5U-85F build must pass timing, decode to exactly the Trellis database geometry, preserve a stable decoded-frame digest, and retain the established 45F full/delta counts; malformed synthetic streams must be rejected.",
+  "source": {
+    "base_commit": "1edb1aa1a76524cb1b3a21a97bc29b7881bd3e6d",
+    "dirty": true
+  },
+  "sources": {
+    "configs/ulx3s-85f.json": "sha256:3ef571b0524ba464b62a7ff9fd19521850d993298f351ad7382531b3e07683d7",
+    "tools/ecp5_bitstream.py": "sha256:afcc1641dc2ffc0feaf1d6d7b0d5f6217043b98cb00b87172a5cef1c64ac1ac6",
+    "tools/ecp5_frames.py": "sha256:f4e03e9e251e8f259c044709518a6bb2ce7bebf8bb0ff3d2de1b45aecb6c8b44",
+    "tools/pr_delta.py": "sha256:43573d254cce7d69b186ac90c10d72b0066a4efc092a28249f8056da06e55d05",
+    "tools/test_ecp5_bitstream.py": "sha256:6152104966e82fd76060f470e6ee637e1d52aabfc0182a11e53e518d0da338d5"
+  },
+  "environment": {
+    "timestamp_utc": "2026-08-19T20:52:57Z",
+    "evidence_level": "org.atomix.synthesis-place-route-plus-software-decode",
+    "board": null,
+    "device": "LFE5U-85F-6CABGA381",
+    "tools": {
+      "python": "3.10.12",
+      "yosys": "0.67+102 (07a615a28-dirty)",
+      "nextpnr-ecp5": "0.10-105-g77e1f19f",
+      "ecppack": "1.4-79-g56bb170"
+    }
+  },
+  "build": {
+    "command": "source /home/shubhgau/opt/oss-cad-suite/environment && make fpga CONFIG=configs/ulx3s-85f.json",
+    "profile": "configs/ulx3s-85f.json",
+    "seed": 1,
+    "timing_constraint_mhz": 25.0,
+    "maximum_frequency_mhz": 27.4,
+    "timing_status": "org.atomix.pass",
+    "textcfg_sha256": "sha256:4b0662a7a08f96cbeb32b2ff01d7f913f5e0311aabac2ec7213e43d6b98c7943",
+    "bitstream_sha256": "sha256:16a9415eee97179ddb990ea3e321678aae16d2a472adcab68e4f2e317cff1bfb",
+    "artifact_policy": "Generated build artifacts are intentionally not committed."
+  },
+  "decode": {
+    "command": "python3 tools/ecp5_frames.py --device LFE5U-85F frames rtl/fpga/build/_home_shubhgau_dev_atomiX_configs_ulx3s-85f/ulx3s_85f_top_seed1.bit",
+    "device": "LFE5U-85F",
+    "compression": "org.atomix.trellis-prefix-free",
+    "frames": 13294,
+    "frame_bytes": 142,
+    "cram_bytes": 1887748,
+    "serialized_padded_bytes": 1914336,
+    "decoded_frames_sha256": "sha256:dafe098c0f59368c5ae8ca978e30492c2c19d90a7ae1013a8d2e26bce5a52c03",
+    "first_frame_sha256": "sha256:a12b5e77fc29d9c1118a19e3c336bcb1f3268abf892b12c07f9607d73239c075",
+    "last_frame_sha256": "sha256:b7f064b4bd27a3d68b5e66519cfac498d2e96da9bfd1bacf4110f4c7c98feca3",
+    "explicit_addresses": 0,
+    "status": "org.atomix.pass"
+  },
+  "cross_validation_45f": {
+    "reference_bitstream_sha256": "sha256:0d6deb58b5324c9e1f2dfc3b259b78878ec9fddecf43c5c002f7ea9b3ff71ff7",
+    "candidate_bitstream_sha256": "sha256:2c788e153990fe5f2ab5ea157d8b271e2c6ed97adcd89734321e48c89615d159",
+    "delta_bitstream_sha256": "sha256:64d06fafcf0dcdc7bd5ac17bdd9b43b74bbd9c469d51f790e9028c8cd7a37eb3",
+    "frames": 9470,
+    "frame_bytes": 106,
+    "changed_frames": 7377,
+    "changed_span": [10, 9469],
+    "delta_frames": 7377,
+    "explicit_addresses": 7377,
+    "status": "org.atomix.pass"
+  },
+  "tests": {
+    "command": "python3 tools/test_ecp5_bitstream.py",
+    "cases": 6,
+    "covers": [
+      "zero dictionary token",
+      "indexed dictionary token",
+      "literal token",
+      "truncated payload rejection",
+      "wrong-geometry rejection",
+      "uncompressed full and addressed-partial command streams"
+    ],
+    "status": "org.atomix.pass"
+  },
+  "conclusion": "The compressed-frame obstacle is closed and both PR tools now use one decoder. The 85F address encoder remains open: a full image has no explicit LSC_WRITE_ADDRESS commands, so these decoded frames validate content and geometry but do not reveal the index-to-address function.",
+  "physical_claim": false
+}
