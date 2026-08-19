@@ -1,0 +1,41 @@
+{
+  "schema": 1,
+  "id": "role.gpu-tpu",
+  "kind": "role",
+  "title": "Composite hard GPU-compute plus TPU-lite role (tunable GPU)",
+  "sources": [
+    "components/role/common/ax_gw5a_mul.sv",
+    "components/role/gpu-compute/gpu_engine.sv",
+    "components/role/tpu-lite/axrole.sv",
+    "components/role/gpu-tpu/axrole.sv"
+  ],
+  "stock_soc_module": "axrole",
+  "capabilities": [
+    "role-window",
+    "doorbell",
+    "status-poll",
+    "composite-hard-role",
+    "simt",
+    "programmable-kernel",
+    "int8-gemm",
+    "runtime-personality-select",
+    "tunable"
+  ],
+  "parameters": {
+    "gpu_lanes": {
+      "default": 1,
+      "define": "COMPOSITE_GPU_LANES",
+      "doc": "Resident gpu-compute lanes. The measured one-lane build uses 24 MULT12X12 plus 3 MULTALU27X18 cells, equivalent to 15 of the GW5A-25A's 28 large DSP sites."
+    },
+    "gpu_data_words": {
+      "default": 256,
+      "define": "COMPOSITE_GPU_DATA_WORDS",
+      "doc": "Power-of-two resident GPU global-memory words. The fit probe uses the compact 256-word buffer."
+    },
+    "layout_revision": {
+      "default": 1,
+      "define": "AX_ROLE_GPU_TPU",
+      "doc": "Composite source-selection marker and MMIO layout revision; revision 1 is the only defined value."
+    }
+  }
+}

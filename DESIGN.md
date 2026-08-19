@@ -268,6 +268,18 @@ capabilities and tunable parameters.
   `make -C sw/baremetal check-gpu` verifies saxpy, fused multiply+ReLU, and a
   gather kernel against an on-core interpreter of the ISA and prints the
   role-versus-CPU cycle counts.
+- **Resident composite: GPU-compute + TPU-lite (implemented,
+  `role.gpu-tpu`)** — both hard engines remain instantiated behind one fixed
+  role window.  Offsets `0xfff0`–`0xfff8` publish the composite ID, version,
+  and GPU/TPU capability bits; `0xfffc` selects GPU (0) or TPU (1).  All other
+  accesses go to the selected engine unchanged, including its native role ID
+  and programming model, so the existing GPU and TPU drivers remain the
+  semantic boundary.  The selector refuses a change while either engine is
+  executing or has an uncleared completion, and neither engine is reset by a
+  switch, so its local memories and counters remain resident.  The direct RTL
+  check and `make -C sw/baremetal check-gpu-tpu` run both workloads, exercise
+  refused switches, and verify retained GPU state.  The Tang Primer loader
+  profile places and routes at 33.18 MHz, but has no physical-board result.
 - **Scalable role family: gpu1 (implemented, `role.gpu1-{s,m,l,xl}`)** — the
   successor to the above, built to make lane count worth scaling.  The single
   global-buffer port is what capped the earlier engine: going from 8 to 16 lanes

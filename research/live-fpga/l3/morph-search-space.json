@@ -1,0 +1,93 @@
+{
+  "schema": "org.atomix.morph-search-space.v1",
+  "kind": "l3-search-space",
+  "id": "org.atomix.research.l3-morph-search-space",
+  "revision": 1,
+  "hypothesis": "A bounded search over only the morph PE operation and local-route descriptor can rediscover exact scalar, SIMT, and systolic genomes without changing shell state or workload address bounds.",
+  "success_criterion": "At least one deterministic strategy must find an exact-oracle descriptor for all three workloads within the complete 8192-candidate space; every proposed genome must differ from its known-good rollback only in words 10 and 11.",
+  "fabric": {
+    "role": "role.morph",
+    "revision": 1,
+    "pes": 4,
+    "data_words": 256,
+    "cfg_words": 13
+  },
+  "authority": {
+    "actuation": "org.atomix.not-authorized",
+    "promotion_requires": [
+      "org.atomix.exact-oracle",
+      "org.atomix.canary",
+      "org.atomix.rtl-shadow-evaluation",
+      "org.atomix.manager-owned-rollback"
+    ]
+  },
+  "bounds": {
+    "mutable_words": [10, 11],
+    "fixed_words": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 12],
+    "homogeneous_descriptor": true,
+    "descriptor_fields": {
+      "srca": [0, 7],
+      "srcb": [0, 7],
+      "srcc": [0, 7],
+      "srcd": [0, 7],
+      "accumulator_rule": [0, 1]
+    },
+    "reserved_bits": 0,
+    "candidate_count": 8192
+  },
+  "strategies": [
+    {
+      "id": "exhaustive",
+      "kind": "exhaustive-lexicographic",
+      "budget": 8192
+    },
+    {
+      "id": "seeded-permutation",
+      "kind": "affine-permutation",
+      "offset": 137,
+      "step": 4051,
+      "budget": 8192
+    },
+    {
+      "id": "greedy-coordinate",
+      "kind": "greedy-coordinate",
+      "initial_fields": [5, 5, 6, 5, 1],
+      "max_passes": 8
+    }
+  ],
+  "workloads": [
+    {
+      "id": "scalar-recurrence",
+      "operation": "scalar-recurrence",
+      "reference_genome": [0, 65537, 64, 0, 1, 0, 0, 200, 3, 1, 103848130, 103848130, 7],
+      "cases": [
+        {"x": {"kind": "affine", "start": -8, "step": 1}},
+        {"x": {"kind": "cycle", "modulus": 11, "offset": -5}}
+      ]
+    },
+    {
+      "id": "simt-saxpy",
+      "operation": "saxpy",
+      "reference_genome": [1, 3276801, 1, 0, 65536, 65600, 0, 128, 3, 0, 79303400, 79303400, 0],
+      "cases": [
+        {"x": {"kind": "affine", "start": 1, "step": 1}, "y": {"kind": "affine", "start": 100, "step": 2}},
+        {"x": {"kind": "cycle", "modulus": 17, "offset": -8}, "y": {"kind": "affine", "start": -101, "step": 7}}
+      ]
+    },
+    {
+      "id": "systolic-gemm",
+      "operation": "gemm",
+      "reference_genome": [2, 524300, 8, 524288, 1, 65632, 8, 524448, 0, 0, 85595240, 85595240, 0],
+      "cases": [
+        {
+          "a": {"kind": "cycle", "modulus": 7, "offset": -3},
+          "b": {"kind": "cycle", "modulus": 5, "offset": -2}
+        },
+        {
+          "a": {"kind": "cycle", "modulus": 13, "offset": -6},
+          "b": {"kind": "cycle", "modulus": 9, "offset": -4}
+        }
+      ]
+    }
+  ]
+}

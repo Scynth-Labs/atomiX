@@ -50,6 +50,20 @@
 #define AX_ROLE_GPU_PROG     (AX_ROLE_BASE + 0x0100u)
 #define AX_ROLE_GPU_DATA     (AX_ROLE_BASE + 0x1000u)
 
+/* role.gpu-tpu keeps both hard engines resident and muxes the native role ABI.
+ * Selection is refused while either engine is busy or has uncleared DONE, so
+ * acknowledge STATUS before switching.  The metadata lives at the unused end
+ * of the role window and remains visible in either personality. */
+#define AX_ROLE_GPU_TPU_ID       0x47545043u /* "GTPC" */
+#define AX_ROLE_GPU_TPU_META_ID  (AX_ROLE_BASE + 0xfff0u)
+#define AX_ROLE_GPU_TPU_VERSION  (AX_ROLE_BASE + 0xfff4u)
+#define AX_ROLE_GPU_TPU_CAPS     (AX_ROLE_BASE + 0xfff8u)
+#define AX_ROLE_GPU_TPU_SELECT   (AX_ROLE_BASE + 0xfffcu)
+#define AX_ROLE_GPU_TPU_GPU      0u
+#define AX_ROLE_GPU_TPU_TPU      1u
+#define AX_ROLE_GPU_TPU_CAP_GPU  0x1u
+#define AX_ROLE_GPU_TPU_CAP_TPU  0x2u
+
 /* Instruction opcodes (see components/role/gpu-compute/axrole.sv). */
 #define AX_GPU_HALT 0u
 #define AX_GPU_TID  1u

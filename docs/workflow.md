@@ -237,14 +237,22 @@ make -C sw/baremetal check-tpu      # TPU-lite folded int8 GEMM vs on-core refer
 make -C sw/baremetal check-gpu      # GPU-compute SIMT engine vs on-core reference (8-lane)
 make -C sw/baremetal check-gpu-perf # GPU throughput regression vs on-core (8-lane)
 make -C sw/baremetal check-gpu1     # gpu1 banked SIMT engine vs on-core ISA oracle
+make -C sw/baremetal check-gpu-tpu  # resident GPU then TPU, guarded switch + retained state
+make -C sim/unit run-gpu-tpu        # direct composite role ABI and both engines
 ```
-Two role components, each tuned by parameter rather than duplicated per size:
+The programmable and composite role components are tuned by parameter rather
+than duplicated per size:
 
 - `role.gpu1` — the current engine: banked global memory and a control ISA
   (divergence, branches, divide, shuffle).  Parameters: `lanes`, `banks`,
   `enable_div`, `enable_shfl`.
 - `role.gpu-compute` — the earlier single-port engine, kept as the reference the
   gpu1 store-ordering semantics are matched against.  Parameter: `lanes`.
+- `role.gpu-tpu` — a resident one-window composition of `gpu-compute` and
+  `tpu-lite`.  `gpu_lanes` and `gpu_data_words` tune its GPU half; fixed
+  metadata at offsets `0xfff0`–`0xfffc` discovers the pair and selects one
+  native engine ABI.  Selection is rejected while either engine is executing
+  or has an uncleared completion, and a switch does not reset engine state.
 
 Software reads the geometry from the role's CAPS register, so `check-gpu1` is
 the check for any parameterisation.  See
@@ -259,6 +267,7 @@ oracles independently of any FPGA toolchain:
 make personality-check
 make comparison-check
 make live-check
+make l3-check                    # deterministic L3 search + RTL rollback genomes
 ```
 
 ```bash
@@ -402,7 +411,7 @@ make config-check-all
 make -C sim/axsim test
 make -C sim/cosim test
 make -C sw/baremetal images
-make -C sw/baremetal check-hello check-timer check-preempt check-fencei check-role check-tpu check-gpu
+make -C sw/baremetal check-hello check-timer check-preempt check-fencei check-role check-tpu check-gpu check-gpu-tpu
 make component-test
 make -C sw/kernel kernel-component-test QEMU=/path/to/qemu-system-riscv32
 make -C sw/kernel check-role-driver check-role-irq check-hostlink check-uartboot
@@ -475,6 +484,7 @@ CPU, GPU, and TPU profiles cannot reuse a sibling profile's artifact.
 make fpga CONFIG=configs/ulx3s-85f.json     # top-level wrapper (ECP5), or:
 make fpga CONFIG=configs/tangnano20k.json   # Gowin/Tang Nano
 make fpga CONFIG=configs/tangprimer25k.json # Gowin/Tang Primer 25K
+make fpga-loader LOADER_CONFIG=configs/tangprimer25k-runtime-gpu-tpu.json # resident composite
 make primer-runtime-preflight               # exact Primer runtime image + evidence; no board access
 make -C rtl/fpga config COMPONENT_CONFIG=$PWD/configs/tangnano20k.json  # print resolved selection
 ```
@@ -482,6 +492,13 @@ The P&R tool (`nextpnr-ecp5` / `nextpnr-himbaechel`) prints utilisation and
 timing at the end; the board clock target (25 MHz ULX3S, 27 MHz Tang Nano,
 25 MHz Tang Primer) must pass. Do not program a bitstream from a failed or
 unconstrained P&R run.
+
+The composite loader command above is the reproducible R2 fit probe.  Its
+seed-1 build places at 19,304 LUT4, 2,701 FF, 42 BSRAM and 24 `MULT12X12` plus
+3 `MULTALU27X18` cells, routing at 33.18 MHz.  It resets through the immutable
+UART ROM into blank 16 KiB RAM, so workload software is a runtime payload and
+not part of bitstream identity.  These are synthesis/P&R results only; the
+command does not program the board and is not a physical claim.
 
 The reproducible stage-2 partial-reconfiguration measurement uses explicit
 matching placement seeds and writes a JSON frame/tile report:
@@ -493,6 +510,11 @@ make -C rtl/fpga pr-delta
 It is a research measurement, not a programming target.  On the ULX3S 85F it
 also records the expected current Trellis diagnostic that delta address
 encoding is implemented only for 45F; see [partial-reconfig.md](partial-reconfig.md).
+The stage-3 placement-lock probe is not yet a one-command gate because its
+recorded outcome is a router failure, not an artifact to publish.  Its exact
+no-hardware reproduction commands and the expected diagnostics are in the
+"Stage 3 progress" section of that document; `tools/pr_lock.py` and
+`tools/pr_floorplan.py` are the maintained lock and region apparatus.
 
 ### 4.4 Program the board
 ```bash

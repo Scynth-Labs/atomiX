@@ -1,0 +1,77 @@
+{
+  "schema": {"id": "org.atomix.comparison-evidence", "major": 1, "minor": 0},
+  "kind": "comparison-evidence",
+  "id": "org.atomix.comparison-evidence.gpu-tpu-primer-pnr",
+  "revision": 1,
+  "summary": "One-lane GPU plus folded TPU: simulated together and timing-clean on the GW5A-25A",
+  "claim": "org.atomix.observation",
+  "plan": {"id": "org.atomix.comparison.r2-composite-hard", "revision": 1},
+  "candidate": "org.atomix.candidate.simt1-gpu-tpu",
+  "transition": {
+    "from": "org.atomix.candidate.scalar-pipeline5",
+    "mechanism": "org.atomix.full-image",
+    "retains_management_shell": true
+  },
+  "source": {
+    "commit": "fc02f70b2879afb0c751ee124685b973f61e2d67",
+    "dirty": true,
+    "diff_sha256": "2cf297d883f3bb50b9c338a3864c58db3f6d35749a0fd9af74039b9e3559f147"
+  },
+  "environment": {
+    "evidence_level": "org.atomix.place-and-route",
+    "timestamp_utc": "2026-08-16T16:32:31Z",
+    "board": "org.atomix.board.tang-primer-25k-dock",
+    "device": "org.atomix.device.gw5a-25a",
+    "tools": {
+      "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty)",
+      "nextpnr": "nextpnr-0.10-105-g77e1f19f",
+      "gowin_pack": "Apicula from OSS CAD Suite 2026-08-13"
+    }
+  },
+  "correctness": {
+    "status": "org.atomix.pass",
+    "oracle_cases": 2,
+    "output_sha256": "e049789386cb6bda980cb0c48eef663970f2caeb7ce99c784f8e1795ec5cb280",
+    "method": "make -C sim/unit run-gpu-tpu runs a four-thread GPU arithmetic/store kernel and a one-row identity TPU GEMM, checks guarded switching and retained state; make -C sw/baremetal check-gpu-tpu repeats both workloads through an assembled RTL SoC. P&R establishes device fit, not physical execution."
+  },
+  "measurements": {
+    "org.atomix.metric.switch-latency": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "not measured on hardware"},
+    "org.atomix.metric.configuration-transfer-latency": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "not measured on hardware"},
+    "org.atomix.metric.execute-cycles": {"value": null, "unit": "org.atomix.unit.cycle", "status": "org.atomix.unavailable", "method": "the integration workloads prove correctness but are not the matched R2 benchmark"},
+    "org.atomix.metric.total-cycles": {"value": null, "unit": "org.atomix.unit.cycle", "status": "org.atomix.unavailable", "method": "not measured with the matched R2 workload"},
+    "org.atomix.metric.work-items": {"value": null, "unit": "org.atomix.unit.item", "status": "org.atomix.unavailable", "method": "the correctness run covers two different workloads"},
+    "org.atomix.metric.clock-frequency": {"value": 25000000, "unit": "org.atomix.unit.hertz", "status": "org.atomix.measured", "method": "nextpnr-himbaechel seed-1 GW5A-25A place-and-route constraint"},
+    "org.atomix.metric.configuration-bytes": {"value": null, "unit": "org.atomix.unit.byte", "status": "org.atomix.unavailable", "method": "the generated .fs is an ASCII pack artifact, not a measured configuration transfer"},
+    "org.atomix.metric.lut-used": {"value": 19304, "unit": "org.atomix.unit.count", "status": "org.atomix.measured", "method": "nextpnr post-pack Device utilisation, comparable to the maintained Primer role rows"},
+    "org.atomix.metric.lut-available": {"value": 23040, "unit": "org.atomix.unit.count", "status": "org.atomix.measured", "method": "GW5A-25A device capacity reported by nextpnr"},
+    "org.atomix.metric.flip-flop-used": {"value": 2701, "unit": "org.atomix.unit.count", "status": "org.atomix.measured", "method": "nextpnr post-pack Device utilisation"},
+    "org.atomix.metric.flip-flop-available": {"value": 23040, "unit": "org.atomix.unit.count", "status": "org.atomix.measured", "method": "GW5A-25A device capacity reported by nextpnr"},
+    "org.atomix.metric.block-ram-bits-used": {"value": 774144, "unit": "org.atomix.unit.bit", "status": "org.atomix.measured", "method": "42 nextpnr BSRAM blocks times 18,432 bits"},
+    "org.atomix.metric.block-ram-bits-available": {"value": 1032192, "unit": "org.atomix.unit.bit", "status": "org.atomix.measured", "method": "56 nextpnr BSRAM blocks times 18,432 bits"},
+    "org.atomix.metric.dsp-used": {"value": 15, "unit": "org.atomix.unit.count", "status": "org.atomix.measured", "method": "equivalent GW5A DSP sites: 24 MULT12X12 consume 12 dual-MULT12 sites and 3 MULTALU27X18 consume 3 sites"},
+    "org.atomix.metric.dsp-available": {"value": 28, "unit": "org.atomix.unit.count", "status": "org.atomix.measured", "method": "GW5A-25A has 28 large DSP sites; nextpnr reports either 28 MULTALU27X18 or 56 half-site MULT12X12 capacity"},
+    "org.atomix.metric.maximum-frequency": {"value": 33178501, "unit": "org.atomix.unit.hertz", "status": "org.atomix.measured", "method": "nextpnr-himbaechel routed seed-1 report, clk_25mhz achieved 33.178501 MHz"},
+    "org.atomix.metric.total-energy": {"value": null, "unit": "org.atomix.unit.joule", "status": "org.atomix.unavailable", "method": "no current-sense fixture"}
+  },
+  "extensions": {
+    "org.atomix.composite-hard-role": {
+      "hypothesis": "A one-lane gpu-compute engine and folded TPU-lite can remain resident behind one role ABI and fit the GW5A-25A at 25 MHz.",
+      "success_criterion": "Both native workloads pass in one RTL model; the loader profile places, routes, and achieves at least 25 MHz at seed 1.",
+      "result": "PASS in simulation and P&R; no physical-board execution claim.",
+      "source_diff_scope": "SHA-256 of the concatenated git --binary patches for components/role/{tpu-lite,gpu-tpu}, configs/{sim-gpu-tpu,tangprimer25k-runtime-gpu-tpu}.json, sim/unit/{Makefile,tb_gpu_tpu.cpp}, and sw/baremetal/{Makefile,include/role.h,examples/gpu_tpu.c}; documentation and evidence records are excluded.",
+      "profile": "configs/tangprimer25k-runtime-gpu-tpu.json",
+      "profile_sha256": "9d8b6f3191d803fd4d0c9cae2d6306bae974c1dcabff900272deedd5099fbb4c",
+      "command": "source $HOME/opt/oss-cad-suite/environment && make fpga-loader LOADER_CONFIG=configs/tangprimer25k-runtime-gpu-tpu.json",
+      "seed": 1,
+      "raw_routed_utilization": {"lut4": 17371, "dff": 2701, "bsram": 42, "mult12x12": 24, "multalu27x18": 3},
+      "artifacts": {
+        "prepared_source_sha256": "30cc72fdbf1fd29136663d8b0adce76ff0c20216f77590bb0bd3e838232079b3",
+        "synth_json_sha256": "58d7ae7dbe0957a144db7cd58aac5cfff0b4b254a4430a74b7306b334467f1dd",
+        "synth_log_sha256": "8dd8b4498804afe653212e43511fc114850f30fddca8331f8d213c402887d22b",
+        "pnr_json_sha256": "e01d31c919417d566986dfe4827ed36390c0b5b2c17e4881c3c4ec104b171a6e",
+        "timing_report_sha256": "1846493b3317d8adfffd6a89995c3875968ee73474820472136ed3571247717c",
+        "packed_fs_sha256": "d3cc87be7971aa23c501ed261458ce551ccb16a993960a9bf50ef5d936b9df92"
+      }
+    }
+  }
+}

@@ -22,7 +22,7 @@ CFLAGS   := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
 LDFLAGS  = -nostdlib -Wl,-T,link.ld -Wl,--defsym=__ram_bytes=$(RAM_BYTES) \
            -Wl,--gc-sections -Wl,-Map,$(@:.elf=.map)
 
-PROGRAMS := hello timer preempt fencei spi sd role role_irq tpu gpu gpu_perf gpu1 cpu_perf render_perf game2048 snake
+PROGRAMS := hello timer preempt fencei spi sd role role_irq tpu gpu gpu_tpu gpu_perf gpu1 cpu_perf render_perf game2048 snake
 ELFS     := $(PROGRAMS:%=$(BUILD_DIR)/%.elf)
 BINS     := $(ELFS:.elf=.bin)
 HEXS     := $(ELFS:.elf=.hex)
@@ -218,6 +218,14 @@ check-gpu: $(BUILD_DIR)/gpu.hex
 	  COMPONENT_CONFIG=../../configs/sim-gpu-compute.json \
 	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/gpu.hex) RESET_PC=0x80000000 MAX_CYCLES=400000
 
+# Both hard engines in one resident role.  This is an RTL composition check;
+# the Primer fit question is answered separately by the loader-profile P&R.
+check-gpu-tpu: $(BUILD_DIR)/gpu_tpu.hex
+	$(MAKE) -C ../../sim/soc run \
+	  COMPONENT_CONFIG=../../configs/sim-gpu-tpu.json \
+	  RAM_INIT_FILE=$(abspath $(BUILD_DIR)/gpu_tpu.hex) RESET_PC=0x80000000 \
+	  MAX_CYCLES=600000
+
 # GPU performance regression: sweeps thread counts over two kernels, times the
 # SIMT engine against on-core loops, and fails if the measured speedup drops
 # below the bar.  The raised cycle budget covers the sweep plus the per-thread
@@ -295,4 +303,4 @@ check-suite-ax2: $(BUILD_DIR)/hello.hex $(BUILD_DIR)/timer.hex $(BUILD_DIR)/pree
 clean:
 	rm -rf build
 
-.PHONY: all images run-iss run-qemu run-rtl check-hello check-timer check-preempt check-fencei check-spi check-sd check-role check-role-irq check-roleiso check-livecount check-morph check-gpu-lane1 check-game2048 check-snake check-snake-loader check-tpu check-gpu check-gpu-perf check-gpu1 check-cpu-perf check-suite-minimal check-suite-ax2 clean
+.PHONY: all images run-iss run-qemu run-rtl check-hello check-timer check-preempt check-fencei check-spi check-sd check-role check-role-irq check-roleiso check-livecount check-morph check-gpu-lane1 check-game2048 check-snake check-snake-loader check-tpu check-gpu check-gpu-tpu check-gpu-perf check-gpu1 check-cpu-perf check-suite-minimal check-suite-ax2 clean

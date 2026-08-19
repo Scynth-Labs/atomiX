@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "sim-gpu-tpu",
+  "components": {
+    "core": "core.minimal",
+    "soc": "soc.reference",
+    "role": "role.gpu-tpu",
+    "memory": "memory.bram",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.sim",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test",
+    "harness": "harness.verilator-soc"
+  },
+  "settings": {"ram_bytes": 131072, "caches": false, "reset_pc": "0x80000000"},
+  "parameters": {
+    "role": {"gpu_lanes": 1, "gpu_data_words": 256}
+  }
+}

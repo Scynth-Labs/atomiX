@@ -1,0 +1,381 @@
+{
+  "authority": {
+    "actuation": "org.atomix.not-authorized",
+    "promotion_requires": [
+      "org.atomix.exact-oracle",
+      "org.atomix.canary",
+      "org.atomix.rtl-shadow-evaluation",
+      "org.atomix.manager-owned-rollback"
+    ]
+  },
+  "claim": "At least one deterministic strategy must find an exact-oracle descriptor for all three workloads within the complete 8192-candidate space; every proposed genome must differ from its known-good rollback only in words 10 and 11.",
+  "command": "make l3-check",
+  "decision": "Retain exhaustive search as the completeness oracle; use the lower-evaluation strategy only to propose candidates, and require exact oracle, canary, RTL shadow evaluation, and manager-owned rollback before any volatile activation.",
+  "evidence_level": "org.atomix.deterministic-model-plus-rtl-reference",
+  "id": "org.atomix.research.l3-morph-search",
+  "kind": "l3-search-result",
+  "revision": 1,
+  "schema": "org.atomix.morph-search-result.v1",
+  "search_space": {
+    "candidate_count": 8192,
+    "content_id": "sha256:de604965f71014e08deec948c52765eaa00ab0dd392d48caac878e43a70261eb",
+    "fixed_words": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      12
+    ],
+    "mutable_words": [
+      10,
+      11
+    ]
+  },
+  "sources": {
+    "components/role/morph/morph_fabric.sv": "sha256:8e395e4a0bec17aa4df346cc6a2230438387341aff1e81fcfd153da66ab40d3e",
+    "research/live-fpga/l3/morph-search-space.json": "sha256:8bf7bfbfd950d3c2a5e6c0b92a088c160083065558326cb2d642e24c987dd770",
+    "sim/unit/tb_morph_fabric.cpp": "sha256:6cdc31614315817b9f2656f94dad78c46af2f1c53b7da2cc60fe7fa180c9d9a9",
+    "tools/morph_search.py": "sha256:decb0cb6aaef2d42b343164ec9619ec861b470dba97846ebd0741853bc3da32a"
+  },
+  "workloads": [
+    {
+      "id": "scalar-recurrence",
+      "operation": "scalar-recurrence",
+      "oracle_cases": 2,
+      "oracle_sha256": "sha256:7e88ea1d3c0c713903059cddac31f718b87047736e389cc6f17b14f7f0d7ba33",
+      "oracle_words": 2,
+      "rollback": {
+        "content_id": "sha256:650e5260c1545a7ebd688ad85a8a2eb25d63ec0d08b20e12a51e6d57afff087c",
+        "descriptor": 6338,
+        "genome": [
+          0,
+          65537,
+          64,
+          0,
+          1,
+          0,
+          0,
+          200,
+          3,
+          1,
+          103848130,
+          103848130,
+          7
+        ],
+        "status": "org.atomix.known-good-rtl"
+      },
+      "strategies": [
+        {
+          "best_score": {
+            "mismatched_bits": 0,
+            "mismatched_words": 0
+          },
+          "evaluations": 6339,
+          "id": "exhaustive",
+          "status": "org.atomix.pass",
+          "winner": {
+            "content_id": "sha256:650e5260c1545a7ebd688ad85a8a2eb25d63ec0d08b20e12a51e6d57afff087c",
+            "descriptor": 6338,
+            "fields": [
+              2,
+              0,
+              3,
+              4,
+              1
+            ],
+            "genome": [
+              0,
+              65537,
+              64,
+              0,
+              1,
+              0,
+              0,
+              200,
+              3,
+              1,
+              103848130,
+              103848130,
+              7
+            ],
+            "output_sha256": "sha256:7e88ea1d3c0c713903059cddac31f718b87047736e389cc6f17b14f7f0d7ba33"
+          }
+        },
+        {
+          "best_score": {
+            "mismatched_bits": 0,
+            "mismatched_words": 0
+          },
+          "evaluations": 318,
+          "id": "seeded-permutation",
+          "status": "org.atomix.pass",
+          "winner": {
+            "content_id": "sha256:df2f8e55f05280810c5d334a702036cd651f2544a14a613e75158c26a94631b8",
+            "descriptor": 6352,
+            "fields": [
+              0,
+              2,
+              3,
+              4,
+              1
+            ],
+            "genome": [
+              0,
+              65537,
+              64,
+              0,
+              1,
+              0,
+              0,
+              200,
+              3,
+              1,
+              104077520,
+              104077520,
+              7
+            ],
+            "output_sha256": "sha256:7e88ea1d3c0c713903059cddac31f718b87047736e389cc6f17b14f7f0d7ba33"
+          }
+        },
+        {
+          "best_score": {
+            "mismatched_bits": 23,
+            "mismatched_words": 2
+          },
+          "evaluations": 103,
+          "id": "greedy-coordinate",
+          "status": "org.atomix.no-solution-in-budget",
+          "winner": null
+        }
+      ]
+    },
+    {
+      "id": "simt-saxpy",
+      "operation": "saxpy",
+      "oracle_cases": 2,
+      "oracle_sha256": "sha256:e6ac12a0090f23be9efe5f234dd6fce6f36fdf0e41c26ad02d2a7380a59fef2a",
+      "oracle_words": 100,
+      "rollback": {
+        "content_id": "sha256:451866926ee4e49a71060bb427a86fd84ec80fc030f94c14b251e367db2aee53",
+        "descriptor": 4840,
+        "genome": [
+          1,
+          3276801,
+          1,
+          0,
+          65536,
+          65600,
+          0,
+          128,
+          3,
+          0,
+          79303400,
+          79303400,
+          0
+        ],
+        "status": "org.atomix.known-good-rtl"
+      },
+      "strategies": [
+        {
+          "best_score": {
+            "mismatched_bits": 0,
+            "mismatched_words": 0
+          },
+          "evaluations": 4628,
+          "id": "exhaustive",
+          "status": "org.atomix.pass",
+          "winner": {
+            "content_id": "sha256:3a9721fd8fa0f581a446442b43db2c71c5899f8e00817c8689b6bbfcc444d74d",
+            "descriptor": 4627,
+            "fields": [
+              3,
+              2,
+              0,
+              1,
+              1
+            ],
+            "genome": [
+              1,
+              3276801,
+              1,
+              0,
+              65536,
+              65600,
+              0,
+              128,
+              3,
+              0,
+              75813395,
+              75813395,
+              0
+            ],
+            "output_sha256": "sha256:e6ac12a0090f23be9efe5f234dd6fce6f36fdf0e41c26ad02d2a7380a59fef2a"
+          }
+        },
+        {
+          "best_score": {
+            "mismatched_bits": 0,
+            "mismatched_words": 0
+          },
+          "evaluations": 83,
+          "id": "seeded-permutation",
+          "status": "org.atomix.pass",
+          "winner": {
+            "content_id": "sha256:273250351f9cb1f13281e8a2ba4a4ba6e5dcfa90cac8740017200d964806288f",
+            "descriptor": 4639,
+            "fields": [
+              7,
+              3,
+              0,
+              1,
+              1
+            ],
+            "genome": [
+              1,
+              3276801,
+              1,
+              0,
+              65536,
+              65600,
+              0,
+              128,
+              3,
+              0,
+              76010015,
+              76010015,
+              0
+            ],
+            "output_sha256": "sha256:e6ac12a0090f23be9efe5f234dd6fce6f36fdf0e41c26ad02d2a7380a59fef2a"
+          }
+        },
+        {
+          "best_score": {
+            "mismatched_bits": 420,
+            "mismatched_words": 96
+          },
+          "evaluations": 69,
+          "id": "greedy-coordinate",
+          "status": "org.atomix.no-solution-in-budget",
+          "winner": null
+        }
+      ]
+    },
+    {
+      "id": "systolic-gemm",
+      "operation": "gemm",
+      "oracle_cases": 2,
+      "oracle_sha256": "sha256:16d53679f8aa8f3ede296f8a410126817896678b2bad905a295d32d99822e2a1",
+      "oracle_words": 192,
+      "rollback": {
+        "content_id": "sha256:6c1e422abdbfc7f338b98ff997511c362e14c3818b3b21857081bd83c2910ee3",
+        "descriptor": 5224,
+        "genome": [
+          2,
+          524300,
+          8,
+          524288,
+          1,
+          65632,
+          8,
+          524448,
+          0,
+          0,
+          85595240,
+          85595240,
+          0
+        ],
+        "status": "org.atomix.known-good-rtl"
+      },
+      "strategies": [
+        {
+          "best_score": {
+            "mismatched_bits": 0,
+            "mismatched_words": 0
+          },
+          "evaluations": 5132,
+          "id": "exhaustive",
+          "status": "org.atomix.pass",
+          "winner": {
+            "content_id": "sha256:0dec35ada924af02e84d542a19b0ed62d9cdd2b2750d6d6a0f05c4dbf4858889",
+            "descriptor": 5131,
+            "fields": [
+              3,
+              1,
+              0,
+              2,
+              1
+            ],
+            "genome": [
+              2,
+              524300,
+              8,
+              524288,
+              1,
+              65632,
+              8,
+              524448,
+              0,
+              0,
+              84071435,
+              84071435,
+              0
+            ],
+            "output_sha256": "sha256:16d53679f8aa8f3ede296f8a410126817896678b2bad905a295d32d99822e2a1"
+          }
+        },
+        {
+          "best_score": {
+            "mismatched_bits": 0,
+            "mismatched_words": 0
+          },
+          "evaluations": 799,
+          "id": "seeded-permutation",
+          "status": "org.atomix.pass",
+          "winner": {
+            "content_id": "sha256:434d389ac0b25571e36220546642a842ef35038a407248b801722ba2349128c5",
+            "descriptor": 5187,
+            "fields": [
+              3,
+              0,
+              1,
+              2,
+              1
+            ],
+            "genome": [
+              2,
+              524300,
+              8,
+              524288,
+              1,
+              65632,
+              8,
+              524448,
+              0,
+              0,
+              84988995,
+              84988995,
+              0
+            ],
+            "output_sha256": "sha256:16d53679f8aa8f3ede296f8a410126817896678b2bad905a295d32d99822e2a1"
+          }
+        },
+        {
+          "best_score": {
+            "mismatched_bits": 3046,
+            "mismatched_words": 178
+          },
+          "evaluations": 69,
+          "id": "greedy-coordinate",
+          "status": "org.atomix.no-solution-in-budget",
+          "winner": null
+        }
+      ]
+    }
+  ]
+}

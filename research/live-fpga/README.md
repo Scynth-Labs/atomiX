@@ -35,3 +35,15 @@ closed-loop virtual FPGA that drives the actual bounded C fitness/evolution
 components through valid, incorrect, watchdog, canary-failure, and rollback
 scenarios. The simulator cannot actuate real hardware; its manager boundary is
 explicit and deterministic.
+
+`l3/morph-search-space.json` bounds L3 adaptation to the two PE-descriptor
+words of the 13-word `role.morph` genome.  The checked result compares a
+complete lexicographic traversal, a fixed-seed full permutation, and greedy
+coordinate descent on the exact scalar, SIMT, and systolic RTL-reference
+workloads plus one deterministic canary each.  It is proposal evidence only:
+the reviewed genome remains the rollback target and activation is explicitly
+unauthorized without an RTL shadow pass.
+
+```bash
+make l3-check
+```

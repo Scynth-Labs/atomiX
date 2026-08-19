@@ -36,7 +36,15 @@
 // wait state and writes are full-word only (partial strobes error). The
 // fetch port sees just the header registers; software must not touch the
 // buffers while BUSY.
+// The composite experiment reuses this implementation without changing the
+// standalone role's preprocessed text: its manifest defines AX_ROLE_GPU_TPU,
+// while every role.tpu-lite profile still sees the original axrole module.
+/* verilator lint_off DECLFILENAME */
+`ifdef AX_ROLE_GPU_TPU
+module tpu_lite_engine #(
+`else
 module axrole #(
+`endif
   parameter logic [31:0] BASE = 32'h4000_0000
 ) (
   input  logic        clk,
@@ -362,3 +370,4 @@ module axrole #(
   end
   /* verilator lint_on MULTIDRIVEN */
 endmodule
+/* verilator lint_on DECLFILENAME */

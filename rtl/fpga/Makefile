@@ -199,11 +199,14 @@ else
 # ---- ECP5 open flow (ULX3S): synth_ecp5 -> nextpnr-ecp5 -> ecppack.
 LPF ?= $(COMPONENT_FPGA_LPF)
 PROG_BOARD := ulx3s
+# Research-only synthesis variations must override JSON too, so make cannot
+# mistake a normal flattened netlist for an experimental one (or vice versa).
+SYNTH_ECP5_ARGS ?=
 TEXTCFG := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED).config
 BIT := $(CONFIG_BUILD)/$(TOP)_seed$(PNR_SEED).bit
 
 $(JSON): $(SYNTH_SV) $(BOOT_HEX) Makefile | $(CONFIG_BUILD)
-	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -lib +/ecp5/cells_sim.v; read_verilog -lib +/ecp5/cells_bb.v; read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); hierarchy -check -top $(TOP); synth_ecp5 -noabc9 -top $(TOP) -json $@'
+	$(YOSYS) -q -l $(CONFIG_BUILD)/synth.log -p 'read_verilog -lib +/ecp5/cells_sim.v; read_verilog -lib +/ecp5/cells_bb.v; read_verilog -sv $(SYNTH_DEFINES) $(SYNTH_SV); hierarchy -check -top $(TOP); synth_ecp5 -noabc9 $(SYNTH_ECP5_ARGS) -top $(TOP) -json $@'
 
 $(TEXTCFG): $(JSON) $(LPF) | check-tools
 	$(NEXTPNR_ECP5) $(COMPONENT_NEXTPNR_ARGS) --seed $(PNR_SEED) --json $(JSON) --lpf $(LPF) --textcfg $@

@@ -51,14 +51,17 @@ GPU is peaked at 6 lanes by pairing the wide engine with the minimal host core
 enough to reach 6 lanes, at 97% — tight). The folded TPU now also fits: 14,300
 LUT primitives, 3,239 FFs, and 24 `MULT9X9` cells; its old 64-MAC/flip-flop
 overflow was removed by the same folding and single-port C-buffer work used for
-the Primer. All-three is still out because the shell has one role window.
-Other GPU lane counts are a config away. Deep analysis:
+the Primer. A composite role can share the shell's one role window, but no
+GPU+TPU composite has been fitted or measured on this smaller part; the three
+standalone profiles do not establish that it fits. Other GPU lane counts are a
+config away. Deep analysis:
 [tangnano-capacity.md](tangnano-capacity.md).
 
 ## Tang Primer 25K Dock (Gowin GW5A-25A)
 
-Keep `tangprimer25k` as the first-UART profile. Each accelerator is an
-alternative bitstream because the SoC has one role window:
+Keep `tangprimer25k` as the first-UART profile.  Standalone accelerators remain
+separate profiles, and the resident composite demonstrates that two engines can
+also share the SoC's one role window:
 
 | Capability | Profile | Configuration | LUT4 | FF | BSRAM | DSP | Strongest evidence |
 |---|---|---|---:|---:|---:|---:|---|
@@ -66,6 +69,7 @@ alternative bitstream because the SoC has one role window:
 | **CPU-max** | `tangprimer25k-ax2` | 2-wide AX2, 2 KiB I$, 64-entry BTB | 20,893 (90.7%) | 4,618 | 38 | 0 | **SYNTH** + **SIM**: 25,729 workload cycles |
 | **GPU** | `tangprimer25k-gpu` | minimal host + 4-lane SIMT | 18,280 (79.3%) | 2,446 | 40 | 12 MULTALU27X18 | ✅ **BOARD**: two kernels × four sizes PASS; 38.47 MHz |
 | **TPU** | `tangprimer25k-tpu` | 8 columns × 3 folded K MACs | 17,345 (75.3%) | 3,696 | 48 | 24 MULT12X12 | ✅ **BOARD**: GEMM/reference PASS; 32.65 MHz |
+| **GPU+TPU** | `tangprimer25k-runtime-gpu-tpu` | loader host + 1-lane SIMT + folded TPU | 19,304 (83.8%) | 2,701 | 42 | 24 MULT12X12 + 3 MULTALU27X18 | **SIM + P&R**: both workloads PASS; 33.18 MHz; no board run |
 
 The verified GPU uses four lanes. A 32-bit low-word multiply is decomposed into
 three unsigned 16-bit partial products and maps each lane to three GW5A
@@ -79,6 +83,15 @@ The TPU was folded from 64 simultaneous multipliers to 24 physical int8 MACs.
 It evaluates K=8 in three phases (3+3+2), while the C buffer now uses one
 physical port so it infers BSRAM instead of tens of thousands of flip-flops.
 Its programming interface and numerical result are unchanged.
+
+The GPU+TPU composite keeps both hard engines resident and exposes one native
+role register map at a time.  A shell-side selector changes engines only after
+the active work and completion have been acknowledged; deselected engine state
+is retained.  The listed profile resets into the immutable UART loader with
+blank 16 KiB RAM, so its bitstream is payload-agnostic.  Its multiplier mix is
+15 of the device's 28 large-DSP-site equivalents (two `MULT12X12` cells per
+large site plus three `MULTALU27X18`).  This row records simulation and routed
+timing only, not a physical-board result.
 
 The larger AX2 experiments establish the CPU boundary: 2 KiB/64 fits, while
 2 KiB/128 jumps to 34,701 LUT primitives and 8 KiB/128 reaches 46,871. The
@@ -156,8 +169,9 @@ min/mean/max. Across all recovery sessions, both reviewed candidates now have
 the engine to 16 lanes (42% LUT4, 48 of 156 DSP), using headroom the small Tang
 Nano does not have — and the **TPU** as well. Folding the TPU and mapping its
 accumulator to RAM cut this profile from 71.5k FFs/64 DSPs to 3.6k FFs/24 DSPs.
-The part has headroom that the single-role shell does not yet exploit: hosting
-GPU **and** TPU together needs a composite role, which does not exist yet.
+The part has headroom that the standalone profiles do not yet exploit.  The
+composite role now exists, but it has not been retargeted, synthesised, or
+measured for ECP5; the GW5A result must not be projected onto this device.
 
 ### Lane scaling has diminishing returns (measured)
 
@@ -320,15 +334,15 @@ in [optimization-design.md](optimization-design.md).
 3. **TPU folding + `cbuf` block RAM** — ✅ done. The shared role now uses 24
    physical MACs and one mutually exclusive host/engine C-buffer port; ULX3S
    drops from 71.5k to 3.6k FFs.
-4. **Composite GPU + TPU role** — the FF/DSP budget now allows both engines
-   behind one role window on the large part (needs a composite role; the shell
-   has one window today).
+4. **Composite GPU + TPU role** — ✅ implemented and placed on the Tang Primer
+   as `role.gpu-tpu`; an ECP5/ULX3S build remains unmeasured.
 
 Catalog: cores `core.ax2` (tunable, above), `core.pipeline5` (reference — the
 only one with Sv32/S-U and cosim/formal evidence), `core.minimal` (smallest).
-Roles `role.gpu1` (banked, tunable) and `role.gpu-compute` (single-port,
-tunable).  Sizes are parameters on these components, not separate components:
-see [workflow.md](workflow.md) §3.4a.
+Roles `role.gpu1` (banked, tunable), `role.gpu-compute` (single-port, tunable),
+and `role.gpu-tpu` (resident composite of the single-port GPU and folded TPU).
+Sizes are parameters on these components, not separate components: see
+[workflow.md](workflow.md) §3.4a.
 
 > The scaling tables above are simulation cycle counts. AX2 now also has GW5A
 > synthesis evidence for the Primer profile described above; other family/tier
@@ -341,7 +355,9 @@ These prove the RTL that every fitting configuration above inherits:
 - Bare-metal: `make -C sw/baremetal check-hello check-timer check-preempt
   check-fencei check-spi check-sd`
 - Accelerator roles: `check-role` (loopback), `check-tpu`, `check-gpu`,
-  `check-gpu-perf`
+  `check-gpu-perf`, and `check-gpu-tpu` (both composite workloads plus retained
+  state and guarded switching); `make -C sim/unit run-gpu-tpu` directly checks
+  the composite role ABI
 - Lean-component suite: `check-suite-minimal` — `core.minimal` (the accelerator
   host in the GPU profiles) driving the CPU, GPU, and TPU in one run
 - Superscalar-core suite: `make -C sim/unit run-suite-ax2` (every `core.ax2-*`

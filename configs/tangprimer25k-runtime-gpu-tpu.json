@@ -1,0 +1,23 @@
+{
+  "schema": 1,
+  "name": "tangprimer25k-runtime-gpu-tpu",
+  "components": {
+    "core": "core.minimal",
+    "soc": "soc.reference",
+    "memory": "memory.bram",
+    "role": "role.gpu-tpu",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.tangprimer25k",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test"
+  },
+  "settings": {"ram_bytes": 16384, "caches": false, "reset_pc": "0x00001000"},
+  "parameters": {
+    "soc": {"live_monitor": 0, "live_role_events": 0},
+    "role": {"gpu_lanes": 1, "gpu_data_words": 256}
+  }
+}

@@ -353,16 +353,45 @@ The consequence is stated plainly rather than buried: **on the Primer these two
 counters still read zero, now by declaration instead of by accident.**  A board
 result for the wired counters needs hardware with room for them.
 
-## What this enables next
+## L3 bounded morph-genome search
 
-L2 shadow evaluation, which this section once named as the next item, is done
-and recorded below.  The next Live FPGA item is L3: encoding the morph fabric's
-13-word genome as a bounded search space and comparing search strategies on
-deterministic workloads.  The ladder's authority boundary does not move for it —
-an L3 optimizer proposes genomes, and promotion still needs an oracle, a canary,
-and a rollback target.
+The first L3 experiment is complete.  It does not expose all 416 configuration
+bits to mutation.  Each workload keeps its reviewed mode, dimensions, address
+strides, immediates, accumulator seed, and range-checked buffer layout fixed;
+only words 10 and 11 change.  They contain one homogeneous 14-bit PE
+descriptor: four 3-bit source muxes plus the load/hold accumulator rule.  The
+result is a finite **8,192-candidate** operation-and-local-route space.  The
+shell, role window, sequencer bounds, and all addresses are outside it.
 
-## Evidence
+`tools/morph_search.py` compares three deterministic strategies against the
+exact scalar recurrence, 50-element SIMT SAXPY, and 12x8x8 systolic GEMM used
+by the RTL reference bench, plus a second canary input for each:
+
+| strategy | scalar evaluations | SIMT evaluations | systolic evaluations | result |
+|---|---:|---:|---:|---|
+| lexicographic exhaustive | 6,339 | 4,628 | 5,132 | exact on all three |
+| seeded full permutation | 318 | 83 | 799 | exact on all three |
+| greedy coordinate descent | 103 | 69 | 69 | trapped on all three |
+
+The fixed permutation found an exact proposal much sooner in this experiment,
+but one seed is not evidence that random order is generally superior.  The
+important negative result is that output-word and bit mismatch do not form a
+smooth enough fitness landscape for coordinate descent.  Exhaustive traversal
+therefore remains the completeness oracle.  Some winners are algebraic route
+aliases of the hand-written descriptor; that is a valid result for the fixed
+workload contract, not permission to generalise them to other dimensions or
+accumulator initialisation.
+
+The generated record stores the complete genomes, exact output hashes,
+content IDs, source hashes, search counts, and a known-good RTL rollback per
+workload.  It also says `org.atomix.not-authorized`: a model winner is only a
+proposal.  Canary, RTL shadow evaluation, and manager-owned rollback remain
+mandatory before any volatile activation.  `make l3-check` recomputes the
+record, mutation-tests the oracle, and runs the reviewed rollback genomes on
+the RTL morph bench.  It does not claim that a newly found alias has already
+passed its own RTL shadow run.
+
+## L0 event evidence
 
 ```bash
 make live-check

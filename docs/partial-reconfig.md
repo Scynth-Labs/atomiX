@@ -121,6 +121,82 @@ Until stage 4 passes on hardware, "swap without reflashing" on the physical
 board means full-bitstream SRAM reload (~1 s, no flash wear); in simulation
 it means selecting a different role component and rebuilding the model.
 
+## Stage 3 progress: first shell-lock experiment (2026-08-16)
+
+The first attempt established a usable placement-lock apparatus and rejected
+global hierarchy preservation as the production answer.  The compact record is
+`research/partial-reconfig/ecp5-45f-shell-lock-probe.json`; generated JSON,
+`.config`, reports, and logs remain under the build directory or `/tmp` and are
+not source artifacts.
+
+The experiment uses `synth_ecp5 -noflatten` for both profiles, routes the
+`role.none` reference, packs `role.loopback`, and runs `tools/pr_lock.py` to
+copy a placement only when packed cell name and type match.  A route is safe to
+copy only when the named net has the exact same cell/port endpoint set.
+`tools/pr_floorplan.py` then requests X1--X13 for the role and can be run again
+as a pre-route check.  That second check matters: ECP5 cluster placement can
+move macro members outside a rectangular-region hint without failing place.
+
+Results at seed 1 with Yosys 0.67, nextpnr 0.10, and Trellis 1.4:
+
+- 24,567 of 24,743 candidate shell cells reuse their reference BEL (99.29%);
+- 1,491 of 1,494 role cells stay in X1--X13; three clustered LUTs escape to
+  X15, X17, and X18, which the hardened pre-route check now rejects;
+- 176 candidate shell cells remain unmatched and 156 reference shell cells
+  disappear, mostly because carry packing still depends on whole-design order;
+- 28,350 reference routes have identical endpoint sets and are eligible for a
+  lock, but loading them into router1 reaches its
+  `it->second.pip != PipId()` assertion;
+- placement-only resume gets as far as routing, then the unmatched carry
+  cells produce a fixed-wire conflict;
+- the empty-role reference grows from 15,071 to 20,491 `TRELLIS_COMB` cells
+  under global `-noflatten` (35.96%), and falls from 28.62 MHz to 21.91 MHz
+  against the 25 MHz constraint.
+
+The falsifiable criterion was strict shell identity plus a routed candidate at
+25 MHz.  It failed on both counts, so no delta from this attempt is loadable or
+described as partial-reconfiguration evidence.  The decision is to keep the
+lock and floorplan tools, but replace global `-noflatten` with a separately
+synthesised physical role boundary (or repair packed-netlist resume in
+nextpnr).  Only after that produces zero unmatched shell cells is route locking
+or frame-confinement measurement meaningful.
+
+The low-level reproduction sequence is intentionally explicit:
+
+```bash
+# Keep the experiment netlists separate from normal profile artifacts.
+make -C rtl/fpga synth COMPONENT_CONFIG=$PWD/configs/ulx3s-45f.json \
+  SYNTH_ECP5_ARGS=-noflatten JSON=/tmp/reference-noflat.json
+make -C rtl/fpga synth COMPONENT_CONFIG=$PWD/configs/ulx3s-45f-loopback.json \
+  SYNTH_ECP5_ARGS=-noflatten JSON=/tmp/candidate-noflat.json
+
+# Route/write the reference and --pack-only/write the candidate with seed 1,
+# using the device arguments resolved by those profiles.
+nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 \
+  --json /tmp/reference-noflat.json \
+  --lpf components/board/ulx3s_85f/ulx3s_85f.lpf \
+  --textcfg /tmp/reference.config --write /tmp/reference-routed.json \
+  --report /tmp/reference-report.json
+nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 \
+  --json /tmp/candidate-noflat.json \
+  --lpf components/board/ulx3s_85f/ulx3s_85f.lpf \
+  --pack-only --write /tmp/candidate-packed.json
+
+# Transfer only proved-safe locks.
+python3 tools/pr_lock.py /tmp/reference-routed.json /tmp/candidate-packed.json \
+  --placements-only --output /tmp/candidate-locked.json \
+  --report /tmp/lock-report.json
+
+# Resume placement with the reference shell held.  Reuse the hook before
+# routing so it turns the region hint into a checked invariant.
+ATOMIX_PR_RESUME=1 ATOMIX_PR_ROLE_X0=1 ATOMIX_PR_ROLE_X1=13 \
+  ATOMIX_PR_ROLE_Y0=1 ATOMIX_PR_ROLE_Y1=70 \
+  nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 \
+  --no-pack --json /tmp/candidate-locked.json \
+  --pre-place tools/pr_floorplan.py --pre-route tools/pr_floorplan.py \
+  --textcfg /tmp/candidate-locked.config
+```
+
 
 ## Stage 2 progress: the 85F frame-address map (2026-08-10)
 

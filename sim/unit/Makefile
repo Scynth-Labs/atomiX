@@ -28,6 +28,7 @@ SPI_REFERENCE := $(COMPONENTS)/spi/polling_mode0
 FINISHER_REFERENCE := $(COMPONENTS)/finisher/sifive-test
 ROLE_REFERENCE := $(COMPONENTS)/role/none
 ROLE_MORPH := $(COMPONENTS)/role/morph
+ROLE_GPU_TPU := $(COMPONENTS)/role/gpu-tpu
 SOC_REFERENCE := $(COMPONENTS)/soc/reference
 LIVE_MONITOR := $(SOC_REFERENCE)/axlivemon.sv
 HARNESS_SDRAM := $(COMPONENTS)/harness/verilator-sdram
@@ -67,7 +68,7 @@ SOC_SVS := $(CORE_SOURCES) \
   $(ROLE_REFERENCE)/axrole.sv \
   $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv $(SOC_REFERENCE)/soc_top.sv
 
-test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axrom run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
+test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axrom run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-gpu-tpu run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
 
 # The alternate muldiv component passes the identical latency-agnostic
 # testbench; a swapped unit earns the same evidence as the reference.
@@ -279,6 +280,18 @@ run-morph-fabric: $(COMPONENTS)/role/common/ax_gw5a_mul.sv $(ROLE_MORPH)/morph_f
 	  --exe --build -o tb_morph_fabric $^ >/dev/null
 	./obj_dir_morph_fabric/tb_morph_fabric
 
+# Both hard engines remain resident.  The bench runs a real GPU kernel and a
+# real TPU GEMM, then checks guarded personality switching and state retention.
+run-gpu-tpu: $(COMPONENTS)/role/common/ax_gw5a_mul.sv \
+             $(COMPONENTS)/role/gpu-compute/gpu_engine.sv \
+             $(COMPONENTS)/role/tpu-lite/axrole.sv \
+             $(ROLE_GPU_TPU)/axrole.sv tb_gpu_tpu.cpp
+	$(VERILATOR) $(VFLAGS) --top-module axrole --Mdir obj_dir_gpu_tpu \
+	  +define+AX_ROLE_GPU_TPU=1 +define+COMPOSITE_GPU_LANES=1 \
+	  +define+COMPOSITE_GPU_DATA_WORDS=256 +define+AX_LIVE_ROLE_EVENTS=1 \
+	  --exe --build -o tb_gpu_tpu $^ >/dev/null
+	./obj_dir_gpu_tpu/tb_gpu_tpu
+
 run-soc: $(SOC_SVS) tb_soc.cpp data/soc_smoke.hex
 	$(VERILATOR) $(VFLAGS) --top-module soc_top --Mdir obj_dir_soc \
 	  -GROM_INIT_FILE=\"$(CURDIR)/data/soc_smoke.hex\" --exe --build -o tb_soc \
@@ -294,7 +307,7 @@ run-soc-timer: $(SOC_SVS) tb_soc_timer.cpp data/soc_timer.hex
 clean:
 	rm -rf obj_dir_* build
 
-.PHONY: test clean run-muldiv-fastmul run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-soc run-soc-timer
+.PHONY: test clean run-muldiv-fastmul run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-gpu-tpu run-soc run-soc-timer
 
 # ---------------------------------------------------------------------------
 # gpu1 and ax2 suites.  Both are SUITES rather than per-component checks: one

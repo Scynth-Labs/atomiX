@@ -1,0 +1,120 @@
+{
+  "schema": 1,
+  "experiment": "org.atomix.research.ecp5-shell-lock",
+  "recorded_on": "2026-08-16",
+  "evidence_level": "synthesis-and-place-route-probe",
+  "hardware_used": false,
+  "base_commit": "fc02f70b2879afb0c751ee124685b973f61e2d67",
+  "hypothesis": "Preserving synthesis hierarchy, copying only structurally matched shell BEL/routes from a role.none reference, and confining role.loopback to X1-X13 will produce identical shell implementation and a routed 25 MHz candidate.",
+  "success_criterion": "Zero unmatched shell cells, every candidate role BEL in X1-X13, a routed candidate at or above 25 MHz, and no changed configuration frame outside the allowed role columns.",
+  "profiles": {
+    "reference": {
+      "path": "configs/ulx3s-45f.json",
+      "sha256": "7f4a53d39549ba64d56acac60d8b8caa0f41ce158eff3a09116fd4e18bad780d"
+    },
+    "candidate": {
+      "path": "configs/ulx3s-45f-loopback.json",
+      "sha256": "f7c72cc49abf52eecbdebd5ab8fa6512831bf771155770d918308eacdf349f94"
+    }
+  },
+  "toolchain": {
+    "yosys": "Yosys 0.67+102 (git sha1 07a615a28-dirty)",
+    "nextpnr_ecp5": "nextpnr-0.10-105-g77e1f19f",
+    "ecppack": "Project Trellis ecppack 1.4-79-g56bb170",
+    "device": "LFE5U-45F-6BG381C",
+    "seed": 1,
+    "frequency_constraint_mhz": 25
+  },
+  "apparatus": {
+    "lock_tool": "tools/pr_lock.py",
+    "lock_tool_sha256": "7ac552e3079fc40695ee0ba9bf3a2c46af2b606af12f386c20bd13e61dc0ed76",
+    "floorplan_hook": "tools/pr_floorplan.py",
+    "floorplan_hook_sha256": "ad4165424209ad7c32704adf10a9fa3b50a9abca848299ba924c5c9c775b5886",
+    "fpga_makefile_sha256": "84e2b024f9de541a51a7853faf5af7e7b0174a883eb8c08ce3c9c80580957000",
+    "role_region": {
+      "requested": "X1-X13/Y1-Y70",
+      "actual_role_x_span": [
+        3,
+        18
+      ],
+      "actual_role_y_span": [
+        3,
+        67
+      ]
+    },
+    "prepared_source_sha256": {
+      "reference": "d41c8c7d3948c822f9edb00129d36f8d3034d7d0cb0679625f3d171499be48d8",
+      "candidate": "f99c0f17fbd76109074149f81983f18727fee3e0d4d86390a4ed2cf03d71ac51"
+    }
+  },
+  "commands": [
+    "make -C rtl/fpga synth COMPONENT_CONFIG=$PWD/configs/ulx3s-45f.json SYNTH_ECP5_ARGS=-noflatten JSON=/tmp/reference-noflat.json",
+    "make -C rtl/fpga synth COMPONENT_CONFIG=$PWD/configs/ulx3s-45f-loopback.json SYNTH_ECP5_ARGS=-noflatten JSON=/tmp/candidate-noflat.json",
+    "nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 --json /tmp/reference-noflat.json --lpf components/board/ulx3s_85f/ulx3s_85f.lpf --textcfg /tmp/reference-current.config --write /tmp/reference-current-routed.json --report /tmp/reference-current-report.json",
+    "nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 --json /tmp/candidate-noflat.json --lpf components/board/ulx3s_85f/ulx3s_85f.lpf --pack-only --write /tmp/candidate-current-packed.json",
+    "python3 tools/pr_lock.py /tmp/reference-current-routed.json /tmp/candidate-current-packed.json --placements-only --output /tmp/candidate-current-locked.json --report /tmp/current-lock-report.json",
+    "python3 tools/pr_lock.py /tmp/reference-current-routed.json /tmp/candidate-current-packed.json --output /tmp/candidate-current-route-locked.json --report /tmp/current-route-lock-report.json",
+    "ATOMIX_PR_RESUME=1 ATOMIX_PR_ROLE_X0=1 ATOMIX_PR_ROLE_X1=13 ATOMIX_PR_ROLE_Y0=1 ATOMIX_PR_ROLE_Y1=70 nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 --no-pack --no-route --json /tmp/candidate-current-locked.json --lpf components/board/ulx3s_85f/ulx3s_85f.lpf --pre-place tools/pr_floorplan.py --write /tmp/candidate-current-floorplaced.json --report /tmp/candidate-current-floorplaced-report.json",
+    "ATOMIX_PR_ROLE_X0=1 ATOMIX_PR_ROLE_X1=13 ATOMIX_PR_ROLE_Y0=1 ATOMIX_PR_ROLE_Y1=70 nextpnr-ecp5 --45k --package CABGA381 --speed 6 --freq 25 --seed 1 --no-pack --no-place --json /tmp/candidate-current-floorplaced.json --lpf components/board/ulx3s_85f/ulx3s_85f.lpf --pre-route tools/pr_floorplan.py --textcfg /tmp/candidate-current-locked.config"
+  ],
+  "generated_artifact_sha256": {
+    "reference_noflat_synth_json": "4b096133103a8d68394354369d50d4fc858cb1645668d9858e350d6e05ed5d28",
+    "reference_noflat_routed_json": "3659aa1e120f4aeedc9a8f2eb104038711d612c9e2f5b407fe2e0c089e845fbd",
+    "reference_noflat_report": "9855eaad89baa8da89e8914a27d7f101b92e835b36d8f5a91d5b5f1885115f2a",
+    "candidate_noflat_synth_json": "cf33f83e5f24bb0761a77a3db5750f4ded74672a666064d62dd3246e5984da36",
+    "candidate_noflat_packed_json": "f43f020b786f9f7da9d71040a70944ac22864f155ee75390a2ac7fb1f04b8b1d",
+    "placement_lock_report": "0679be8352ced5401c6905ffd7da0a0b1047d59c6efb4a20beaafb56345648ad",
+    "route_lock_report": "290df57d2db5583f4903cffd344683fd25338a837aa1836de4d1ea0285504d4a",
+    "candidate_floorplaced_json": "1ce8948827540da1e55f28683976bc8bd8a2c62fe83c4895a06ec6fbd526b198",
+    "candidate_floorplaced_report": "1e8f9b33cd3fb68dbb73371dc435c83df82b0b8b4f4067569d1a20ae4b132e2d"
+  },
+  "results": {
+    "correctness": "FAIL: strict physical shell identity was not reached, so no candidate delta was generated.",
+    "reference_flattened": {
+      "trellis_comb": 15071,
+      "trellis_ff": 3642,
+      "fmax_mhz": 28.618852615356445,
+      "report_sha256": "4d44fff2b3b573972ad93ba4ce949e12ef66b606480e7aada9db4fec90f53cdc"
+    },
+    "reference_noflatten": {
+      "trellis_comb": 20491,
+      "trellis_ff": 4064,
+      "fmax_mhz": 21.905803680419922,
+      "timing_pass": false
+    },
+    "placement_lock": {
+      "reference_cells": 24723,
+      "candidate_cells": 26237,
+      "candidate_role_cells": 1494,
+      "candidate_shell_cells": 24743,
+      "shell_placements_locked": 24567,
+      "shell_placement_coverage": 0.992887,
+      "reference_only_shell_cells": 156,
+      "candidate_only_shell_cells": 176,
+      "strict_shell_identity": false
+    },
+    "route_lock": {
+      "routes_with_identical_endpoint_sets": 28350,
+      "same_name_endpoint_mismatches": 498,
+      "import_outcome": "FAIL: router1 assertion it->second.pip != PipId()",
+      "placement_only_outcome": "FAIL: fixed ECP5 carry wire used as source and sink by different nets"
+    },
+    "role_confinement": {
+      "packed_cells": 1494,
+      "trellis_comb": 1306,
+      "trellis_ff": 184,
+      "dp16kd": 4,
+      "cells_inside_requested_region": 1491,
+      "cells_outside_requested_region": 3,
+      "all_cells_inside_requested_region": false,
+      "escaped_grid_locations": [
+        "X15/Y16",
+        "X17/Y17",
+        "X18/Y28"
+      ],
+      "pre_route_check": "FAIL: region constraint is a placement hint; the explicit verifier rejected three escaped clustered LUT cells"
+    }
+  },
+  "decision": "Keep the structural lock checker and the region hook, including its explicit pre-route verifier. Do not adopt global synth_ecp5 -noflatten: it misses timing, leaves packer-order-dependent shell cells, and the placer region alone is not a hard boundary. The next attempt must create a separately synthesized physical role boundary or repair nextpnr packed-netlist resume; frame confinement is not evaluated until unmatched shell cells are zero and every role BEL passes the hard region check.",
+  "physical_claim": "None. No ULX3S board was available and no bitstream from this failed probe is loadable evidence."
+}

@@ -98,7 +98,7 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   obstacle was also found: `ecppack` compresses 85F frame data even without
   `--compress`, so that path needs a decompressor too.
 
-- [ ] **No hardware — now the binding constraint:** lock shell placement and
+- [~] **No hardware — now the binding constraint:** lock shell placement and
   routing, constrain the role to whole-frame-compatible columns, and show that
   two role implementations have identical shell frames and boundary routing.
   With `--delta` working on the 45F, this is measurable rather than
@@ -108,6 +108,22 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   compressed bitstream — **2.3x larger than simply reloading the whole
   device**, which is the sharpest possible statement of why confinement, not
   the encoder, was always the real problem.
+
+  The first locking experiment is recorded in
+  `research/partial-reconfig/ecp5-45f-shell-lock-probe.json`.  Preserving
+  hierarchy through Yosys makes 24,567 of 24,743 candidate shell placements
+  reusable (99.29%).  The rectangular-region hint places 1,491 of 1,494
+  packed loopback cells in X1--X13, but three clustered LUTs escape as far as
+  X18; `tools/pr_floorplan.py` now rejects that at pre-route.  That is real
+  progress, but not the invariant: nextpnr's packer still creates 176
+  candidate-only shell cells and removes 156 reference shell cells.  Those
+  unmatched carry cells make a placement-only resume fail on a hardwired
+  carry conflict, while importing the 28,350 routes whose endpoint sets do
+  match hits a router1 assertion.  Worse, `synth_ecp5 -noflatten` grows the
+  empty-role shell from 15,071 to 20,491 `TRELLIS_COMB` cells and the routed
+  reference reaches only 21.91 MHz versus 28.62 MHz flattened.  The next iteration must
+  use a separately synthesised physical role boundary (or fix nextpnr's
+  packed-netlist resume), not make global `-noflatten` the production flow.
 - [ ] **No hardware:** generate a candidate delta, unpack it, and prove it
   addresses only the allowed region; reject truncated, out-of-region, and
   wrong-shell inputs before any physical load attempt.
@@ -230,9 +246,11 @@ throughput than separate CPU/GPU/TPU implementations?
   is genuinely faster than the core on all three personalities, but only by
   single-digit multiples, while costing more area and less frequency than the
   hard roles it would replace.
-- [~] Compare the alternatives before scaling.  Three of four are now measured
-  on the board, and a fourth alternative the original item did not name turned
-  out to matter more than the ones it did.  Evidence:
+- [x] Compare the alternatives before scaling.  All four are now built and
+  measured: three have board evidence, while the resident composite has
+  simulation and place-and-route evidence only.  A fourth alternative the
+  original item did not name turned out to matter more than the ones it did.
+  Evidence:
   [alternatives.md](alternatives.md), `research/comparisons/`.
   - *Separate full images* and *the unified morph fabric*: measured.
   - *Program switch on the existing programmable role*: measured, and tested
@@ -243,8 +261,15 @@ throughput than separate CPU/GPU/TPU implementations?
     the recurrence the fabric does in one (440), and cannot express the GEMM in
     this window at all.  Neither design dominates: flexibility buys capability
     and throughput here, not efficiency.
-  - *Composite hard GPU+TPU role*: still not built.  Area arithmetic says it
-    will not fit, but that is an estimate, not evidence.
+  - *Composite hard GPU+TPU role*: the estimate was wrong.  `role.gpu-tpu`
+    keeps a one-lane programmable GPU and the folded TPU resident behind the
+    fixed role ABI.  Both workloads pass in one simulated runtime session,
+    selector changes are refused while an engine is executing or has an
+    uncleared completion, and each engine retains state while deselected.  The
+    payload-agnostic Tang Primer loader profile places at 19,304 LUT4 (83.8%),
+    2,701 FF, 42 BSRAM, and 24 `MULT12X12` plus 3 `MULTALU27X18` cells (15 of
+    28 large-DSP-site equivalents), routing at 33.18 MHz with seed 1.  This is
+    simulation plus P&R evidence, not a physical-board result.
 - [~] Run switching, workload, and power/energy experiments on the Primer.
   Switching and workload experiments are complete and reproduced on 2026-08-10;
   **power and energy remain unmeasured** because no current-sense fixture has
@@ -416,10 +441,19 @@ and the later
   cycles) and rejected by the canary, after which rollback to the last known
   good was verified on both workloads with zero deadline misses across eight
   jobs.  The same sequence passes in RTL at 699/667/787 cycles.
-- [ ] After R2's morph fabric passes, encode its operations/routes as a bounded
-  L3 genome and compare search strategies on deterministic workloads.
-  **Now unblocked:** the fabric passes in simulation and its 13-word genome is
-  already the bounded search space this item needs.
+- [x] Encode the morph fabric's operations/routes as a bounded L3 genome and
+  compare search strategies on deterministic workloads.  Only the two packed
+  PE-descriptor words are mutable; mode, dimensions, address strides,
+  immediates, accumulator seed, and the shell remain fixed, yielding exactly
+  8,192 homogeneous operation/route candidates.  Exhaustive search found exact
+  scalar/SIMT/systolic proposals in 6,339/4,628/5,132 evaluations and a seeded
+  full permutation in 318/83/799; greedy coordinate descent exhausted its
+  local search after 103/69/69 evaluations without solving any workload.  The
+  latter is the useful negative result: word/bit mismatch is not a smooth
+  genome fitness landscape.  Evidence: `make l3-check`,
+  `research/live-fpga/l3/`.  This is deterministic model plus RTL-reference
+  evidence, not candidate deployment: every result is proposal-only and names
+  the reviewed RTL genome as its rollback target.
 - [!] Explore L4 LUT/frame mutation only after R1 proves frame confinement,
   isolation, live recovery, and bad-image rejection.  **Blocked:** R1 exit gate.
 
@@ -455,14 +489,10 @@ results above from reading as general claims.
 
 ## Immediate queue without hardware
 
-1. Build the composite hard GPU+TPU role — the last untested R2 alternative,
-   and the only one that could still fit the GW5A-25A.
-2. Encode the morph genome as a bounded L3 search space now that the fabric
-   exists, and compare search strategies on deterministic workloads.
-3. Validate the ECP5-85F frame-address map, which is the head of the whole R1
+1. Validate the ECP5-85F frame-address map, which is the head of the whole R1
    queue and blocks every later partial-reconfiguration item.
-4. Select a current-sense fixture so the R2 power and energy line can close.
-5. Find a device with room for the Live FPGA role-event producers.  Every Tang
+2. Select a current-sense fixture so the R2 power and energy line can close.
+3. Find a device with room for the Live FPGA role-event producers.  Every Tang
    Primer profile declines them because they cost 2,251 LUT4 and `role.morph`
    at one PE stops placing, so `DESCRIPTOR_REJECTIONS` and `WATCHDOG_EVENTS`
    have no path to a physical result on the only board in hand.  This is the
@@ -471,3 +501,7 @@ results above from reading as general claims.
 
 Closed on 2026-08-13: the fabric watchdog and role-reject producers, which
 until then left two `axlivemon` counters reading zero by construction.
+
+Closed on 2026-08-16: the resident hard GPU+TPU alternative.  Both engines pass
+their workload in one simulated session and the payload-agnostic Tang Primer
+loader profile places and routes at 33.18 MHz; no physical run is claimed.

@@ -60,14 +60,16 @@ layout is not a fixed frame array.
 
 ## R2 — compute personality transformation
 
-Four mechanisms sit in this space, and the project has now measured three.
+Four mechanisms sit in this space, and the project has now built and measured
+all four.  Three have board evidence; the composite currently stops at
+simulation and place-and-route.
 
 | Mechanism | Interruption | Status |
 |---|---|---|
 | Separate full images | seconds; CPU resets | measured on the board (CPU/GPU/TPU) |
 | Program switch on the existing programmable role | 38-byte frame, ~0.46 ms UART | measured on the board |
 | Unified morph fabric | 52-byte genome, 14.3 us local | measured on the board |
-| Composite hard GPU+TPU role | seconds; CPU resets | **not built** |
+| Composite hard GPU+TPU role | register switch after quiesce; no CPU reset | simulation + P&R; board run pending |
 
 ### The falsification that mattered
 
@@ -116,11 +118,22 @@ the fabric is still both larger and slower.  A reader deciding whether to adopt
 a morph fabric should be choosing on which of those axes binds, not on a single
 headline number.
 
+### The composite estimate was wrong
+
+The hard GPU+TPU composite fits the GW5A-25A.  `role.gpu-tpu` keeps the one-lane
+programmable GPU and folded TPU resident behind one fixed role window and
+selects the exposed native register map at runtime.  Both workloads pass in a
+single simulated session, each engine retains state while deselected, and the
+selector refuses a change while an engine is executing or has an uncleared
+completion.  The payload-agnostic Tang Primer loader profile places at 19,304
+LUT4 (83.8%), 2,701 FF, 42 BSRAM and 15 of 28 large-DSP-site equivalents, and
+routes at 33.18 MHz.  The earlier sum of standalone profile totals double
+counted shared shell costs and ignored synthesis optimisation; it was useful as
+a question, not evidence.  No physical-board execution or switching-energy
+result is claimed.
+
 ### Alternatives still untested here
 
-- **Composite hard GPU+TPU role.** Area arithmetic suggests it will not fit
-  (12,179 baseline plus roughly 6,100 and 5,166 for the two roles against
-  23,040 LUT4), but that is an estimate and is recorded as one.
 - **Time-multiplexed hard roles** with clock or power gating, trading area for
   switching energy.
 - **A microcoded or VLIW sequencer** instead of the fabric's three
@@ -137,7 +150,7 @@ headline number.
 | L0 | shell-owned telemetry | done in simulation; watchdog derived by the fence, rejection carried on the role ABI, both proven wired in an assembled SoC — the board evidence still predates them |
 | L1 | select among reviewed programs | done |
 | L2 | shadow-evaluate a candidate, request a volatile trial | done |
-| L3 | adapt a bounded overlay genome | unblocked by the morph fabric; not started |
+| L3 | adapt a bounded overlay genome | 8,192-descriptor search measured; exhaustive and seeded permutation find exact proposals, greedy coordinate descent does not |
 | L4 | mutate native configuration frames | blocked; on GW5A, refuted outright by the R1 result above |
 
 ### The alternative not taken at L2

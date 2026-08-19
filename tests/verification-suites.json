@@ -25,6 +25,12 @@
       "timeout_seconds": 300,
       "requires": ["make", "python3"]
     },
+    "l3-search": {
+      "label": "Bounded morph-genome search and RTL reference",
+      "command": ["make", "l3-check"],
+      "timeout_seconds": 900,
+      "requires": ["make", "python3", "verilator"]
+    },
     "live-rtl": {
       "label": "Immutable Live FPGA monitor and isolation RTL",
       "command": ["make", "live-check"],
@@ -178,6 +184,7 @@
       "system-profiles",
       "kernel-profiles",
       "research-contracts",
+      "l3-search",
       "axsim-directed",
       "live-rtl",
       "candidate-registry",
@@ -206,6 +213,7 @@
       "system-profiles",
       "kernel-profiles",
       "research-contracts",
+      "l3-search",
       "axsim-directed",
       "cosim-directed",
       "live-rtl",
