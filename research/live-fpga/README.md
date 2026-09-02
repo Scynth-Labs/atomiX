@@ -41,8 +41,15 @@ words of the 13-word `role.morph` genome.  The checked result compares a
 complete lexicographic traversal, a fixed-seed full permutation, and greedy
 coordinate descent on the exact scalar, SIMT, and systolic RTL-reference
 workloads plus one deterministic canary each.  It is proposal evidence only:
-the reviewed genome remains the rollback target and activation is explicitly
-unauthorized without an RTL shadow pass.
+the optimizer never receives actuation authority and the reviewed genomes
+remain the rollback targets.  `l3/morph-rtl-trial.json` pins searched
+non-reference scalar, SIMT, and systolic aliases into candidate-specific RTL
+shadow runs over both deterministic cases for each mode.  It permits a
+testbench-manager-only scalar volatile trial after those gates, injects a
+deceptive genome that only the canary catches, and verifies rollback.  The
+contract also mutation-tests authority, content identity, the mutable-word
+boundary, oracle digests, descriptor binding, and workload completeness.  This
+is simulation evidence, not physical-board or autonomous-deployment evidence.
 
 ```bash
 make l3-check

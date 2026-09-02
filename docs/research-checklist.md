@@ -458,9 +458,31 @@ and the later
   local search after 103/69/69 evaluations without solving any workload.  The
   latter is the useful negative result: word/bit mismatch is not a smooth
   genome fitness landscape.  Evidence: `make l3-check`,
-  `research/live-fpga/l3/`.  This is deterministic model plus RTL-reference
-  evidence, not candidate deployment: every result is proposal-only and names
-  the reviewed RTL genome as its rollback target.
+  `research/live-fpga/l3/`.  The search record remains proposal-only and every
+  result names the reviewed RTL genome as its rollback target.
+- [x] **No hardware:** close a bounded L3 candidate loop in RTL without giving
+  the optimizer actuation authority.  A generated header pins the permutation
+  search's scalar descriptor 6,352 to its checked content ID; an external
+  manager establishes reviewed descriptor 6,338 on primary and canary inputs,
+  shadows the searched alias on both, and permits one volatile run only after
+  both exact gates pass.  Injected descriptor 6,378 ignores stream A, so it
+  passes the all-zero primary and fails the nonzero canary; the manager then
+  reloads descriptor 6,338 and re-verifies both workloads.  Evidence:
+  `research/live-fpga/l3/morph-rtl-trial.json`,
+  `sim/unit/tb_morph_l3.cpp`, and `make l3-check`.
+- [x] **No hardware:** harden L3 functional and evidence coverage across the
+  complete reviewed mode set.  Candidate-specific RTL shadowing now covers
+  searched descriptors 6,352/4,639/5,187 and rollback descriptors
+  6,338/4,840/5,224 across scalar, SIMT, and systolic paths, with both
+  deterministic oracle cases per mode: 3/3 modes, 3/3 searched candidates,
+  3/3 known-good genomes, and 6/6 primary/canary cases.  The semantic fault and
+  manager rollback remain in the same 17-job resident-fabric run.  Contract
+  self-tests require rejection of six mutation classes: authority, content
+  identity, mutable boundary, oracle digest, descriptor binding, and missing
+  workload, plus an exact-record tamper.  Evidence:
+  `tools/morph_l3_trial.py self-test` and `make l3-check`.  This remains
+  simulation-only, with no hardware, persistence, or autonomous-promotion
+  claim.
 - [!] Explore L4 LUT/frame mutation only after R1 proves frame confinement,
   isolation, live recovery, and bad-image rejection.  **Blocked:** R1 exit gate.
 

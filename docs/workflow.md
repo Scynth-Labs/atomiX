@@ -267,7 +267,7 @@ oracles independently of any FPGA toolchain:
 make personality-check
 make comparison-check
 make live-check
-make l3-check                    # deterministic L3 search + RTL rollback genomes
+make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
 ```
 

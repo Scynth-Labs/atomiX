@@ -49,7 +49,7 @@ help:
 	@echo "  make registry-check     # content-addressed evolution candidates"
 	@echo "  make policy-check       # L1 reviewed-program selection policy"
 	@echo "  make live-sim-check     # closed-loop virtual FPGA fault scenarios"
-	@echo "  make l3-check           # bounded morph-genome search + RTL reference"
+	@echo "  make l3-check           # morph search + volatile RTL canary/rollback"
 	@echo "  make ecp5-frame-check   # compressed/full/partial ECP5 frame decoder"
 	@echo "  make verify-smoke       # fast integrated verification ladder"
 	@echo "  make nightly-integrated # broad software/RTL suite with stage logs"
@@ -178,15 +178,18 @@ shadow-rebuild:
 live-sim-check: shadow-check
 	$(MAKE) -C sim/livefpga check
 
-# The contract half recomputes every search result and is intentionally free of
-# an FPGA toolchain.  The complete gate also runs the reviewed genomes on the
-# RTL, keeping model evidence distinct from a candidate's future shadow pass.
+# The contract half recomputes every search result and the candidate-specific
+# trial record without an FPGA toolchain.  The complete gate separately runs
+# both the reviewed reference genomes and the bounded volatile L3 loop in RTL.
 l3-contract-check:
 	$(PYTHON) tools/morph_search.py check
 	$(PYTHON) tools/morph_search.py self-test
+	$(PYTHON) tools/morph_l3_trial.py check
+	$(PYTHON) tools/morph_l3_trial.py self-test
 
 l3-check: l3-contract-check
 	$(MAKE) -C sim/unit run-morph-fabric
+	$(MAKE) -C sim/unit run-morph-l3
 
 ecp5-frame-check:
 	$(PYTHON) tools/test_ecp5_bitstream.py

@@ -26,7 +26,7 @@
       "requires": ["make", "python3"]
     },
     "l3-search": {
-      "label": "Bounded morph-genome search and RTL reference",
+      "label": "All-mode morph search, mutation, canary, and rollback",
       "command": ["make", "l3-check"],
       "timeout_seconds": 900,
       "requires": ["make", "python3", "verilator"]

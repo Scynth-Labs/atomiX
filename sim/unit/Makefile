@@ -68,7 +68,7 @@ SOC_SVS := $(CORE_SOURCES) \
   $(ROLE_REFERENCE)/axrole.sv \
   $(LIVE_MONITOR) $(SOC_REFERENCE)/axroleiso.sv $(SOC_REFERENCE)/soc_top.sv
 
-test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axrom run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-gpu-tpu run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
+test: $(MODULES:%=run-%) run-muldiv-fastmul run-muldiv-radix4 run-axcore run-minimal-isa run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axrom run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-morph-l3 run-gpu-tpu run-soc run-soc-timer run-suite-gpu1 run-suite-ax2
 
 # The alternate muldiv component passes the identical latency-agnostic
 # testbench; a swapped unit earns the same evidence as the reference.
@@ -280,6 +280,17 @@ run-morph-fabric: $(COMPONENTS)/role/common/ax_gw5a_mul.sv $(ROLE_MORPH)/morph_f
 	  --exe --build -o tb_morph_fabric $^ >/dev/null
 	./obj_dir_morph_fabric/tb_morph_fabric
 
+# Candidate-specific L3 loop.  The generated header pins the C++ manager to
+# the checked search result rather than duplicating a descriptor by hand.
+run-morph-l3: $(COMPONENTS)/role/common/ax_gw5a_mul.sv $(ROLE_MORPH)/morph_fabric.sv tb_morph_l3.cpp ../../tools/morph_l3_trial.py ../../research/live-fpga/l3/morph-search-results.json
+	@mkdir -p build
+	python3 ../../tools/morph_l3_trial.py header --output build/morph_l3_trial_config.h
+	$(VERILATOR) $(VFLAGS) --top-module morph_fabric --Mdir obj_dir_morph_l3 \
+	  -CFLAGS "-I$(CURDIR)/build" --exe --build -o tb_morph_l3 \
+	  $(COMPONENTS)/role/common/ax_gw5a_mul.sv $(ROLE_MORPH)/morph_fabric.sv \
+	  $(CURDIR)/tb_morph_l3.cpp >/dev/null
+	./obj_dir_morph_l3/tb_morph_l3
+
 # Both hard engines remain resident.  The bench runs a real GPU kernel and a
 # real TPU GEMM, then checks guarded personality switching and state retention.
 run-gpu-tpu: $(COMPONENTS)/role/common/ax_gw5a_mul.sv \
@@ -307,7 +318,7 @@ run-soc-timer: $(SOC_SVS) tb_soc_timer.cpp data/soc_timer.hex
 clean:
 	rm -rf obj_dir_* build
 
-.PHONY: test clean run-muldiv-fastmul run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-gpu-tpu run-soc run-soc-timer
+.PHONY: test clean run-muldiv-fastmul run-axcore run-interrupt run-irq-collide run-privilege run-sv32 run-axdram-model run-axcache run-axsdram run-axuart-phy run-axspi run-axlivemon run-axroleiso run-morph-fabric run-morph-l3 run-gpu-tpu run-soc run-soc-timer
 
 # ---------------------------------------------------------------------------
 # gpu1 and ax2 suites.  Both are SUITES rather than per-component checks: one

@@ -1,0 +1,300 @@
+{
+  "authority": {
+    "hardware_actuation": "org.atomix.not-authorized",
+    "optimizer_actuation": "org.atomix.not-authorized",
+    "persistence": "org.atomix.none",
+    "trial_actuation": "org.atomix.testbench-manager-only"
+  },
+  "boundary": {
+    "bitstream_rebuild": false,
+    "manager": "sim/unit/tb_morph_l3.cpp",
+    "mutable_words": [
+      10,
+      11
+    ],
+    "resident_rtl_unchanged": true,
+    "role": "role.morph"
+  },
+  "candidates": [
+    {
+      "candidate": {
+        "content_id": "sha256:df2f8e55f05280810c5d334a702036cd651f2544a14a613e75158c26a94631b8",
+        "descriptor": 6352,
+        "fields": [
+          0,
+          2,
+          3,
+          4,
+          1
+        ],
+        "genome": [
+          0,
+          65537,
+          64,
+          0,
+          1,
+          0,
+          0,
+          200,
+          3,
+          1,
+          104077520,
+          104077520,
+          7
+        ]
+      },
+      "fixtures": [
+        {
+          "id": "primary",
+          "oracle_sha256": "sha256:448cc057128433247aa5f5f71654b60a621c3292c943335275988407b3737530",
+          "oracle_words": 1
+        },
+        {
+          "id": "canary",
+          "oracle_sha256": "sha256:e65e7e6a330b65d93f097959f4f7291969caf4d67ee4b1386d341e6d8c1c357f",
+          "oracle_words": 1
+        }
+      ],
+      "operation": "scalar-recurrence",
+      "origin": {
+        "evaluations": 318,
+        "strategy": "seeded-permutation"
+      },
+      "rollback": {
+        "content_id": "sha256:650e5260c1545a7ebd688ad85a8a2eb25d63ec0d08b20e12a51e6d57afff087c",
+        "descriptor": 6338,
+        "genome": [
+          0,
+          65537,
+          64,
+          0,
+          1,
+          0,
+          0,
+          200,
+          3,
+          1,
+          103848130,
+          103848130,
+          7
+        ],
+        "status": "org.atomix.known-good-rtl"
+      },
+      "workload": "scalar-recurrence"
+    },
+    {
+      "candidate": {
+        "content_id": "sha256:273250351f9cb1f13281e8a2ba4a4ba6e5dcfa90cac8740017200d964806288f",
+        "descriptor": 4639,
+        "fields": [
+          7,
+          3,
+          0,
+          1,
+          1
+        ],
+        "genome": [
+          1,
+          3276801,
+          1,
+          0,
+          65536,
+          65600,
+          0,
+          128,
+          3,
+          0,
+          76010015,
+          76010015,
+          0
+        ]
+      },
+      "fixtures": [
+        {
+          "id": "primary",
+          "oracle_sha256": "sha256:18c309ae31632cc9fed26f76cab6e63a6fbac77552258c1e119669e4a4ddc4fb",
+          "oracle_words": 50
+        },
+        {
+          "id": "canary",
+          "oracle_sha256": "sha256:73d82961676ebfea58e9075f1c91d758ffbaaa9a394eaea005c4f3b52b496b19",
+          "oracle_words": 50
+        }
+      ],
+      "operation": "saxpy",
+      "origin": {
+        "evaluations": 83,
+        "strategy": "seeded-permutation"
+      },
+      "rollback": {
+        "content_id": "sha256:451866926ee4e49a71060bb427a86fd84ec80fc030f94c14b251e367db2aee53",
+        "descriptor": 4840,
+        "genome": [
+          1,
+          3276801,
+          1,
+          0,
+          65536,
+          65600,
+          0,
+          128,
+          3,
+          0,
+          79303400,
+          79303400,
+          0
+        ],
+        "status": "org.atomix.known-good-rtl"
+      },
+      "workload": "simt-saxpy"
+    },
+    {
+      "candidate": {
+        "content_id": "sha256:434d389ac0b25571e36220546642a842ef35038a407248b801722ba2349128c5",
+        "descriptor": 5187,
+        "fields": [
+          3,
+          0,
+          1,
+          2,
+          1
+        ],
+        "genome": [
+          2,
+          524300,
+          8,
+          524288,
+          1,
+          65632,
+          8,
+          524448,
+          0,
+          0,
+          84988995,
+          84988995,
+          0
+        ]
+      },
+      "fixtures": [
+        {
+          "id": "primary",
+          "oracle_sha256": "sha256:6614030170d61018435a066db9377bc0297fbea7af65b08602507ecc1b8f91ef",
+          "oracle_words": 96
+        },
+        {
+          "id": "canary",
+          "oracle_sha256": "sha256:faffa848bffe51a5124c7db659d6434a58736bed11111c55ea16bb189ac2c6f0",
+          "oracle_words": 96
+        }
+      ],
+      "operation": "gemm",
+      "origin": {
+        "evaluations": 799,
+        "strategy": "seeded-permutation"
+      },
+      "rollback": {
+        "content_id": "sha256:6c1e422abdbfc7f338b98ff997511c362e14c3818b3b21857081bd83c2910ee3",
+        "descriptor": 5224,
+        "genome": [
+          2,
+          524300,
+          8,
+          524288,
+          1,
+          65632,
+          8,
+          524448,
+          0,
+          0,
+          85595240,
+          85595240,
+          0
+        ],
+        "status": "org.atomix.known-good-rtl"
+      },
+      "workload": "systolic-gemm"
+    }
+  ],
+  "claim": "Searched non-reference genomes for scalar, SIMT, and systolic modes pass primary and canary RTL shadow evaluation on one resident fabric; a manager-approved scalar volatile trial and canary-detected fault are followed by verified manager-owned rollback.",
+  "command": "make l3-check",
+  "coverage": {
+    "deterministic_oracle_cases": {
+      "covered": 6,
+      "total": 6
+    },
+    "known_good_genomes": {
+      "covered": 3,
+      "total": 3
+    },
+    "manager_rollbacks_verified": 1,
+    "record_mutation_classes": [
+      "authority",
+      "content-identity",
+      "mutable-boundary",
+      "oracle-digest",
+      "descriptor-binding",
+      "workload-presence"
+    ],
+    "reviewed_mode_paths": {
+      "covered": 3,
+      "total": 3
+    },
+    "searched_candidates": {
+      "covered": 3,
+      "total": 3
+    },
+    "semantic_faults_detected_by_canary": 1
+  },
+  "decision": "Functional RTL coverage now spans every searched morph mode and oracle case. This is not physical-board evidence and does not authorize autonomous or persistent activation.",
+  "evidence_level": "org.atomix.simulation-rtl",
+  "expected_generation": 17,
+  "expected_jobs": 17,
+  "fault_injection": {
+    "canary_fault_sha256": "sha256:5f815a90a1e657dbbc7d52f7341f550011b6450b3a3c16ea5407b59642931737",
+    "canary_oracle_sha256": "sha256:448cc057128433247aa5f5f71654b60a621c3292c943335275988407b3737530",
+    "content_id": "sha256:9bc878ba52db219365f3e71ed2de6c62f486184dca1acdb088afa4b4a33581da",
+    "descriptor": 6378,
+    "fields": [
+      2,
+      5,
+      3,
+      4,
+      1
+    ],
+    "genome": [
+      0,
+      65537,
+      64,
+      0,
+      1,
+      0,
+      0,
+      200,
+      3,
+      1,
+      104503530,
+      104503530,
+      7
+    ],
+    "primary_oracle_sha256": "sha256:5f815a90a1e657dbbc7d52f7341f550011b6450b3a3c16ea5407b59642931737",
+    "property": "passes all-zero narrow primary; ignores stream A and fails nonzero canary",
+    "workload": "scalar-recurrence"
+  },
+  "id": "org.atomix.research.l3-morph-all-modes-volatile",
+  "kind": "l3-volatile-rtl-trial",
+  "required_sequence": [
+    "establish and shadow primary/canary for all three reviewed modes",
+    "run manager-approved volatile scalar candidate trial",
+    "show injected scalar fault passes narrow primary and fails canary",
+    "reload scalar rollback genome and re-verify primary and canary"
+  ],
+  "revision": 2,
+  "schema": "org.atomix.morph-rtl-trial.v2",
+  "sources": {
+    "components/role/morph/morph_fabric.sv": "sha256:8e395e4a0bec17aa4df346cc6a2230438387341aff1e81fcfd153da66ab40d3e",
+    "research/live-fpga/l3/morph-search-results.json": "sha256:90e8c22e56cc6cd1a351003e75e9f1f637e6feb84a68e297ee264408de40c6a3",
+    "research/live-fpga/l3/morph-search-space.json": "sha256:8bf7bfbfd950d3c2a5e6c0b92a088c160083065558326cb2d642e24c987dd770",
+    "sim/unit/tb_morph_l3.cpp": "sha256:56dd29f7ba0f25bf92e89a7949ab67080536768c9bc0a8c822c6267b0b5d5444",
+    "tools/morph_l3_trial.py": "sha256:83a6e6b62be82a806941bdb16666b70d3553f70ffdc88e8b3cccc3f18a192625"
+  }
+}

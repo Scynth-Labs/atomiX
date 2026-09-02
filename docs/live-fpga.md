@@ -382,14 +382,38 @@ aliases of the hand-written descriptor; that is a valid result for the fixed
 workload contract, not permission to generalise them to other dimensions or
 accumulator initialisation.
 
-The generated record stores the complete genomes, exact output hashes,
+The generated search record stores the complete genomes, exact output hashes,
 content IDs, source hashes, search counts, and a known-good RTL rollback per
-workload.  It also says `org.atomix.not-authorized`: a model winner is only a
-proposal.  Canary, RTL shadow evaluation, and manager-owned rollback remain
-mandatory before any volatile activation.  `make l3-check` recomputes the
-record, mutation-tests the oracle, and runs the reviewed rollback genomes on
-the RTL morph bench.  It does not claim that a newly found alias has already
-passed its own RTL shadow run.
+workload.  It still says `org.atomix.not-authorized`: an optimizer result is
+only a proposal and never becomes its own actuation authority.
+
+The bounded follow-on in `l3/morph-rtl-trial.json` now closes candidate-specific
+RTL shadowing for every reviewed mode.  Its generated testbench configuration
+selects the permutation search's non-reference scalar/SIMT/systolic descriptors
+6,352/4,639/5,187 and their reviewed rollback descriptors
+6,338/4,840/5,224.  On one resident fabric, the external manager runs both
+deterministic oracle cases through every rollback and searched genome: three of
+three mode paths, three of three candidates, and six of six primary/canary
+cases.  Only after those shadow gates does it permit one scalar volatile run.
+
+A fault descriptor (6,378) deliberately ignores stream A.  It passes a narrow
+all-zero scalar input but fails the nonzero canary.  The manager reloads scalar
+descriptor 6,338 and re-verifies both searched fixtures.  Seventeen accepted
+jobs and seventeen generations prove the entire sequence occurred on one
+resident RTL instance.
+
+The evidence contract is hardened independently of the datapath test.  Its
+self-test mutates six trust boundaries and requires each to fail: optimizer
+authority, candidate content identity, the mutable-word boundary, the oracle
+digest, descriptor-to-genome binding, and presence of every reviewed workload.
+An additional exact-record mutation proves that recorded job counts cannot
+drift from reconstruction.
+
+`make l3-check` recomputes and mutation-tests the search, validates and
+mutation-tests the pinned trial record, runs the reviewed three-personality
+reference, and runs this all-mode candidate/canary/rollback sequence.  The
+result is simulation-only evidence.  It grants neither hardware activation nor
+persistent or autonomous promotion, and it makes no Tang Primer physical claim.
 
 ## L0 event evidence
 
