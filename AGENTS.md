@@ -27,6 +27,12 @@
 - For normal implementation/research work, read and follow
   `skills/atomix-development/SKILL.md`. For physical Tang Primer work, also read
   `skills/tang-primer-lab/SKILL.md`.
+- When more than one agent works this repository at the same time, read
+  `gator-tools/skills/multi-agent-coordination/SKILL.md` and coordinate through
+  it. It is a submodule: `git submodule update --init --recursive` if that
+  directory is empty. Claims, reviews, and design questions live in
+  `.git/multi-agent-coordination/` here, not in the submodule. Do not use it for
+  ordinary single-agent work.
 
 ## Verification and evidence
 

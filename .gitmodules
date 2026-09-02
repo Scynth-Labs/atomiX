@@ -1,3 +1,6 @@
 [submodule "tests/riscv-tests"]
 	path = tests/riscv-tests
 	url = https://github.com/riscv-software-src/riscv-tests
+[submodule "gator-tools"]
+	path = gator-tools
+	url = https://github.com/ShubhendraGautam/gator-tools
