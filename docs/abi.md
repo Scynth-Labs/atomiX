@@ -59,7 +59,7 @@ readable in one place.
 | 80 | `fstat` | asm-generic 32-bit `struct stat`, 80 bytes |
 | 93 | `exit` | |
 | 172 | `getpid` | |
-| 214 | `brk` | the heap `malloc` grows |
+| 214 | `brk` | the heap `malloc` grows; bounded below by the heap start |
 | 220 | `clone` | RISC-V has no `fork`; `clone` with SIGCHLD is fork |
 | 260 | `wait4` | |
 
@@ -119,6 +119,18 @@ This pins a pairing: mapping pages needs S/U modes and Sv32, so a profile that
 hosts programs selects **`core.pipeline5`**.  `core.ax2` is machine-mode only
 and cannot host userspace — it is the bare-metal and accelerator-host core.
 That constraint is real and worth stating plainly rather than discovering later.
+
+### `brk` bounds
+
+`brk` reports failure by returning the break **unchanged**, never by an errno,
+and `brk(0)` is the query — a libc's `sbrk` is written against exactly that.
+The break moves between two bounds and both are enforced: it may not grow past
+`brk_limit`, one guard page below the stack, and it may not shrink below the
+heap's start, the page after the loaded image. The lower bound is not a
+formality: the shrink path unmaps and frees every page it walks, so a `brk` to a
+low address would otherwise unmap the program's own text and fault it on the
+next instruction fetch. A forked child inherits both bounds along with the
+address space they describe.
 
 ## Initial process state
 

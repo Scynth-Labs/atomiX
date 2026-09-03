@@ -271,6 +271,7 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
    * that grows too far fails a brk() rather than silently colliding with the
    * stack, which is the failure mode that is impossible to debug. */
   task->brk = (image_end + PAGE_SIZE - 1u) & ~(PAGE_SIZE - 1u);
+  task->brk_start = task->brk;
   task->brk_limit = USER_STACK_TOP - (2u * PAGE_SIZE);
 
   *entry_out = e_entry;

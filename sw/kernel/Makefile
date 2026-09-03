@@ -102,6 +102,16 @@ $(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES)
 	  userprog/hello.c $(COMPONENT_LIBC_SOURCES) -lgcc
 	$(RISCV_PREFIX)strip -s -R .comment $@
 
+# The adversarial ABI program. It is never embedded in the kernel: it reaches
+# the machine from the AXFS image, so testing every refusal path costs the
+# shipped image nothing.
+TORTURE_ELF := $(BUILD_DIR)/userprog/torture.elf
+$(TORTURE_ELF): userprog/torture.c userprog/user.ld $(COMPONENT_LIBC_SOURCES)
+	mkdir -p $(@D)
+	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
+	  userprog/torture.c $(COMPONENT_LIBC_SOURCES) -lgcc
+	$(RISCV_PREFIX)strip -s -R .comment $@
+
 $(USER_IMAGE): $(USER_ELF) embed_image.py
 	mkdir -p $(@D)
 	$(PYTHON) embed_image.py $(USER_ELF) $@ axos_user_image
@@ -248,6 +258,15 @@ check-storage-write: images $(USER_ELF)
 # The loader's W^X rejection, end to end. The fixture lives on the AXFS image
 # rather than in the built-in root, so testing a rejection costs the shipped
 # kernel image nothing.
+# The ABI under attack rather than under demonstration: null, kernel-space and
+# straddling pointers, a read into a read-only page, an unterminated path, a
+# full descriptor table, and seek arithmetic that overflows.
+check-abi-torture: images $(USER_ELF) $(TORTURE_ELF)
+	$(MAKE) -B images STORAGE=1
+	python3 make_fs_image.py --with-torture $(TORTURE_ELF) $(USER_ELF) \
+	  build/axfs-torture.img
+	SD_IMAGE=$(abspath build/axfs-torture.img) python3 check_boot.py --torture
+
 check-loader-wx: images $(USER_ELF)
 	$(MAKE) -B images STORAGE=1
 	python3 make_fs_image.py --with-wx $(USER_ELF) build/axfs-wx.img
@@ -351,4 +370,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write check-loader-wx boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write check-loader-wx check-abi-torture boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean

@@ -248,6 +248,45 @@ Staged so each step has its own evidence rather than landing as one large jump:
   shipped kernel nothing.  Evidence: `make -C sw/kernel check-loader-wx` and
   `check-boot`.
 
+- [x] **The ABI attacked rather than demonstrated.**  The item above closed with
+  "what remains is scale rather than capability", and that was the wrong axis.
+  `hello.c` is a *demonstration*: it does what a well-behaved program does and
+  checks the answers.  `userprog/torture.c` passes what the kernel is supposed
+  to refuse — null and kernel-space pointers to every pointer-taking syscall, a
+  buffer straddling the last mapped page, a read into a read-only page, an
+  unterminated path, a full descriptor table, seeks that overflow a signed
+  32-bit offset — and requires the *documented* error rather than merely "not a
+  crash".  It runs from the AXFS image, so none of it costs the shipped kernel a
+  byte.  Evidence: `make -C sw/kernel check-abi-torture`.
+
+  It found three real defects on its first two runs, none of which any existing
+  test could see:
+
+  1. **`malloc` overflowed where `calloc` did not.**  `calloc` had always
+     checked its multiply, with a comment calling it "the classic way this
+     function becomes a bug"; `malloc` checked nothing.  `malloc(0xfffffff0)`
+     computes `HEADER + want` as exactly **0**, and `sbrk(0)` is a *query* that
+     returns the break and never `-1` — so the allocation appeared to succeed
+     and a header claiming 0xfffffff0 bytes went into the free list.  Every
+     later `malloc` then found that block big enough and handed out overlapping
+     memory.  Silent heap corruption, not a failed allocation.  `realloc` had
+     the same wrap in its `align_up` fast path.
+  2. **`brk` had a ceiling and no floor.**  The shrink path unmaps and frees
+     every page between the requested address and the current break, with no
+     lower bound, so `brk(0x40000000)` unmaps the program's own text, rodata and
+     data and the task faults on its next instruction fetch.  The task struct
+     carried `brk_limit` and nothing at the other end; it now carries
+     `brk_start`, set by the loader where it puts the heap.
+  3. **`clone` never copied the heap bounds at all.**  `sys_fork` cloned the
+     address space and then left `brk`/`brk_limit` at whatever the reused task
+     slot held — zero for a fresh slot.  A child's `brk(0)` therefore returned
+     0, making every `sbrk` in the child report `ENOMEM`: a forked child that
+     could not allocate, for no stated reason.
+
+  The first is a userspace bug and the other two are kernel bugs, which is
+  itself the argument for the program: one adversarial consumer crosses seams
+  that per-component tests do not.
+
 Both opening questions are settled in [abi.md](abi.md): the ABI is the RISC-V
 Linux subset, and the loader takes ELF directly rather than a pre-flattened
 image — in both cases because it is what the toolchain already produces, and

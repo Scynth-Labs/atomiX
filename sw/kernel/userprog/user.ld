@@ -1,34 +1,48 @@
 /* User programs are linked at USER_CODE_VA (0x40000000), the base of the 4 MiB
- * region the Sv32 user address space maps.  Segments are page-aligned so the
- * loader can give each its own permissions; without that, .text and .rodata
- * would share a page and have to share a permission set.
+ * region the Sv32 user address space maps.
  *
- * The explicit PHDRS are what make that true rather than merely intended.
- * Page-aligning the sections is not enough on its own: ld assigns sections to
- * segments by flag compatibility, and .rodata (A) is compatible with .text
- * (AX), so it was being placed in the same R+E segment and mapped *executable*
- * -- the loader faithfully applying a p_flags that said so.  The alignment
- * bought nothing, because a segment, not a page, is the unit the loader gets
- * permissions from.  Naming three segments here separates them for real, and
- * makes the loader's per-segment mapping something the program actually
- * exercises rather than something its comments claim. */
+ * Three things are load-bearing here, and each fails silently if dropped.
+ *
+ * The explicit PHDRS are what give the segments separate permissions.  Aligning
+ * sections to a page is not enough: ld assigns sections to segments by flag
+ * compatibility, and .rodata (A) is compatible with .text (AX), so it was being
+ * placed in the same R+E segment and mapped *executable* -- the loader
+ * faithfully applying a p_flags that said so.  A segment, not a page, is the
+ * unit the loader takes permissions from.
+ *
+ * FILEHDR PHDRS put the ELF header and program headers inside the first
+ * segment rather than in a page of their own.  The embedded copy of this image
+ * is the single largest item in the kernel (see docs/design-checklist.md), and
+ * a header page that no segment covers is a whole 4 KiB the kernel carries and
+ * the loader skips.  It also makes AT_PHDR meaningful for the first time: the
+ * loader derives it from whichever segment covers e_phoff, and previously no
+ * segment did.
+ *
+ * .rodata and .data still start on page boundaries because separate
+ * permissions need separate pages -- that part of the alignment was always
+ * real, and it is what bounds how small this image can get. */
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
-MEMORY { USER (rwx) : ORIGIN = 0x40000000, LENGTH = 4M - 4K }
+USER_BASE = 0x40000000;
+USER_LIMIT = USER_BASE + 4M - 4K;
 
 PHDRS
 {
-  text   PT_LOAD FLAGS(5);  /* R+X: code only */
-  rodata PT_LOAD FLAGS(4);  /* R:   constants, never executable */
-  data   PT_LOAD FLAGS(6);  /* R+W: .data and the .bss tail */
+  text   PT_LOAD FILEHDR PHDRS FLAGS(5);  /* R+X: headers and code */
+  rodata PT_LOAD FLAGS(4);                /* R:   constants, never executable */
+  data   PT_LOAD FLAGS(6);                /* R+W: .data and the .bss tail */
 }
 
 SECTIONS
 {
-  .text : ALIGN(4K) { *(.text._start) *(.text*) } > USER :text
-  .rodata : ALIGN(4K) { *(.rodata*) *(.srodata*) } > USER :rodata
-  .data : ALIGN(4K) { *(.data*) *(.sdata*) } > USER :data
-  .bss : ALIGN(16) { *(.bss*) *(.sbss*) *(COMMON) } > USER :data
+  . = USER_BASE + SIZEOF_HEADERS;
+  .text : { *(.text._start) *(.text*) } :text
+  . = ALIGN(4K);
+  .rodata : { *(.rodata*) *(.srodata*) } :rodata
+  . = ALIGN(4K);
+  .data : { *(.data*) *(.sdata*) } :data
+  .bss : ALIGN(16) { *(.bss*) *(.sbss*) *(COMMON) } :data
   /DISCARD/ : { *(.comment) *(.note*) *(.riscv.attributes) }
+  ASSERT(. <= USER_LIMIT, "user image overflows the mapped user region")
 }

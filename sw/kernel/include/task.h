@@ -28,6 +28,10 @@ struct task {
    * to the page after the highest loaded segment, so the heap grows into the
    * gap between the program image and the stack. */
   uint32_t brk;
+  /* The floor and ceiling the break may move between.  brk_start is where the
+   * loader put the heap, one page past the image; without it a shrink has no
+   * lower bound and unmaps the program's own text on its way down. */
+  uint32_t brk_start;
   uint32_t brk_limit;
   uint32_t state;
   uint32_t pid;

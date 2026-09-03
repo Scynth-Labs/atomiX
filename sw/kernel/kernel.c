@@ -444,7 +444,12 @@ static uint32_t k_brk(uint32_t addr) {
   struct task *const task = &tasks[current_task];
   if (addr == 0u) return task->brk;
   if (addr < task->brk) {
-    /* Shrink: free every page wholly above the new break. */
+    /* Shrink: free every page wholly above the new break -- but never below
+     * where the heap began.  The loop unmaps and frees whatever it walks, so
+     * without this floor a program calling brk() with any low address unmaps
+     * its own text, rodata and data and faults on the next instruction fetch.
+     * The struct had a ceiling and no floor; this is the missing half. */
+    if (addr < task->brk_start) return task->brk;
     const uint32_t first = (addr + PAGE_SIZE - 1u) & ~(PAGE_SIZE - 1u);
     for (uint32_t va = first; va < task->brk; va += PAGE_SIZE)
       vm_unmap_user_page(task, va);
@@ -576,6 +581,13 @@ static uint32_t *sys_fork(uint32_t *trap_frame) {
     frame[i] = trap_frame[i];
   if (child->user_stack[0] != 0x51a00001u) test_finish(1);
   child->trap_frame = frame;
+  /* The child's address space is a copy of the parent's, so its heap bounds
+   * are the parent's.  Leaving them at whatever the reused slot held gave the
+   * child brk == 0, and a brk(0) query of zero makes every sbrk in the child
+   * report ENOMEM -- a child that cannot allocate, for no stated reason. */
+  child->brk = parent->brk;
+  child->brk_start = parent->brk_start;
+  child->brk_limit = parent->brk_limit;
   child->sepc = csr_read_sepc() + 4u;
   child->sstatus = csr_read_sstatus();
   child->kernel_stack = kernel_stack;

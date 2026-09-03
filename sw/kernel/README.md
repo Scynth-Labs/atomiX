@@ -131,6 +131,25 @@ exits with status 7, the parent verifies `wait4` reported `7 << 8`, and the
 fixture returns to the prompt. The shell test accepts either valid first
 scheduling order, `PCW` or `CPW`.
 
+## Testing the ABI adversarially
+
+[userprog/hello.c](userprog/hello.c) demonstrates the ABI; [userprog/torture.c](userprog/torture.c)
+attacks it. Every check there passes something the kernel is supposed to refuse
+— a null or kernel-space pointer, a buffer straddling the last mapped page, a
+read into a read-only page, an unterminated path, a ninth descriptor, a seek
+that overflows — and requires the documented error rather than merely a
+survived call. Exit codes are grouped by area (10-19 dispatch, 20-39 pointers,
+40-54 descriptors, 55-69 seeks, 70-79 paths, 80-89 heap) so a failure names
+itself. `make -C sw/kernel check-abi-torture` runs it off the AXFS image, which
+is why none of it costs the shipped kernel a byte.
+
+It earned its place on its first two runs, finding a `malloc` overflow that put
+a 4 GB block into the free list, a `brk` with no lower bound that let a program
+unmap its own text, and a `clone` that never gave the child its heap bounds.
+The first is userspace and the other two are kernel — which is the argument for
+having one adversarial consumer that crosses the seams per-component tests
+stop at.
+
 ## Program images and W^X
 
 The loader maps each `PT_LOAD` with its own `p_flags`, and refuses one that is

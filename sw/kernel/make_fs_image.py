@@ -45,9 +45,15 @@ def wx_elf() -> bytes:
 
 
 def main() -> None:
-    argv = [a for a in sys.argv[1:] if a != "--with-wx"]
+    argv = [a for a in sys.argv[1:] if not a.startswith("--")]
     with_wx = "--with-wx" in sys.argv
-    if len(argv) != 2:
+    with_torture = "--with-torture" in sys.argv
+    if with_torture:
+        if len(argv) != 3:
+            raise SystemExit(
+                "usage: make_fs_image.py --with-torture TORTURE.elf USER.elf OUTPUT.img")
+        torture, argv = argv[0], argv[1:]
+    elif len(argv) != 2:
         raise SystemExit("usage: make_fs_image.py [--with-wx] USER.elf OUTPUT.img")
     files = [
         ("motd", b"Welcome to aXos.\n"),
@@ -56,6 +62,8 @@ def main() -> None:
     ]
     if with_wx:
         files.append(("wx.elf", wx_elf()))
+    if with_torture:
+        files.append(("torture.elf", Path(torture).read_bytes()))
 
     next_block = 1
     extents = []

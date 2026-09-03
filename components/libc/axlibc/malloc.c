@@ -22,6 +22,23 @@ typedef struct block {
 #define ALIGN 8u
 #define HEADER ((size_t)((sizeof(block_t) + ALIGN - 1u) & ~(ALIGN - 1u)))
 
+/* The largest request that can be served without the size arithmetic wrapping.
+ *
+ * Two things overflow at the top of the range, and the second is the dangerous
+ * one.  `align_up` wraps for the last few sizes, and `HEADER + want` wraps for
+ * anything near SIZE_MAX -- `malloc(0xfffffff0)` computes an increment of
+ * exactly 0.  `sbrk(0)` is a *query* that returns the current break and never
+ * -1, so the allocation appears to succeed, and a header claiming 0xfffffff0
+ * bytes goes into the free list.  From then on every malloc finds that block
+ * big enough and hands out overlapping memory: silent heap corruption rather
+ * than a failed allocation.
+ *
+ * The bound is INT32_MAX rather than SIZE_MAX because sbrk takes a signed
+ * increment, so a larger request could not be expressed even if the header
+ * arithmetic held.  `calloc` has always checked its own multiply; this is the
+ * same class of bug one level down. */
+#define MAX_ALLOC ((size_t)0x7fffffffu - HEADER - ALIGN)
+
 static block_t *heap_head;
 
 static size_t align_up(size_t n) { return (n + ALIGN - 1u) & ~(ALIGN - 1u); }
@@ -41,6 +58,7 @@ static void split(block_t *b, size_t want) {
 
 void *malloc(size_t size) {
   if (size == 0) return NULL;
+  if (size > MAX_ALLOC) return NULL;
   const size_t want = align_up(size);
 
   block_t *prev = NULL;
@@ -89,6 +107,7 @@ void *calloc(size_t count, size_t size) {
 void *realloc(void *ptr, size_t size) {
   if (ptr == NULL) return malloc(size);
   if (size == 0) { free(ptr); return NULL; }
+  if (size > MAX_ALLOC) return NULL;
   block_t *const b = (block_t *)((uint8_t *)ptr - HEADER);
   if (b->size >= align_up(size)) return ptr;
   void *const fresh = malloc(size);

@@ -12,6 +12,7 @@ FORK_INPUT = ROOT / "sw/kernel/fork_input.txt"
 EXEC_INPUT = ROOT / "sw/kernel/exec_input.txt"
 STORAGE_WRITE_INPUT = ROOT / "sw/kernel/storage_write_input.txt"
 LOADER_WX_INPUT = ROOT / "sw/kernel/loader_wx_input.txt"
+TORTURE_INPUT = ROOT / "sw/kernel/torture_input.txt"
 SHELL_OUTPUT = (
     "aXos: shell online\n"
     "aXos> help\n"
@@ -29,6 +30,13 @@ SHELL_OUTPUT = (
 SHELL_OUTPUT_STORAGE = SHELL_OUTPUT.replace(
     "motd\nreadme\n", "motd\nreadme\nhello.elf\n")
 SHELL_OUTPUT_SDBOOT = SHELL_OUTPUT_STORAGE
+# The adversarial ABI program prints exactly this and exits 0.  Any other exit
+# code names the check that failed -- see userprog/torture.c, where the code
+# ranges are documented.
+TORTURE_OUTPUT = ("aXos: shell online\n"
+                  "aXos> exec torture.elf\n"
+                  "exec: torture: ok\n"
+                  "aXos> exit\n")
 # A W+X ELF must be refused by the loader, not mapped.  The fixture exits 0 if
 # it ever runs (see make_fs_image.py), so "load failed" is the only output that
 # distinguishes an enforced W^X from an unenforced one.
@@ -156,6 +164,20 @@ def main() -> None:
     qemu = os.environ.get("QEMU", "qemu-system-riscv32")
     check_user_elf_segments()
     sd_image = os.environ.get("SD_IMAGE", "")
+    if sys.argv[1:] == ["--torture"]:
+        if not sd_image:
+            raise SystemExit("--torture requires SD_IMAGE")
+        command = [
+            "make", "-s", "--no-print-directory", "-C", str(ROOT / "sim/soc"),
+            "run", f"RAM_INIT_FILE={image}", "RESET_PC=0x80000000",
+            "RAM_BYTES=33554432", "EXTERNAL_MEMORY=1", "CACHES=1",
+            "MAX_CYCLES=60000000", f"SD_IMAGE={sd_image}",
+            "BUILD_ID=torture",
+        ]
+        run("RTL ABI torture", command + [f"UART_INPUT_FILE={TORTURE_INPUT}"],
+            TORTURE_INPUT, TORTURE_OUTPUT)
+        print("[kernel] adversarial ABI conformance: PASS on cached external-memory RTL")
+        return
     if sys.argv[1:] == ["--loader-wx"]:
         if not sd_image:
             raise SystemExit("--loader-wx requires SD_IMAGE")
