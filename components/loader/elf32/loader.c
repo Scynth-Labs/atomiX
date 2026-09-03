@@ -173,6 +173,12 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
 
     if (p_filesz > p_memsz) return LOADER_EBADIMAGE;
     if (p_offset > size || p_filesz > size - p_offset) return LOADER_EBADIMAGE;
+    /* W^X.  A segment asking to be both writable and executable gives up
+     * exactly the protection per-segment permissions exist to provide, and
+     * nothing a static toolchain emits needs it.  Refusing here rather than
+     * mapping it keeps `perms_of` a translation rather than a policy: the
+     * loader never produces a user page it would not be willing to defend. */
+    if ((p_flags & PF_W) && (p_flags & PF_X)) return LOADER_EBADIMAGE;
     /* Everything must land in the mappable window, and must not run into the
      * stack page at the top of it. */
     if (p_vaddr < USER_CODE_VA) return LOADER_ENOSPACE;

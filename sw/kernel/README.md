@@ -131,6 +131,26 @@ exits with status 7, the parent verifies `wait4` reported `7 << 8`, and the
 fixture returns to the prompt. The shell test accepts either valid first
 scheduling order, `PCW` or `CPW`.
 
+## Program images and W^X
+
+The loader maps each `PT_LOAD` with its own `p_flags`, and refuses one that is
+both writable and executable. That refusal is not decoration: a hand-built ELF
+whose only defect is `R+W+X` — correct magic, `ET_EXEC`, `EM_RISCV`, in-range
+vaddr, and three real instructions calling `exit(0)` — **loads and runs to a
+clean exit** with the check removed. `make -C sw/kernel check-loader-wx` runs it
+off the AXFS image and requires `exec: load failed`; keeping the fixture on the
+disk rather than in the built-in root means testing the rejection costs the
+shipped kernel image nothing.
+
+The matching linker rule is worth knowing because it fails quietly. Aligning
+sections to a page does not separate their permissions — `ld` groups sections
+into segments by flag compatibility, so a page-aligned `.rodata` still shares
+`.text`'s `R+E` segment and gets mapped executable. [userprog/user.ld](userprog/user.ld)
+declares three segments explicitly, and `check_boot.py` asserts the built image
+is `R+X`, `R`, `R+W`. That check is structural on purpose: no behavioural test
+can see the difference, because an executable `.rodata` reads exactly like a
+read-only one.
+
 ## Replaceable kernel policies
 
 The trap/syscall kernel is stable, but scheduler, virtual-memory, allocator,

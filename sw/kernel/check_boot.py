@@ -11,6 +11,7 @@ SHELL_INPUT = ROOT / "sw/kernel/shell_input.txt"
 FORK_INPUT = ROOT / "sw/kernel/fork_input.txt"
 EXEC_INPUT = ROOT / "sw/kernel/exec_input.txt"
 STORAGE_WRITE_INPUT = ROOT / "sw/kernel/storage_write_input.txt"
+LOADER_WX_INPUT = ROOT / "sw/kernel/loader_wx_input.txt"
 SHELL_OUTPUT = (
     "aXos: shell online\n"
     "aXos> help\n"
@@ -28,6 +29,13 @@ SHELL_OUTPUT = (
 SHELL_OUTPUT_STORAGE = SHELL_OUTPUT.replace(
     "motd\nreadme\n", "motd\nreadme\nhello.elf\n")
 SHELL_OUTPUT_SDBOOT = SHELL_OUTPUT_STORAGE
+# A W+X ELF must be refused by the loader, not mapped.  The fixture exits 0 if
+# it ever runs (see make_fs_image.py), so "load failed" is the only output that
+# distinguishes an enforced W^X from an unenforced one.
+LOADER_WX_OUTPUT = ("aXos: shell online\n"
+                    "aXos> exec wx.elf\n"
+                    "exec: load failed\n"
+                    "aXos> exit\n")
 BOOT_PREFIX = "aXboot\n"
 FORK_PREFIX = "aXos: shell online\naXos> fork\nfork demo: "
 # The loaded program prints exactly this and then exits 0.  Anything else -- a
@@ -100,11 +108,68 @@ def run(label: str, command: list[str], input_file: Path, expected: str | None) 
     print(f"[kernel] {label}: PASS")
 
 
+def check_user_elf_segments() -> None:
+    """The loader's protection is only as good as the segments it is handed.
+
+    Page-aligning sections in the linker script does not separate them: ld
+    assigns sections to segments by flag compatibility, so .rodata (A) was
+    silently sharing .text's R+E segment and being mapped executable.  Nothing
+    caught it, because every behavioural test still passed -- an executable
+    .rodata reads exactly like a read-only one.  This is the check that fails
+    instead, and it is structural because the defect is structural.
+    """
+    path = ROOT / "sw/kernel/build/userprog/hello.elf"
+    if not path.exists():
+        return
+    data = path.read_bytes()
+    phoff = int.from_bytes(data[28:32], "little")
+    phentsize = int.from_bytes(data[42:44], "little")
+    phnum = int.from_bytes(data[44:46], "little")
+    loads = []
+    for i in range(phnum):
+        ph = data[phoff + i * phentsize:phoff + (i + 1) * phentsize]
+        if int.from_bytes(ph[0:4], "little") != 1:  # PT_LOAD
+            continue
+        loads.append((int.from_bytes(ph[8:12], "little"),
+                      int.from_bytes(ph[24:28], "little")))
+    loads.sort()
+    flags = [f for _, f in loads]
+    R, W, X = 4, 2, 1
+    expected = [R | X, R, R | W]
+    if flags != expected:
+        names = {R | X: "R+X", R: "R", R | W: "R+W", R | W | X: "R+W+X"}
+        got = " ".join(names.get(f, str(f)) for f in flags)
+        want = " ".join(names[f] for f in expected)
+        raise SystemExit(
+            f"[kernel] user ELF segments are {got}, expected {want}: "
+            f"sections are sharing a segment and therefore a permission set")
+    for vaddr, f in loads:
+        if (f & W) and (f & X):
+            raise SystemExit(
+                f"[kernel] user ELF segment at 0x{vaddr:08x} is W+X")
+    print("[kernel] user ELF segments: PASS (R+X, R, R+W; no W^X violation)")
+
+
 def main() -> None:
     elf = ROOT / "sw/kernel/build/axos_boot.elf"
     image = ROOT / "sw/kernel/build/axos_boot.hex"
     qemu = os.environ.get("QEMU", "qemu-system-riscv32")
+    check_user_elf_segments()
     sd_image = os.environ.get("SD_IMAGE", "")
+    if sys.argv[1:] == ["--loader-wx"]:
+        if not sd_image:
+            raise SystemExit("--loader-wx requires SD_IMAGE")
+        command = [
+            "make", "-s", "--no-print-directory", "-C", str(ROOT / "sim/soc"),
+            "run", f"RAM_INIT_FILE={image}", "RESET_PC=0x80000000",
+            "RAM_BYTES=33554432", "EXTERNAL_MEMORY=1", "CACHES=1",
+            "MAX_CYCLES=15000000", f"SD_IMAGE={sd_image}",
+            "BUILD_ID=loader-wx",
+        ]
+        run("RTL W^X rejection", command + [f"UART_INPUT_FILE={LOADER_WX_INPUT}"],
+            LOADER_WX_INPUT, LOADER_WX_OUTPUT)
+        print("[kernel] loader W^X rejection: PASS on cached external-memory RTL")
+        return
     if sys.argv[1:] == ["--storage-write"]:
         if not sd_image:
             raise SystemExit("--storage-write requires SD_IMAGE")

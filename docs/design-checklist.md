@@ -223,6 +223,31 @@ Staged so each step has its own evidence rather than landing as one large jump:
   Evidence: `make -C sw/kernel check-shell`, `check-boot`,
   `kernel-component-test`, `check-storage`, and `check-sdboot`.
 
+- [x] **Segment permissions that are real rather than intended.**  The loader
+  had always mapped each `PT_LOAD` with its own `p_flags`, and the linker script
+  had always page-aligned the sections "so the loader can give each its own
+  permissions".  Both were true and the guarantee still did not hold: `ld`
+  assigns sections to segments by flag compatibility, so `.rodata` (`A`) was
+  landing in `.text`'s `R+E` segment and being mapped **executable**, with the
+  alignment buying nothing.  A segment, not a page, is the unit permissions come
+  from.  Nothing caught it because nothing could: every behavioural test passes
+  either way, since an executable `.rodata` reads exactly like a read-only one.
+  `user.ld` now declares three segments explicitly and the image is `R+X`, `R`,
+  `R+W`; `check_boot.py` asserts that structurally, and reports `R+X R+W` if the
+  sections ever merge again.
+
+  The loader also now enforces **W^X**, rejecting a writable-and-executable
+  `PT_LOAD` instead of mapping it — 12 bytes of text, and it keeps `perms_of` a
+  translation rather than a policy.  The rejection is tested end to end against
+  a hand-built ELF whose only defect is its flags: correct magic, `ET_EXEC`,
+  `EM_RISCV`, an in-range vaddr, and a payload of three real instructions
+  calling `exit(0)`.  Mutation-tested, and the mutation is the point — with the
+  check removed the image **loads, runs, and exits 0**, so the W+X page was
+  genuinely mappable rather than theoretically so.  The fixture lives on the
+  AXFS image rather than the built-in root, so testing a rejection costs the
+  shipped kernel nothing.  Evidence: `make -C sw/kernel check-loader-wx` and
+  `check-boot`.
+
 Both opening questions are settled in [abi.md](abi.md): the ABI is the RISC-V
 Linux subset, and the loader takes ELF directly rather than a pre-flattened
 image — in both cases because it is what the toolchain already produces, and

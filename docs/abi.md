@@ -96,6 +96,25 @@ The loader walks `PT_LOAD` program headers, maps each at its virtual address
 with its `p_flags` permissions, zeroes the `.bss` gap between `p_filesz` and
 `p_memsz`, and enters at `e_entry`.
 
+**W^X is enforced on the image, not merely expected of it.**  A `PT_LOAD` that
+is both writable and executable is rejected with `LOADER_EBADIMAGE` rather than
+mapped, which keeps `perms_of` a translation of `p_flags` rather than a policy
+decision: the loader never produces a user page it would not be willing to
+defend.  Nothing a static toolchain emits needs W+X, so this costs a conforming
+image nothing.
+
+A linking note that is easy to get wrong, because it fails silently.  Aligning
+sections to a page in a linker script does **not** give them separate
+permissions: `ld` assigns sections to segments by flag compatibility, so
+`.rodata` (`A`) is compatible with `.text` (`AX`) and lands in the same `R+E`
+segment — mapped **executable**, with the page alignment buying nothing.  A
+segment, not a page, is the unit the loader takes permissions from, so an image
+that wants three permission sets must declare three segments.
+`sw/kernel/userprog/user.ld` does this with an explicit `PHDRS` block, and
+`check_boot.py` asserts the resulting layout is `R+X`, `R`, `R+W`, because every
+behavioural test passes either way: an executable `.rodata` reads exactly like a
+read-only one.
+
 This pins a pairing: mapping pages needs S/U modes and Sv32, so a profile that
 hosts programs selects **`core.pipeline5`**.  `core.ax2` is machine-mode only
 and cannot host userspace — it is the bare-metal and accelerator-host core.

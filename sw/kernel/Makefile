@@ -245,6 +245,14 @@ check-storage-write: images $(USER_ELF)
 	python3 make_fs_image.py $(USER_ELF) build/axfs.img
 	SD_IMAGE=$(abspath build/axfs.img) python3 check_boot.py --storage-write
 
+# The loader's W^X rejection, end to end. The fixture lives on the AXFS image
+# rather than in the built-in root, so testing a rejection costs the shipped
+# kernel image nothing.
+check-loader-wx: images $(USER_ELF)
+	$(MAKE) -B images STORAGE=1
+	python3 make_fs_image.py --with-wx $(USER_ELF) build/axfs-wx.img
+	SD_IMAGE=$(abspath build/axfs-wx.img) python3 check_boot.py --loader-wx
+
 boot-disk: images
 	$(MAKE) -B images STORAGE=1 FS_BLOCK=$(BOOT_FS_BLOCK)
 	$(MAKE) -C ../bootrom images
@@ -343,4 +351,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write check-loader-wx boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean
