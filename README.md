@@ -8,7 +8,7 @@ Build the reference machine — or replace the parts that matter to you.
 
 [![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml)
 [![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml)
-[![Formal](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml)
+[![Formal (4 insns, BMC)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml)
 
 [Architecture](DESIGN.md) ·
 [Build, test, deploy](docs/workflow.md) ·
@@ -42,11 +42,64 @@ external interrupt through the shell's PLIC.
 
 | Reference machine | Evidence | Platform direction |
 |---|---|---|
-| RV32IM, five stages, M/S/U + Sv32 | ISS · lock-step RTL · ISA tests · formal | ULX3S/Tang shells + swappable accelerator roles |
+| RV32IM, five stages, M/S/U + Sv32 | ISS · lock-step RTL · ISA tests · 4-instruction formal | ULX3S/Tang shells + swappable accelerator roles |
 
 It is designed to be modified.  A user can substitute the CPU, memory,
 interconnect, peripherals, board, simulation harness, or aXos service policy
 without forking the rest of the project.
+
+## Where this sits
+
+atomiX is not competing with the projects below, and for most purposes one of
+them is the right answer:
+
+| If you want | Use |
+|---|---|
+| A production-grade, heavily verified embedded core | [Ibex](https://github.com/lowRISC/ibex) |
+| A Linux-capable application core | [CVA6](https://github.com/openhwgroup/cva6), [Rocket Chip](https://github.com/chipsalliance/rocket-chip) |
+| One core that configures to fit almost anything | [VexRiscv](https://github.com/SpinalHDL/VexRiscv) |
+| The smallest thing that runs RV32 | [PicoRV32](https://github.com/YosysHQ/picorv32), [SERV](https://github.com/olofk/serv) |
+| A complete, well-documented RV32 SoC in one repository | [NEORV32](https://github.com/stnolting/neorv32) |
+| To assemble an SoC from existing cores across many boards | [LiteX](https://github.com/enjoy-digital/litex) |
+
+Those are more capable machines and better-supported projects, maintained by
+more people for longer.  If one of them fits, use it.
+
+atomiX exists to answer a different question: **what does a system look like if
+every seam in it is replaceable, and a replacement has to earn its own
+verification claim rather than inherit one?**  Three things follow from that,
+and they are what is actually on offer here:
+
+- **The seam is the product, and it runs the whole height of the machine.**
+  The core, ALU, multiplier, bus, peripherals, memory, board, simulation
+  harness, and the kernel's own scheduler, allocator, filesystem and syscall
+  table are all selectable components with manifests; a profile picks them and
+  the build refuses an incoherent selection.  Swapping a multiplier and swapping
+  the entire CPU are the same kind of operation.
+- **Evidence is typed, and the types never merge.**  Simulation, synthesis,
+  place-and-route, and execution on a physical board are separate claims; a
+  board result names hardware rather than a program, and this repository will
+  not describe a bitstream that was never loaded as a hardware result.  Selecting
+  a component grants it nothing: `muldiv.fast-mul`, `core.ax2` and `core.minimal`
+  each carry their own testbench, cosim, ISA-suite or formal evidence, recorded
+  with the command that reproduces it.
+- **Reconfiguration is a runtime event, not a build.**  An immutable shell plus
+  a role window means a new program, kernel, or accelerator microcode is an
+  upload over UART in milliseconds — re-synthesis is reserved for actual
+  hardware changes.
+
+Set against that, the limits, stated plainly rather than left to be discovered:
+
+- RV32IM only.  No A, C, or floating point; one hart; no Linux — aXos is its own
+  small kernel, not a port.
+- One board has ever run it: a Tang Primer 25K, first on 2026-07-29.  Everything
+  claimed for the ULX3S and Tang Nano is synthesis and place-and-route.
+- The formal evidence is four instructions (see below), not a verified core.
+- Seven weeks old, one author, no release yet.  Nothing here has been
+  independently reproduced.
+
+If any of that is disqualifying for what you are doing, one of the projects
+above will serve you better — which is why they are listed first.
 
 ## How a change reaches the board
 
@@ -106,7 +159,16 @@ read rather than a colour you have to trust.
 |---|---|---|---|
 | [![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml) | every push and pull request | golden ISS, profile manifests, and lock-step cosim · RTL unit testbenches · composed systems and aXos | `verification-ci-*` |
 | [![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml) | 03:17 UTC daily | full integrated software and RTL ladder · randomized generation and fuzzing · official RISC-V ISA suite · ISS/QEMU/RTL agreement | `verification-nightly-*` |
-| [![Formal](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml) | 04:23 UTC Sundays | riscv-formal bounded instruction checks | `formal-counterexamples` |
+| [![Formal (4 insns, BMC)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml) | 04:23 UTC Sundays | bounded riscv-formal proofs of `insn_add`, `insn_beq`, `insn_lw` and `insn_sw` — on the reference core, `core.minimal`, and both retire channels of `core.ax2` | `formal-counterexamples` |
+
+**Read the Formal badge narrowly.**  It is four instructions under bounded model
+checking, in an RV32I configuration — 15 checks across three cores, and for
+`core.ax2` that is 7 of the 84 checks riscv-formal generates, with the M
+extension and the branch predictor switched off.  It is a real proof of a small
+thing, not a verified core.  Everything the M extension, the CSR surface, and
+the MMU do is covered by the ISA suite, lock-step cosimulation and directed
+tests instead, which is a different and weaker kind of evidence.  The full scope
+statement is in the [design checklist](docs/design-checklist.md).
 
 Hardware results are not in that set, and deliberately so: a board claim needs
 a board.  Those are captured by hand, with commands and transcripts, in

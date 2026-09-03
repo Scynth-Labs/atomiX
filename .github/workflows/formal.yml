@@ -2,7 +2,7 @@
 # Nightly because it is the only suite that needs a current Yosys and sby:
 # docs/dependencies.md records that Ubuntu 22.04's Yosys 0.9 cannot read the
 # SystemVerilog packages this core uses.
-name: Formal
+name: Formal (4 insns, BMC)
 
 on:
   schedule:
