@@ -146,22 +146,59 @@ int vm_create_user_space(struct task *task, const volatile uint32_t *root_pt) {
 int vm_clone_user_space(struct task *child, const struct task *parent) {
   uint32_t *const page_root = page_alloc();
   uint32_t *const user_pt = page_alloc();
-  uint32_t *const user_stack = page_alloc();
-  if (page_root == 0 || user_pt == 0 || user_stack == 0) {
+  if (page_root == 0 || user_pt == 0) {
     if (page_root != 0) page_free(page_root);
     if (user_pt != 0) page_free(user_pt);
-    if (user_stack != 0) page_free(user_stack);
     return -1;
   }
   copy_page(page_root, parent->page_root);
   copy_page(user_pt, parent->user_pt);
-  copy_page(user_stack, parent->user_stack);
-  user_pt[1] = pte_leaf((uint32_t)(uintptr_t)user_stack,
-                        PTE_V | PTE_R | PTE_W | PTE_U | PTE_A | PTE_D | PTE_OWNED);
   page_root[USER_CODE_VA >> 22] = pte_pointer((uint32_t)(uintptr_t)user_pt);
+
+  /* Give the child its own copy of every page the parent owns.
+   *
+   * This used to copy one page and write it to `user_pt[1]`, which is where
+   * vm_create_user_space puts the stack -- code at index 0, stack at index 1.
+   * That is the built-in assembly fixture's layout and nothing else's.  A
+   * loaded ELF has its text at indices 0 and 1 and its stack at 1023, so the
+   * clone overwrote the second page of the child's *text* with a copy of the
+   * parent's stack and left everything else shared.  The child then executed
+   * whatever that page now held, took an undelegated trap, and the machine
+   * stopped without a message.  Fork has therefore never worked for any
+   * program the loader loads; only the fixture it was written against.
+   *
+   * Walking PTE_OWNED instead of assuming an index fixes both halves: the
+   * child gets a private copy of every page it owns, whatever the layout, and
+   * no physical page ends up owned by two address spaces -- which would also
+   * have freed each one twice when both tasks exited.  Pages that are mapped
+   * but not owned (the kernel's shared user_entry page) stay shared, which is
+   * what "owned" is recording. */
+  child->user_stack = 0;
+  for (uint32_t i = 0; i < 1024u; ++i) {
+    const uint32_t pte = user_pt[i];
+    if (!(pte & PTE_V) || !(pte & PTE_OWNED)) continue;
+    uint32_t *const copy = page_alloc();
+    if (copy == 0) {
+      /* Unwind: everything below i is a copy this call made. */
+      for (uint32_t j = 0; j < i; ++j) {
+        const uint32_t made = user_pt[j];
+        if ((made & PTE_V) && (made & PTE_OWNED))
+          page_free((void *)(uintptr_t)((made >> 10) << 12));
+      }
+      page_free(page_root);
+      page_free(user_pt);
+      return -1;
+    }
+    const uint32_t source = (pte >> 10) << 12;
+    copy_page(copy, (const uint32_t *)(uintptr_t)source);
+    user_pt[i] = pte_leaf((uint32_t)(uintptr_t)copy, pte & 0x3ffu);
+    if (parent->user_stack != 0 &&
+        source == (uint32_t)(uintptr_t)parent->user_stack)
+      child->user_stack = copy;
+  }
+
   child->page_root = page_root;
   child->user_pt = user_pt;
-  child->user_stack = user_stack;
   child->satp = vm_root_satp(page_root);
   return 0;
 }

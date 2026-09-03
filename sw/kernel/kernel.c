@@ -305,19 +305,46 @@ uint32_t *supervisor_trap(uint32_t *trap_frame) {
 }
 
 static void page_allocator_self_test(void) {
-  void *pages[32];
   const uint32_t total = page_free_count();
+  if (total == 0) test_finish(1);
 
-  if (total == 0 || total > (sizeof(pages) / sizeof(pages[0]))) test_finish(1);
-  for (uint32_t i = 0; i < total; ++i) {
+  /* Alignment and writability, on a bounded sample.
+   *
+   * This used to record every page in a fixed `void *pages[32]` and halt the
+   * machine when the pool was larger -- so the kernel could not boot on a
+   * machine with more than 128 KiB of free RAM, and the failure was a dead
+   * board rather than a message.  The array is now a sample size, not a
+   * capacity. */
+  void *pages[32];
+  const uint32_t sample = total < 32u ? total : 32u;
+  for (uint32_t i = 0; i < sample; ++i) {
     pages[i] = page_alloc();
     if (pages[i] == 0 || ((uintptr_t)pages[i] & (PAGE_SIZE - 1u)))
       test_finish(1);
     *(volatile uint32_t *)pages[i] = 0xa50a0000u | i;
     if (*(volatile uint32_t *)pages[i] != (0xa50a0000u | i)) test_finish(1);
   }
-  if (page_alloc() != 0 || page_free_count() != 0) test_finish(1);
-  while (total != page_free_count()) page_free(pages[page_free_count()]);
+  for (uint32_t i = sample; i != 0; --i) page_free(pages[i - 1u]);
+  if (page_free_count() != total) test_finish(1);
+
+  /* Exhaustion, at any pool size: chain the pages through themselves so the
+   * test needs no storage of its own, then give every one of them back. */
+  void *chain = 0;
+  uint32_t taken = 0;
+  for (;;) {
+    void *const page = page_alloc();
+    if (page == 0) break;
+    *(void **)page = chain;
+    chain = page;
+    taken++;
+  }
+  if (taken != total || page_free_count() != 0) test_finish(1);
+  while (chain != 0) {
+    void *const next = *(void **)chain;
+    page_free(chain);
+    chain = next;
+  }
+  if (page_free_count() != total) test_finish(1);
 }
 
 static void task_release(struct task *task) {
@@ -559,27 +586,48 @@ static const struct syscall_ops kernel_ops = {
     .role_execute = k_role_execute,
 };
 
+/* Fail a syscall the way sys_wait does: -errno in a0, and step past the ecall
+ * so the caller resumes at the next instruction.
+ *
+ * fork used to call test_finish(1) for every condition below, which halts the
+ * whole machine.  Each of them is reachable from an ordinary user program --
+ * forking more times than there are task slots is the easy one -- so a
+ * userspace call could take the machine down instead of getting an error. */
+static uint32_t *fail_syscall(uint32_t *trap_frame, uint32_t errno_value) {
+  trap_frame[TRAP_FRAME_A0] = (uint32_t)(-(int32_t)errno_value);
+  csr_write_sepc(csr_read_sepc() + 4u);
+  return trap_frame;
+}
+
 static uint32_t *sys_fork(uint32_t *trap_frame) {
   if (current_task == TASK_NONE || tasks[current_task].state != TASK_RUNNING)
     test_finish(1);
   uint32_t slot = TASK_NONE;
   for (uint32_t i = 0; i < TASK_SLOTS; ++i)
     if (tasks[i].state == TASK_UNUSED) { slot = i; break; }
-  if (slot == TASK_NONE) test_finish(1);
+  if (slot == TASK_NONE) return fail_syscall(trap_frame, AX_EAGAIN);
 
   struct task *const parent = &tasks[current_task];
   struct task *const child = &tasks[slot];
-  if (vm_clone_user_space(child, parent)) test_finish(1);
+  if (vm_clone_user_space(child, parent))
+    return fail_syscall(trap_frame, AX_ENOMEM);
   uint32_t *const kernel_stack = page_alloc();
   if (kernel_stack == 0) {
     vm_destroy_user_space(child);
-    test_finish(1);
+    return fail_syscall(trap_frame, AX_ENOMEM);
   }
   uint32_t *const frame =
       (uint32_t *)((uintptr_t)kernel_stack + PAGE_SIZE - TRAP_FRAME_BYTES);
   for (uint32_t i = 0; i < TRAP_FRAME_BYTES / sizeof(*frame); ++i)
     frame[i] = trap_frame[i];
-  if (child->user_stack[0] != 0x51a00001u) test_finish(1);
+  /* The assembly fork fixture writes a marker at the base of its user stack,
+   * and checking it here proved vm_clone_user_space had actually copied the
+   * stack.  It is only meaningful for that fixture -- any other program has
+   * its own data at that address -- so asserting it unconditionally made every
+   * C program that calls clone() halt the machine.  The coverage is worth
+   * keeping; running it for arbitrary programs was the bug. */
+  if (expect_fork_markers && child->user_stack[0] != 0x51a00001u)
+    test_finish(1);
   child->trap_frame = frame;
   /* The child's address space is a copy of the parent's, so its heap bounds
    * are the parent's.  Leaving them at whatever the reused slot held gave the

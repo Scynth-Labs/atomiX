@@ -19,6 +19,7 @@
  *   10-19 syscall dispatch      20-39 user-pointer validation
  *   40-54 descriptors           55-69 seek arithmetic
  *   70-79 path handling         80-89 heap and brk
+ *   89-111 clone and wait4
  * Exit 0 means every refusal was the documented one. */
 #include "axlibc.h"
 
@@ -263,6 +264,108 @@ static int check_heap(void) {
   return 0;
 }
 
+/* ---- 90-99: clone and wait4 -------------------------------------------- */
+
+/* A child that cannot allocate is the failure this section exists to catch.
+ * `sys_fork` clones the address space but once left `brk`/`brk_limit` at
+ * whatever the reused task slot held, so a child's brk(0) query returned 0 and
+ * every sbrk in the child reported ENOMEM.  Nothing noticed, because the only
+ * forking test in the tree is a hand-written assembly fixture that never calls
+ * malloc.  These codes are the guard for that. */
+static volatile int shared_marker;
+static char *shared_heap;
+
+static int check_clone(void) {
+  shared_marker = 0x1234;
+  shared_heap = malloc(64);
+  if (shared_heap == NULL) return 89;
+  shared_heap[0] = 'P';
+
+  /* No thread model here, so a clone asking for its own stack is refused
+   * rather than silently treated as a fork. */
+  if (!is_err(__libc_syscall5(220, 0, 0x40001000, 0, 0, 0), EINVAL)) return 90;
+
+  /* wait4 before there is anything to wait for. */
+  if (!is_err(__libc_syscall5(260, -1, 0, 0, 0, 0), ECHILD)) return 91;
+
+  const uintptr_t parent_brk = (uintptr_t)sbrk(0);
+  const long pid = __libc_syscall5(220, 0, 0, 0, 0, 0);
+  /* Name the reason rather than merely failing: cloning an address space costs
+   * a page per mapped page, so on a 128 KiB machine "fork failed" is far more
+   * likely to be a real resource limit than a broken clone. */
+  if (is_err(pid, ENOMEM)) return 108;
+  if (is_err(pid, EAGAIN)) return 109;
+  if (pid < 0) return 92;
+
+  if (pid == 0) {
+    /* Child.  Its address space is a copy, so its heap bounds must be the
+     * parent's and an ordinary allocation must work. */
+    int code = 0;
+    /* Write to .data and the heap.  A fork gives the child its own copy, so
+     * neither write may be visible in the parent; if the page tables were
+     * copied verbatim instead, both are shared and the parent sees them. */
+    shared_marker = 0xbeef;
+    shared_heap[0] = 'C';
+    if ((uintptr_t)sbrk(0) != parent_brk) code = 61;
+    else {
+      char *const p = malloc(4096);
+      if (p == NULL) code = 62;
+      else {
+        p[0] = 'c';
+        p[4095] = 'd';
+        if (p[0] != 'c' || p[4095] != 'd') code = 63;
+        /* Growing the heap in the child must not disturb the parent's. */
+        else if ((uintptr_t)sbrk(0) <= parent_brk) code = 64;
+        free(p);
+      }
+    }
+    _exit(code == 0 ? 60 : code);
+  }
+
+  /* Parent.  The child's writes went to its own copy of the address space, so
+   * the parent's break is exactly where it was. */
+  int status = -1;
+  const long reaped = __libc_syscall5(260, -1, (long)&status, 0, 0, 0);
+  if (reaped != pid) return 93;
+  if (status != (60 << 8)) return 94 + ((status >> 8) - 60);  /* 95-98 */
+  if ((uintptr_t)sbrk(0) != parent_brk) return 99;
+  /* The decisive check: the child's writes must not have reached here. */
+  if (shared_marker != 0x1234) return 110;
+  if (shared_heap[0] != 'P') return 111;
+
+  /* The child has been reaped, so there is nothing left to wait for. */
+  if (!is_err(__libc_syscall5(260, -1, 0, 0, 0, 0), ECHILD)) return 91;
+
+  /* Fork until the task table is full.  This used to halt the whole machine:
+   * running out of slots called test_finish(1), so a program could take the
+   * machine down by forking a few times.  Exhaustion must be an errno. */
+  int children = 0;
+  for (;;) {
+    const long child = __libc_syscall5(220, 0, 0, 0, 0, 0);
+    if (child == 0) _exit(70);            /* child: leave at once */
+    if (child < 0) {
+      if (!is_err(child, EAGAIN)) return 100;
+      break;
+    }
+    children++;
+    if (children > 8) return 101;         /* the table is not bounded */
+  }
+  if (children == 0) return 102;          /* no slot at all is not exhaustion */
+  for (int i = 0; i < children; ++i) {
+    int status = -1;
+    if (__libc_syscall5(260, -1, (long)&status, 0, 0, 0) < 0) return 103;
+    if (status != (70 << 8)) return 104;
+  }
+  /* Every slot is free again, so a fork must succeed once more. */
+  const long again = __libc_syscall5(220, 0, 0, 0, 0, 0);
+  if (again == 0) _exit(70);
+  if (again < 0) return 105;
+  int last = -1;
+  if (__libc_syscall5(260, -1, (long)&last, 0, 0, 0) != again) return 106;
+  if (last != (70 << 8)) return 107;
+  return 0;
+}
+
 int main(void) {
   static const char rodata[] = "constant";
 
@@ -281,6 +384,7 @@ int main(void) {
   if ((rc = check_paths()) != 0) return rc;
   if (close(fd) != 0) return 4;
   if ((rc = check_descriptors()) != 0) return rc;
+  if ((rc = check_clone()) != 0) return rc;
   if ((rc = check_heap()) != 0) return rc;
 
   /* The constants must be exactly what they were: if any refusal above was not

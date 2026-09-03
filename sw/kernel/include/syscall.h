@@ -35,6 +35,7 @@ enum {
   AX_EIO = 5,
   AX_EBADF = 9,
   AX_ECHILD = 10,
+  AX_EAGAIN = 11,
   AX_ENOMEM = 12,
   AX_EFAULT = 14,
   AX_EBUSY = 16,

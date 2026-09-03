@@ -261,8 +261,12 @@ check-storage-write: images $(USER_ELF)
 # The ABI under attack rather than under demonstration: null, kernel-space and
 # straddling pointers, a read into a read-only page, an unterminated path, a
 # full descriptor table, and seek arithmetic that overflows.
+# Linked for 1 MiB rather than the default 128 KiB. The RTL already provides
+# 32 MiB; the kernel's own AXOS_RAM_BYTES is what bounds its page pool, and at
+# 128 KiB there are about fifteen free pages -- not enough to clone an address
+# space, so the fork checks could not run at all.
 check-abi-torture: images $(USER_ELF) $(TORTURE_ELF)
-	$(MAKE) -B images STORAGE=1
+	$(MAKE) -B images STORAGE=1 RAM_BYTES=1048576
 	python3 make_fs_image.py --with-torture $(TORTURE_ELF) $(USER_ELF) \
 	  build/axfs-torture.img
 	SD_IMAGE=$(abspath build/axfs-torture.img) python3 check_boot.py --torture

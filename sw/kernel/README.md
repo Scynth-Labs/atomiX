@@ -150,6 +150,43 @@ The first is userspace and the other two are kernel — which is the argument fo
 having one adversarial consumer that crosses the seams per-component tests
 stop at.
 
+## fork, and what it assumed
+
+`clone` works for a loaded program as of the fork checks in
+[userprog/torture.c](userprog/torture.c); before them it never had. The path
+was written against the hand-written assembly fixture in [user.S](user.S) and
+quietly assumed its shape in three places: a magic word at the base of its
+stack, its `code at index 0, stack at index 1` page-table layout, and a task
+table that could not be exhausted because only one program ever forked.
+
+The layout assumption was the expensive one. `vm_clone_user_space` installed
+the child's new stack at `user_pt[1]`, which for a loaded ELF is the *second
+page of its text* — the stack lives at index 1023. The child executed a page
+that now held stack bytes, took an undelegated trap, and `machine_trap_bad` in
+[trap.S](trap.S) stopped the machine with no message at all. Clone now walks
+the leaf PTEs and gives the child a private copy of every `PTE_OWNED` page,
+which also removes the double ownership that would have freed each shared page
+twice at exit.
+
+`make -C sw/kernel check-abi-torture` links at 1 MiB rather than the default
+128 KiB, because cloning an address space needs more than the ~15 free pages
+128 KiB leaves. Raising it is what exposed a fixed `void *pages[32]` in the
+boot-time allocator self-test that halted the machine on any pool larger than
+32 pages — aXos could not boot with more than 128 KiB of free RAM.
+
+## The ABI's three layers
+
+An ABI is a contract between a kernel that returns values, a libc that names
+them, and a document that publishes them, and nothing forced those three to
+agree. `make -C sw/kernel check-abi-torture` runs
+[check_abi_contract.py](check_abi_contract.py) first: every errno the kernel
+can return must be nameable by axlibc and listed in
+[abi.md](../../docs/abi.md), and every dispatched syscall number must appear in
+its table. It found `ECHILD` — returned by `wait4`, defined only in the
+kernel's private header, so a program received `errno = 10` with no name for
+it. It takes under a second and needs no toolchain, so it gates the RTL run
+rather than trailing it.
+
 ## Program images and W^X
 
 The loader maps each `PT_LOAD` with its own `p_flags`, and refuses one that is

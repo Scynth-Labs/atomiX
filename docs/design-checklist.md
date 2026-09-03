@@ -287,6 +287,59 @@ Staged so each step has its own evidence rather than landing as one large jump:
   itself the argument for the program: one adversarial consumer crosses seams
   that per-component tests do not.
 
+- [x] **`clone` made to work for a loaded program at all.**  Extending the
+  program above to fork found that it never had.  Four defects, each hidden
+  behind the one before it:
+
+  1. **`sys_fork` asserted one program's stack contents.**  It required
+     `child->user_stack[0] == 0x51a00001`, a marker the hand-written assembly
+     fixture writes, and called `test_finish(1)` otherwise — so any *other*
+     program calling `clone` halted the machine.  The check is now guarded by
+     the same `expect_fork_markers` flag that gates the fixture's other
+     assertions.
+  2. **Three more halts on the same path.**  Running out of task slots, out of
+     pages for the kernel stack, or failing the address-space clone each called
+     `test_finish(1)`.  Forking more times than there are slots is trivially
+     reachable from userspace, so a program could stop the machine instead of
+     getting an error.  They now return `EAGAIN`, `ENOMEM` and `ENOMEM`.
+  3. **`vm_clone_user_space` was hardcoded to the fixture's memory layout.**  It
+     allocated exactly one page and installed it at `user_pt[1]`, which is where
+     `vm_create_user_space` puts the stack: code at index 0, stack at index 1.
+     A loaded ELF has its text at indices 0 *and* 1 and its stack at 1023, so
+     the clone overwrote the second page of the child's **text** with a copy of
+     the parent's stack, and shared everything else.  The child executed
+     whatever that page then held, took an undelegated trap, and
+     `machine_trap_bad` in `trap.S` stopped the machine without a message —
+     which is why this cost several bisection rounds to find.  Sharing was the
+     other half of the same bug: `PTE_OWNED` was copied along with the PTEs, so
+     both address spaces claimed the same physical pages and would have freed
+     each one twice at exit.  Clone now walks the leaves and gives the child a
+     private copy of every owned page, whatever the layout.
+  4. **A 32-page ceiling on bootable RAM.**  `page_allocator_self_test`
+     recorded every free page in a fixed `void *pages[32]` and halted the
+     machine when there were more — so aXos could not boot with over 128 KiB of
+     free RAM, and the symptom was a dead board rather than a message.  Found
+     by raising `AXOS_RAM_BYTES` so that cloning an address space had room at
+     all.  The array is now a sample size; exhaustion is tested by chaining the
+     pages through themselves, at any pool size.
+
+  The torture program now forks, checks the child sees the parent's heap bounds
+  and can allocate, requires that neither a `.data` nor a heap write in the
+  child is visible in the parent, fills the task table and requires `EAGAIN`,
+  then reaps and forks again.  Evidence: `make -C sw/kernel check-abi-torture`,
+  which links at 1 MiB precisely because the 128 KiB default leaves about
+  fifteen free pages — too few to clone an address space.
+
+- [x] **The ABI's three layers checked against each other.**
+  `sw/kernel/check_abi_contract.py` requires every errno the kernel can return
+  to be nameable by axlibc and published in [abi.md](abi.md), and every
+  dispatched syscall number to appear in its table.  It found `ECHILD`, which
+  `wait4` returns and which existed only in the kernel's private header: a
+  program got `errno = 10` with no name for it.  `EAGAIN` was added the same
+  way when `clone` gained a resource limit, and the check is what required it
+  to reach all three layers rather than one.  It runs in under a second with no
+  toolchain, so it gates the RTL run rather than the other way round.
+
 Both opening questions are settled in [abi.md](abi.md): the ABI is the RISC-V
 Linux subset, and the loader takes ELF directly rather than a pre-flattened
 image — in both cases because it is what the toolchain already produces, and

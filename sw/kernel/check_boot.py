@@ -116,6 +116,13 @@ def run(label: str, command: list[str], input_file: Path, expected: str | None) 
     print(f"[kernel] {label}: PASS")
 
 
+def check_abi_contract() -> None:
+    """The kernel, axlibc and abi.md must agree before anything is run."""
+    script = ROOT / "sw/kernel/check_abi_contract.py"
+    if script.exists():
+        subprocess.run([sys.executable, str(script)], check=True)
+
+
 def check_user_elf_segments() -> None:
     """The loader's protection is only as good as the segments it is handed.
 
@@ -163,6 +170,7 @@ def main() -> None:
     image = ROOT / "sw/kernel/build/axos_boot.hex"
     qemu = os.environ.get("QEMU", "qemu-system-riscv32")
     check_user_elf_segments()
+    check_abi_contract()
     sd_image = os.environ.get("SD_IMAGE", "")
     if sys.argv[1:] == ["--torture"]:
         if not sd_image:

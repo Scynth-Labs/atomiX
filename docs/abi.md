@@ -70,6 +70,16 @@ migration keeps the behaviour and changes the number and the signature.
 
 `SYS_CONSOLE_PUTC = 2` disappears entirely: it is `write(1, &c, 1)`.
 
+`clone` is fork-shaped only: a non-zero stack pointer is `-EINVAL`, because a
+thread model does not exist here and silently treating the request as a fork
+would be worse than refusing it.  The child gets a **private copy of every page
+the parent owns** — text, rodata, data, bss, heap and stack — so no write on
+either side is visible to the other.  Pages that are mapped but not owned stay
+shared, which is what ownership records.  Copying is eager: there is no
+copy-on-write, so a fork costs as many pages as the parent has mapped, and
+`clone` returns `-ENOMEM` when they are not available and `-EAGAIN` when the
+task table is full.  Neither condition stops the machine.
+
 ### Reserved range for atomiX calls
 
 `0x1000` and above is private and will never collide with the asm-generic table.
@@ -159,6 +169,8 @@ The subset the initial calls can return, with Linux values:
 | 2 | `ENOENT` | no such file |
 | 5 | `EIO` | the block device failed a read |
 | 9 | `EBADF` | bad file descriptor |
+| 10 | `ECHILD` | `wait4` with no living children |
+| 11 | `EAGAIN` | no free task slot for `clone` |
 | 12 | `ENOMEM` | out of memory |
 | 14 | `EFAULT` | bad address from userspace |
 | 16 | `EBUSY` | the role already has an uncollected completion |
