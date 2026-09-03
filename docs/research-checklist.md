@@ -102,8 +102,15 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   geometry, the 45F cross-check retains its 7,377 full/delta frame count, and
   malformed streams are rejected.  Evidence:
   `research/partial-reconfig/ecp5-85f-frame-decode.json` and
-  `make ecp5-frame-check`.  Full images still carry no explicit addresses, so
-  deriving and validating the 85F address function remains open.
+  `make ecp5-frame-check`.  Read that command's output rather than its exit
+  code: the geometry comparison is against prjtrellis's `devices.json`, which
+  ships with the FPGA toolchain and not with this repository, so a machine
+  without one runs the deterministic decoder tests and prints
+  `ECP5 frame evidence: SKIPPED` for the comparison that is the point.  Point
+  `TRELLIS_DB` at a `share/trellis/database` directory to make it run.  CI has
+  no toolchain, so a green nightly is not evidence for this line.  Full images
+  still carry no explicit addresses, so deriving and validating the 85F address
+  function remains open.
 
 - [~] **No hardware — now the binding constraint:** lock shell placement and
   routing, constrain the role to whole-frame-compatible columns, and show that

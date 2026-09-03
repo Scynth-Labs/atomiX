@@ -59,6 +59,13 @@
 - Program FPGA SRAM only. Never run `make flash` or `openFPGALoader -f` without
   explicit user approval in the current turn.
 - Preserve user changes. Avoid destructive Git operations.
+- Sign off every commit: `git commit -s`, which appends the `Signed-off-by:`
+  line the DCO in `CONTRIBUTING.md` requires. It applies to project commits, not
+  only to outside contributions -- a contribution rule the maintainer does not
+  follow is a rule no contributor will follow either, and sign-off cannot be
+  added to history after the fact. Keep the `Co-Authored-By:` trailer as well;
+  they answer different questions (who certifies the right to submit, and who
+  wrote it).
 - Work directly on `main`. Never commit or push unless the user explicitly asks
   in the current turn; earlier authorization is one-time only. Do not open PRs
   or create feature branches unless the user changes this policy.

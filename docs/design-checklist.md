@@ -401,6 +401,56 @@ until something changed the configuration.
   repeated the string as its default.  Both now read one define the Makefile
   derives from the embedded ELF's own filename.
 
+  A third defect of the same shape hid inside that derivation and is worth
+  recording, because it was green everywhere it could be.  `CPPFLAGS` is
+  simply-expanded, so `+=` expands a reference on the line it is written on,
+  and the define was written 36 lines above `USER_ELF` — every kernel compiled
+  with `-DAXOS_EMBED_USER_NAME='""'`.  The `#ifndef` fallback in
+  `include/process.h` cannot help: an empty `-D` is still a definition.  The
+  result is a clean build whose embedded program answers to no name, so
+  `run hello.elf` and `exec hello.elf` return ENOENT.  Nothing that inspects
+  headers, symbols, or capacities could see it; only the two checks that read
+  a shell transcript did, which is the argument for keeping transcript-level
+  checks in CI at all.  The define now sits below `USER_ELF` and an empty value
+  is a parse-time `$(error)` rather than a build that lies.  Evidence:
+  `make -C sw/kernel check-shell` and `make -C sw/kernel check-boot`
+  (the latter on ISS, QEMU, and RTL).
+
+## Documentation that cannot go stale silently
+
+Prose drifts quietly; a diagram drifts *loudly* and still ships, because a
+mermaid block with a typo renders as an error box on GitHub and no ordinary
+build looks at it.  These items exist so the documentation carries the same
+kind of evidence the machine does.
+
+- [x] Fourteen mermaid diagrams across six documents (DESIGN.md 7,
+  partial-reconfig 2, research-checklist 2, README, abi, components 1 each)
+  are structurally checked on every run: unterminated fences, a missing or
+  misspelled diagram type, a `class` naming a style that was never defined or a
+  node that does not exist, and labels holding characters mermaid parses as
+  syntax unless quoted.  Evidence: `make diagram-check` — no toolchain and no
+  network, which is what makes it the check that runs every time, as the
+  `diagrams` stage of `ci-quick` and `nightly-integrated`.
+- [x] The structural check has been calibrated against the real thing rather
+  than trusted: all fourteen blocks parse under `mermaid.parse()` itself, run
+  through `jsdom` because `@mermaid-js/mermaid-cli` needs a headless Chrome.
+  The reproduction is in [workflow.md](workflow.md); it needs Node and one npm
+  install, which is why it is a documented route rather than a CI stage.
+- [x] Diagrams are legible in both GitHub themes.  Node fills are 20% alpha
+  tints of their stroke rather than opaque pastels, so the reader's own page
+  colour shows through and whichever label colour the theme picked stays
+  readable — measured at 8.9:1 or better against white *and* `#0d1117`, where
+  the opaque fills they replaced left light-on-light at 1.4:1.  Strokes are
+  mid-tones clearing 3.1:1 on both.  No `%%{init}%%` block, so nothing pins one
+  theme.
+- [x] Brand assets are derived, not maintained in parallel.  One master lockup
+  carries the sample data; the square mark, the static mark, and the print
+  lockup are cut from it, so the family cannot drift apart and a derived file is
+  never hand-edited.  Evidence: `make brand-check`, as the `brand-assets` stage
+  of `ci-quick` and `nightly-integrated`; `make brand` regenerates.  Details and
+  the physics the mark is sampled from are in
+  [docs/assets/README.md](assets/README.md).
+
 ## Change-ready checklist
 
 Use this for a substantive implementation or interface change:
@@ -414,7 +464,12 @@ Use this for a substantive implementation or interface change:
   [dependencies.md](dependencies.md) or the appropriate board guide.
 - [ ] Update [workflow.md](workflow.md) when a milestone adds or changes a
   build, test, or deploy command, or a build knob or profile users run.
+- [ ] Run `make diagram-check` after touching a diagram and `make brand` after
+  touching the master logo — never hand-edit a derived asset.
 - [ ] Keep physical claims separate from simulation and synthesis claims.
+- [ ] Check that an evidence command's *output* still says what the item claims,
+  not just that it exits zero: a check whose external dependency is missing may
+  skip the comparison the item rests on.
 
 ## Platform expansion
 
