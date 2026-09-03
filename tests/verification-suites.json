@@ -430,6 +430,15 @@
       ],
       "timeout_seconds": 120,
       "requires": []
+    },
+    "brand-assets": {
+      "label": "Derived brand assets match the master lockup",
+      "command": [
+        "make",
+        "brand-check"
+      ],
+      "timeout_seconds": 120,
+      "requires": []
     }
   },
   "suites": {
@@ -449,7 +458,8 @@
       "kernel-profiles",
       "candidate-registry",
       "cosim-directed",
-      "diagrams"
+      "diagrams",
+      "brand-assets"
     ],
     "ci-unit": [
       "rtl-units"
@@ -485,7 +495,8 @@
       "kernel-runtime-switch",
       "kernel-storage-ci",
       "kernel-storage-mutation",
-      "diagrams"
+      "diagrams",
+      "brand-assets"
     ],
     "randomized": [
       "randomized-fuzz",

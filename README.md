@@ -1,24 +1,23 @@
-# atomiX
+<div align="center">
+
+<img src="docs/assets/atomix-logo-cloud.svg" alt="atomiX" width="560">
+
+**A DIY RISC-V computer, operating system, and FPGA platform.**
+
+Build the reference machine — or replace the parts that matter to you.
 
 [![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml)
 [![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml)
 [![Formal](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml)
 
-> **A DIY RISC-V computer, operating system, and FPGA platform.**
-> Build the reference machine — or replace the parts that matter to you.
-
-| Reference machine | Evidence | Platform direction |
-|---|---|---|
-| RV32IM, five stages, M/S/U + Sv32 | ISS · lock-step RTL · ISA tests · formal | ULX3S/Tang shells + swappable accelerator roles |
-
-**Status:** simulation-verified reference system · component-first builds ·
-Tang Primer 25K CPU, GPU, and TPU verified on physical FPGA hardware.
-
-[Architecture](DESIGN.md) · [Build/test/deploy](docs/workflow.md) ·
+[Architecture](DESIGN.md) ·
+[Build, test, deploy](docs/workflow.md) ·
 [Dependencies](docs/dependencies.md) ·
+[Components](components/README.md) ·
 [Live checklist](docs/design-checklist.md) ·
-[Research checklist](docs/research-checklist.md) ·
-[Components](components/README.md)
+[Research checklist](docs/research-checklist.md)
+
+</div>
 
 ---
 
@@ -32,7 +31,26 @@ the role window is live today (`role.loopback` proves it), with TPU-lite,
 GPU-compute, and the banked-memory gpu1 family implemented and verified as
 selectable roles.  Their completion is available either polled or as a machine
 external interrupt through the shell's PLIC.
-The normal reconfiguration path is now program loading, not synthesis:
+
+```text
+  RISC-V core ── aXbus SoC ── aXos
+       │             │          │
+       └──── selectable components ────┐
+                                        ▼
+                    FPGA shell + swappable accelerator roles
+```
+
+| Reference machine | Evidence | Platform direction |
+|---|---|---|
+| RV32IM, five stages, M/S/U + Sv32 | ISS · lock-step RTL · ISA tests · formal | ULX3S/Tang shells + swappable accelerator roles |
+
+It is designed to be modified.  A user can substitute the CPU, memory,
+interconnect, peripherals, board, simulation harness, or aXos service policy
+without forking the rest of the project.
+
+## How a change reaches the board
+
+The normal reconfiguration path is program loading, not synthesis:
 `make runtime-primer` uploads one 32 KiB aXos payload into a stable RTL image,
 then loads, runs, replaces, and re-runs GPU microcode in milliseconds.
 Kernel builds follow the same rule: the fixed image boots an immutable UART
@@ -67,11 +85,7 @@ kernel change must not require re-synthesis and must not re-open an existing
 board claim — which is why a board result names hardware rather than a program.
 The baked-payload path exists for first bring-up only.
 
-It is designed to be modified.  A user can substitute the CPU, memory,
-interconnect, peripherals, board, simulation harness, or aXos service policy
-without forking the rest of the project.
-
-## Hardware achievement
+## Verified on hardware
 
 On 2026-07-29, a Sipeed Tang Primer 25K Dock completed the first physical
 atomiX bring-up. The RV32IM CPU booted from on-chip BSRAM and printed over the
@@ -79,13 +93,25 @@ Dock UART; separate volatile-SRAM images then passed the self-checking 4-lane
 GPU-compute and folded 24-MAC TPU-lite workloads. See the
 [captured evidence and reproduction commands](docs/tangprimer25k-bringup.md#verified-hardware-result).
 
-```text
-  RISC-V core ── aXbus SoC ── aXos
-       │             │          │
-       └──── selectable components ────┐
-                                        ▼
-                    FPGA shell + swappable accelerator roles
-```
+**Status:** simulation-verified reference system · component-first builds ·
+Tang Primer 25K CPU, GPU, and TPU verified on physical FPGA hardware.
+
+## Continuous verification
+
+Three pipelines run against every claim in this README.  Each job uploads its
+evidence as a workflow artifact, so a green badge is a result you can open and
+read rather than a colour you have to trust.
+
+| Pipeline | Runs on | Jobs | Evidence artifact |
+|---|---|---|---|
+| [![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml) | every push and pull request | golden ISS, profile manifests, and lock-step cosim · RTL unit testbenches · composed systems and aXos | `verification-ci-*` |
+| [![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml) | 03:17 UTC daily | full integrated software and RTL ladder · randomized generation and fuzzing · official RISC-V ISA suite · ISS/QEMU/RTL agreement | `verification-nightly-*` |
+| [![Formal](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml) | 04:23 UTC Sundays | riscv-formal bounded instruction checks | `formal-counterexamples` |
+
+Hardware results are not in that set, and deliberately so: a board claim needs
+a board.  Those are captured by hand, with commands and transcripts, in
+[docs/tangprimer25k-bringup.md](docs/tangprimer25k-bringup.md) and
+[docs/ulx3s-bringup.md](docs/ulx3s-bringup.md).
 
 ## Start in three commands
 
@@ -157,6 +183,7 @@ and verification claim.  Read the [component catalog](components/README.md),
 | Follow the adaptive “Live FPGA” track | [docs/live-fpga.md](docs/live-fpga.md) |
 | Prepare the Tang Primer 25K | [docs/tangprimer25k-bringup.md](docs/tangprimer25k-bringup.md) |
 | Prepare the ULX3S | [docs/ulx3s-bringup.md](docs/ulx3s-bringup.md) |
+| Use the logo or the mark | [docs/assets/README.md](docs/assets/README.md) |
 
 ## Repository map
 
@@ -170,10 +197,6 @@ and verification claim.  Read the [component catalog](components/README.md),
 | [rtl/](rtl/) | Generic FPGA flow and architecture entry points |
 | [sw/](sw/) | Bare-metal runtime, boot ROM, aXos, and future host/user software |
 | [docs/](docs/) | Build, dependency, architecture, and board documentation |
-
----
-
-**Build what teaches. Verify what matters. Keep the seams open.**
 
 ## Licence, attribution, and marks
 
@@ -192,3 +215,11 @@ under the [MIT License](LICENSE).
 The MIT License grants broad rights to use, modify and redistribute the code,
 including commercially. It does **not** grant rights in the project's name:
 that is covered separately by [TRADEMARKS.md](TRADEMARKS.md).
+
+---
+
+<div align="center">
+
+**Build what teaches. Verify what matters. Keep the seams open.**
+
+</div>

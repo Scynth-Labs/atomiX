@@ -53,6 +53,7 @@ help:
 	@echo "  make ecp5-frame-check   # compressed/full/partial ECP5 frame decoder"
 	@echo "  make pr-gate-check      # partial-bitstream load gate (R1 stage 3)"
 	@echo "  make diagram-check      # every mermaid diagram is well formed"
+	@echo "  make brand-check        # derived brand assets match the master lockup"
 	@echo "  make verify-smoke       # fast integrated verification ladder"
 	@echo "  make nightly-integrated # broad software/RTL suite with stage logs"
 	@echo "  make component-test"
@@ -197,6 +198,14 @@ l3-check: l3-contract-check
 # as an error box and no ordinary build looks at it.
 diagram-check:
 	$(PYTHON) tools/diagram_check.py
+
+# Every cloud asset is cut from docs/assets/atomix-logo-cloud.svg, so only one
+# file in the family carries sample data and none of them can drift apart.
+brand:
+	$(PYTHON) tools/brand_cloud.py
+
+brand-check:
+	$(PYTHON) tools/brand_cloud.py --check
 
 ecp5-frame-check:
 	$(PYTHON) tools/test_ecp5_bitstream.py
@@ -359,4 +368,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
