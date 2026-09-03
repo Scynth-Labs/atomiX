@@ -33,10 +33,10 @@ paging: $(SIM)
 	for seed in $$(seq 1 $(PAGING_SEEDS)); do \
 	  src=build/sv32_$$seed.S; elf=build/sv32_$$seed.elf; bin=build/sv32_$$seed.bin; \
 	  python3 sv32.py --seed $$seed --count $(PAGING_INSNS) --out $$src || exit 1; \
-	  $(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
+	  $(RISCV_CC) -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	    -Wl,--defsym=__ram_bytes=$(PAGING_RAM_BYTES) \
 	    -Wl,-T,../../sw/baremetal/link.ld -o $$elf $$src || exit 1; \
-	  $(RISCV_PREFIX)objcopy -O binary $$elf $$bin || exit 1; \
+	  $(RISCV_OBJCOPY) -O binary $$elf $$bin || exit 1; \
 	  $(SIM) --bin $$bin --ws $(PAGING_WS) || exit 1; \
 	  total=$$((total + $(PAGING_INSNS))); \
 	  echo "[testgen] Sv32 seed=$$seed $(PAGING_INSNS) generated user instructions; total=$$total"; \

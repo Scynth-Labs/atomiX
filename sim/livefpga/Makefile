@@ -7,7 +7,7 @@ CFLAGS += -std=c11 -Wall -Wextra -Werror
 BUILD_DIR := build
 TARGET := $(BUILD_DIR)/live-evolution-sim
 RV32_TARGET := $(BUILD_DIR)/live-evolution-rv32.elf
-RV32_CC := $(RISCV_PREFIX)gcc
+RV32_CC := $(RISCV_CC)
 AXSIM := ../axsim/axsim
 KERNEL_INCLUDE := ../../sw/kernel/include
 EVOLUTION := ../../components/evolution/core/evolution.c

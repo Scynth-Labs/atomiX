@@ -469,20 +469,40 @@ thought of".  These three answer the other question.
   a decision, not a cleanup.  Rule selection is in `ruff.toml` and is
   deliberately narrow: defects only, no style, because a linter that reports
   import order beside an undefined name teaches you to skim past both.
-- [x] **The findings live in an issue, not a log.**
-  `.github/workflows/analysis.yml` runs the analysis, uploads SARIF to code
-  scanning, and `tools/analysis_issue.py` keeps one issue in sync -- edited in
-  place, commented on only when the finding *set* changes, closed when the
-  report comes back clean.  One issue reused rather than one per run, because
-  the failure mode of this kind of automation is a repository nobody can read.
+- [x] **The findings live in an issue, not a log, and not on the critical path.**
+  `.github/workflows/analysis.yml` runs **nightly**, not on push and not on a
+  pull request.  A static-analysis finding is not the same kind of thing as a
+  failing test: it is usually a judgement call, sometimes a false positive, and
+  occasionally something whose fix would invalidate a content-addressed evidence
+  record.  None of that belongs between a change and `main`; overnight means a
+  finding arrives with time attached to it.  It uploads SARIF to code scanning,
+  and `tools/analysis_issue.py` keeps one issue in sync -- edited in place,
+  commented on only when the finding *set* changes, closed when the report comes
+  back clean.
+
+  **The sanitizer reports go to the same issue.**  An ASan, LSan or UBSan report
+  is the most actionable thing here and the easiest to lose in a log, so
+  `tools/fuzz_report.py` parses all three -- and libFuzzer's own verdicts --
+  into the same findings schema the static analysis emits, and the workflow
+  hands both reports to the issue tool.  Each finding carries the file, the
+  line, the allocating or faulting function, and the command that reproduces
+  *that* kind of finding rather than a generic one.  One issue reused rather than one per run, because the failure mode
+  of this kind of automation is a repository nobody can read.
 - [x] **Grey-box fuzzing of the largest untrusted-input surface.**
   `make fuzz-loader` drives `loader.elf32` -- the component that parses an ELF
-  arriving from an AXFS image or a UART upload -- under libFuzzer with ASan and
-  UBSan.  The harness models the page allocator and VM seam and asserts what
-  the kernel depends on: no W+X mapping, no read outside the image (the image
-  is copied to an exact-sized allocation so ASan's redzone sits on the last
-  valid byte), and no success return whose entry point or stack pointer is
-  unmapped.  **It found a real defect on its first run**, at 15,158 executions:
+  arriving from an AXFS image or a UART upload -- under libFuzzer.  The harness
+  models the page allocator and VM seam and asserts what the kernel depends on:
+  no W+X mapping, no read outside the image, and no success return whose entry
+  point or stack pointer is unmapped.  It runs under AddressSanitizer,
+  LeakSanitizer and UndefinedBehaviorSanitizer, which answer different
+  questions: heap corruption with a stack trace, a page the loader mapped and
+  lost, and a misaligned load or signed overflow in a parser reading
+  attacker-controlled offsets.  A hardware guard page sits alongside ASan rather
+  than instead of it -- the image is copied to the end of a mapping whose next
+  page is `PROT_NONE`, so an overread is deterministic where ASan would not
+  poison an `mmap`'d region, and ASan is what turns the fault into a report
+  naming a line.  Verified rather than assumed: injecting `image[size]` faults
+  at the guard address.  **It found a real defect on its first run**, at 15,158 executions:
   the loader checked that `e_entry`'s page was mapped but not that it was
   executable, so an image entering rodata was accepted and the task died on its
   first instruction fetch instead of being rejected.  Fixed by tracking whether
@@ -494,6 +514,41 @@ thought of".  These three answer the other question.
   81.11% of branches**.  "We fuzzed the parser" is a claim about effort; this is
   the claim about reach, and it is what says whether a corpus is exercising the
   rejection paths or bouncing off the magic check.
+- [x] **A second compiler, as a defect finder rather than a migration.**
+  `TOOLCHAIN=llvm` builds target code with clang and lld instead of GCC;
+  `make toolchain-llvm` builds the kernel that way and runs it.  GCC remains the
+  default and the toolchain every recorded size and fmax number was measured
+  with -- the point is that two front ends see different things.  It earned its
+  place on the first build, reporting an unused `static inline` in
+  `sw/kernel/console.c` that GCC 10 does not warn about (GCC treats such a
+  function as potentially used; clang does not).  It was genuinely dead and is
+  gone.  It also made clang's own analyzer possible against the real target
+  rather than a host approximation: `clang --analyze` at
+  `--target=riscv32-unknown-elf` is now one of the static-analysis passes, and
+  is a different engine from GCC's `-fanalyzer` rather than a second opinion
+  from the same one.
+
+  **One toolchain compiles every component.**  `RISCV_CC`, `RISCV_OBJCOPY` and
+  `RISCV_STRIP` are now the only way target code is built anywhere in the tree,
+  and `HOST_CXX` follows the same knob.  That took fixing: `sim/unit`,
+  `sim/testgen` and `sim/livefpga` hardcoded `$(RISCV_PREFIX)gcc`, so an LLVM
+  build produced a kernel from clang and directed regressions from GCC -- a
+  configuration nobody selected, in which a defect only one front end emits gets
+  attributed to the wrong one.  The compiler runtime is the deliberate
+  exception: `libgcc.a` and `libclang_rt.builtins` are prebuilt support archives
+  for arithmetic the ISA lacks, not components, and clang's own
+  `--rtlib=libgcc` is the default on most Linux targets for the same reason.
+  LLVM's `compiler-rt` is preferred when present; on Ubuntu 22.04 the clang
+  package ships none for bare `riscv32`, so the build falls back to GCC's.
+
+  Stated because it will otherwise be rediscovered: **clang 14 emits about 45%
+  more text than GCC 10 here** -- 68,791 bytes against 47,220 for the default
+  kernel.  The page pool is whatever RAM is left after the image, so at the
+  default 128 KiB a clang-built kernel boots and runs correctly but leaves too
+  few free pages for the ABI tests to allocate, and `sbrk` fails.  The same
+  kernel passes at 256 KiB.  That is a size difference and not a
+  miscompilation, which is why GCC stays the default rather than clang being
+  called broken.
 - [ ] Extend the fuzzing to the other parsers that take untrusted bytes: the
   AXFS on-disk structures, the AXK1 kernel-upload envelope, and the host-link
   request decoder.  The loader was first because it is in the kernel's trusted

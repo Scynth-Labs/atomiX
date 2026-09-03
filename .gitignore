@@ -67,6 +67,7 @@ sim/fuzz/build/
 sim/fuzz/crash-*
 sim/fuzz/leak-*
 sim/fuzz/timeout-*
+sim/fuzz/oom-*
 # ...but a promoted seed is source, not output. Without this the global *.elf
 # rule above silently drops the regression corpus, and a checked-in seed that
 # was never checked in is worse than none: the claim outlives the file.

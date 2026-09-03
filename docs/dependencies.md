@@ -127,6 +127,72 @@ emcc --version
 `emsdk` brings its own Node, which is what runs a headless WASM boot for
 timing.  A separately installed Node also works.  Budget about 1.5 GB.
 
+## LLVM: a second toolchain and the analyzers (optional)
+
+Only needed for `TOOLCHAIN=llvm`, `make toolchain-llvm`, `make static-analysis`
+and `make fuzz-loader`.  Nothing in the normal build, test, or FPGA flow depends
+on it, and **no recorded size, timing, or fmax number was measured with it** --
+GCC remains the toolchain every claim in this repository rests on.
+
+It is here because a second front end sees defects the first does not.  On its
+first build clang reported an unused `static inline` in `sw/kernel/console.c`
+that GCC 10 does not warn about, and it makes `clang --analyze` usable against
+the real `riscv32` target instead of a host approximation of it.
+
+```bash
+sudo apt-get install -y clang lld llvm cppcheck shellcheck
+python3 -m pip install ruff
+```
+
+**One toolchain compiles every component.**  `TOOLCHAIN=gcc` builds all target
+code with GCC and all host C++ with `g++`; `TOOLCHAIN=llvm` builds all of it
+with clang, `lld` and `clang++`.  That covers `sim/unit`, `sim/testgen` and
+`sim/livefpga` as well as the kernel and the bare-metal images -- those three
+used to hardcode GCC, so an LLVM build previously produced a kernel from clang
+and directed regressions from GCC.  A result from a build like that belongs to
+a configuration nobody selected, and a defect only one front end emits gets
+attributed to the wrong one.
+
+The compiler runtime is the deliberate exception: `libgcc.a` and
+`libclang_rt.builtins` are prebuilt support archives for arithmetic the ISA
+lacks -- RV32IM has no 64-bit divide, so `wide / 3ull` becomes a call to
+`__udivdi3` -- not components of atomiX.  clang's own `--rtlib=libgcc` is the
+default on most Linux targets for the same reason.  `mk/toolchain.mk` prefers
+LLVM's `compiler-rt` when it is present and falls back to GCC's `libgcc.a` for
+the exact `-march`/`-mabi` pair when it is not, which on Ubuntu 22.04 it is not:
+the clang package ships no `compiler-rt` builtins for bare `riscv32`.
+
+`clang` compiles target code with `--target=riscv32-unknown-elf`; `lld` links it
+(a distribution clang ships no cross `ld`, so `-fuse-ld=lld` is not optional);
+`llvm` provides `llvm-objcopy` and `llvm-strip`.
+
+One number to know before using it: clang 14 emits roughly 45% more text for
+RV32IM than GCC 10 (68,791 bytes against 47,220 for the default kernel).  The
+page pool is whatever RAM is left after the image, so a clang-built kernel needs
+more than the default 128 KiB to leave enough free pages for the ABI tests --
+`make toolchain-llvm` uses 256 KiB.  At 128 KiB it boots and runs correctly and
+simply cannot allocate; that is a size difference, not a miscompilation.
+
+### Sanitizers, and where their reports go
+
+`make fuzz-loader` builds the harness with AddressSanitizer, LeakSanitizer and
+UndefinedBehaviorSanitizer.  They answer different questions: ASan finds heap
+corruption and gives a stack trace for a fault, LSan finds a page the loader
+mapped and lost, UBSan finds a misaligned load or a signed overflow in a parser
+reading attacker-controlled offsets.
+
+A sanitizer report is the most actionable thing this repository produces and the
+easiest to lose, so it does not stay in the log.  `tools/fuzz_report.py` parses
+all three -- plus libFuzzer's own verdicts -- into the same findings schema the
+static analysis uses, and the nightly workflow hands both reports to
+`tools/analysis_issue.py`, which puts them in one issue with the file, the line,
+the allocating or faulting function, and the command that reproduces them.
+
+The guard page in `sim/fuzz/fuzz_loader.c` sits alongside ASan rather than
+instead of it: ASan does not poison an `mmap`'d region, so the guard is what
+makes a read past the image deterministic, and ASan is what turns the resulting
+fault into a report that names a line.
+
 ## Recorded working baseline
 
 The following is a compatibility record from the verified Ubuntu 22.04.5 WSL2

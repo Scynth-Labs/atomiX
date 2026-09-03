@@ -1,9 +1,11 @@
 # libFuzzer harnesses for the components that parse untrusted input.
 #
-# clang rather than the RISC-V toolchain: these components are portable C and
-# the fuzzer needs host coverage instrumentation. The code under test is the
-# same source the kernel links -- no copy, no reimplementation -- so a finding
-# here is a finding in the shipped loader.
+# clang rather than the RISC-V toolchain, and clang regardless of TOOLCHAIN.
+# That is not a break in the one-toolchain rule: this builds a *host* test
+# harness, not a component of the machine, and libFuzzer's coverage
+# instrumentation exists only in clang -- GCC has no equivalent to select. The
+# code under test is the same source the kernel links, with no copy and no
+# reimplementation, so a finding here is a finding in the shipped loader.
 CLANG ?= clang
 # Ubuntu ships these under the versioned directory rather than on PATH.
 LLVM_COV ?= $(shell command -v llvm-cov 2>/dev/null || echo /usr/lib/llvm-14/bin/llvm-cov)
@@ -12,9 +14,30 @@ ROOT := ../..
 RUNS ?= 200000
 TIMEOUT ?= 120
 
-CFLAGS := -g -O1 -std=c11 -Wall -Wextra \
+# Three detectors, and they do not overlap:
+#
+#   ASan   heap corruption, use-after-free, and a stack trace for the SIGSEGV
+#          the guard page raises. Its report says *where*, which a bare fault
+#          does not.
+#   LSan   comes with ASan and is left on. The harness allocates pages from a
+#          fixed pool, so a leak here means the loader lost a mapping -- on the
+#          real machine that is a page the address space never gets back.
+#   UBSan  inline checks: misaligned loads and signed overflow in a parser
+#          reading attacker-controlled offsets.
+#
+# The guard page in fuzz_loader.c stays alongside ASan rather than instead of
+# it. ASan does not poison an mmap'd region, so the guard is what makes an
+# overread deterministic; ASan is what turns the resulting fault into a report
+# with a stack trace. tools/fuzz_report.py parses all three into the same
+# findings schema the static analysis uses, so they reach the same issue.
+#
+# -std=c11 stays, so the component under test is compiled the way the kernel
+# compiles it. _DEFAULT_SOURCE is for the harness only: strict C11 hides
+# MAP_ANONYMOUS, and the guard page needs it. The loader itself includes
+# nothing that the macro changes.
+CFLAGS := -g -O1 -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra \
           -fsanitize=fuzzer,address,undefined \
-          -fno-sanitize-recover=undefined \
+          -fno-sanitize-recover=undefined -fno-omit-frame-pointer \
           -I$(ROOT)/sw/kernel/include -I$(ROOT)/sw/kernel/build
 
 LOADER_SRC := $(ROOT)/components/loader/elf32/loader.c
@@ -47,8 +70,9 @@ corpus:
 # A bounded run, for CI: enough to catch a regression in a parser that was
 # already fuzzed, not enough to call the space explored.
 run: build/fuzz_loader corpus
+	ASAN_OPTIONS=detect_leaks=1:symbolize=1 \
 	./build/fuzz_loader build/corpus -runs=$(RUNS) -max_total_time=$(TIMEOUT) \
-	  -max_len=65536 -print_final_stats=1
+	  -max_len=65536 -print_final_stats=1 -detect_leaks=1
 
 # Unbounded, for when the parser has actually changed.
 explore: build/fuzz_loader corpus
@@ -61,7 +85,7 @@ explore: build/fuzz_loader corpus
 # the corpus is exercising the error paths or bouncing off the magic check.
 build/cov_loader: fuzz_loader.c $(LOADER_SRC)
 	@mkdir -p $(@D)
-	$(CLANG) -g -O0 -std=c11 -Wall -Wextra -fsanitize=fuzzer \
+	$(CLANG) -g -O0 -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra -fsanitize=fuzzer \
 	  -fprofile-instr-generate -fcoverage-mapping \
 	  -I$(ROOT)/sw/kernel/include -I$(ROOT)/sw/kernel/build -o $@ $^
 

@@ -156,11 +156,11 @@ run-irq-collide: $(CORE_SOURCES) tb_irq_collide.cpp
 	  $(CORE_SOURCES) $(CURDIR)/tb_irq_collide.cpp >/dev/null
 	@mkdir -p build
 	for t in $(IRQ_TESTS); do \
-	  $(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
+	  $(RISCV_CC) -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	    -Wl,--defsym=__ram_bytes=$(IRQ_RAM_BYTES) \
 	    -Wl,-T,../../sw/baremetal/link.ld -o build/$$t.elf \
 	    ../../tests/directed/$$t.S || exit 1; \
-	  $(RISCV_PREFIX)objcopy -O binary build/$$t.elf build/$$t.bin || exit 1; \
+	  $(RISCV_OBJCOPY) -O binary build/$$t.elf build/$$t.bin || exit 1; \
 	done
 	./obj_dir_irq_collide/tb_irq_collide build/irq_csr.bin $(IRQ_MARKER_irq_csr)
 	./obj_dir_irq_collide/tb_irq_collide build/irq_mret.bin $(IRQ_MARKER_irq_mret)
@@ -172,11 +172,11 @@ run-privilege: $(CORE_SOURCES) tb_axcore.cpp ../../tests/directed/privilege.S
 	  --exe --build -o tb_axcore \
 	  $(CORE_SOURCES) $(CURDIR)/tb_axcore.cpp >/dev/null
 	@mkdir -p build
-	$(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
+	$(RISCV_CC) -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	  -Wl,--defsym=__ram_bytes=$(AXCORE_RAM_BYTES) \
 	  -Wl,-T,../../sw/baremetal/link.ld -o build/privilege.elf \
 	  ../../tests/directed/privilege.S
-	$(RISCV_PREFIX)objcopy -O binary build/privilege.elf build/privilege.bin
+	$(RISCV_OBJCOPY) -O binary build/privilege.elf build/privilege.bin
 	./obj_dir_privilege/tb_axcore build/privilege.bin
 	./obj_dir_privilege/tb_axcore build/privilege.bin --ws 2
 	@echo "tb_privilege: PASS"
@@ -188,11 +188,11 @@ run-sv32: $(CORE_SOURCES) tb_axcore.cpp ../../tests/directed/sv32.S
 	  --exe --build -o tb_axcore \
 	  $(CORE_SOURCES) $(CURDIR)/tb_axcore.cpp >/dev/null
 	@mkdir -p build
-	$(RISCV_PREFIX)gcc -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
+	$(RISCV_CC) -march=$(RISCV_ARCH_I) -mabi=ilp32 -nostdlib -nostartfiles \
 	  -Wl,--defsym=__ram_bytes=$(AXCORE_RAM_BYTES) \
 	  -Wl,-T,../../sw/baremetal/link.ld -o build/sv32.elf \
 	  ../../tests/directed/sv32.S
-	$(RISCV_PREFIX)objcopy -O binary build/sv32.elf build/sv32.bin
+	$(RISCV_OBJCOPY) -O binary build/sv32.elf build/sv32.bin
 	./obj_dir_sv32/tb_axcore build/sv32.bin
 	./obj_dir_sv32/tb_axcore build/sv32.bin --ws 2
 	@echo "tb_sv32: PASS"

@@ -21,8 +21,8 @@ KERNEL_MODE ?= $(if $(COMPONENT_SETTING_KERNEL_MODE),$(COMPONENT_SETTING_KERNEL_
 
 .DEFAULT_GOAL := all
 
-CC      := $(RISCV_PREFIX)gcc
-OBJCOPY := $(RISCV_PREFIX)objcopy
+CC      := $(RISCV_CC)
+OBJCOPY := $(RISCV_OBJCOPY)
 QEMU    ?= qemu-system-riscv32
 export QEMU
 RAM_BYTES ?= $(if $(COMPONENT_RAM_BYTES),$(COMPONENT_RAM_BYTES),131072)
@@ -126,9 +126,13 @@ ifeq ($(strip $(USER_ELF)),)
 $(error USER_ELF must be defined before AXOS_EMBED_USER_NAME is built from it)
 endif
 CPPFLAGS += -DAXOS_EMBED_USER_NAME='"$(notdir $(USER_ELF))"'
-# User programs are built against the selected libc component, and with libgcc
-# linked so 64-bit arithmetic resolves (-lgcc after the objects, since it only
-# needs to satisfy references they leave behind).
+# User programs are built against the selected libc component, and against the
+# toolchain's own compiler runtime so 64-bit arithmetic resolves: RV32IM has no
+# 64-bit divide, so `wide / 3ull` becomes a call to __udivdi3. RISCV_RTLIB is
+# whichever runtime the selected toolchain owns -- libgcc under GCC,
+# compiler-rt under LLVM -- and never the other one's, so a build reports the
+# provenance it actually has. It comes after the objects because it only needs
+# to satisfy references they leave behind.
 USER_CFLAGS := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
                -msmall-data-limit=0 -ffreestanding -fno-builtin -fno-pic \
                -fno-stack-protector -Wall -Wextra -Werror -O2 -nostdlib \
@@ -142,8 +146,8 @@ $(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
              $(KERNEL_COMPONENT_MK)
 	mkdir -p $(@D)
 	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
-	  userprog/hello.c $(COMPONENT_LIBC_SOURCES) -lgcc
-	$(RISCV_PREFIX)strip -s -R .comment $@
+	  userprog/hello.c $(COMPONENT_LIBC_SOURCES) $(RISCV_RTLIB)
+	$(RISCV_STRIP) -s -R .comment $@
 
 # The adversarial ABI program. It is never embedded in the kernel: it reaches
 # the machine from the AXFS image, so testing every refusal path costs the
@@ -153,8 +157,8 @@ $(TORTURE_ELF): userprog/torture.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
                 $(KERNEL_COMPONENT_MK)
 	mkdir -p $(@D)
 	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
-	  userprog/torture.c $(COMPONENT_LIBC_SOURCES) -lgcc
-	$(RISCV_PREFIX)strip -s -R .comment $@
+	  userprog/torture.c $(COMPONENT_LIBC_SOURCES) $(RISCV_RTLIB)
+	$(RISCV_STRIP) -s -R .comment $@
 
 $(USER_IMAGE): $(USER_ELF) embed_image.py
 	mkdir -p $(@D)

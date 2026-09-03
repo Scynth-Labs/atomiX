@@ -11,6 +11,10 @@ whatever a profile elaborates, and every C target compiles -Wall -Wextra
   C        -Werror catches what the front end sees on one translation unit.
            -fanalyzer explores paths: leaks, double frees, null dereferences,
            use-after-free.  It is not on in the build because it is slow.
+  C again  clang's analyzer over the same files at the same target. A second
+           engine disagrees with the first often enough to be worth the seconds
+           it costs; TOOLCHAIN=llvm is what makes the target build valid clang
+           input at all.
   Python   ~9,000 lines across 29 tools with no linter at all -- the one place
            in this repository where nothing was checking anything.
   Shell    shellcheck, when it is installed.
@@ -27,6 +31,7 @@ that is absent.
 """
 import argparse
 import json
+import os
 import pathlib
 import re
 import shutil
@@ -216,6 +221,34 @@ def analyse_c():
     return findings, f"{files} translation unit(s) analysed"
 
 
+def analyse_clang():
+    """clang's analyzer over the same freestanding C, at the same target.
+
+    Not redundant with -fanalyzer: GCC's is a path exploration over its own IR
+    and clang's is symbolic execution over a different one, and in practice they
+    disagree about what they find.  Running it against
+    `--target=riscv32-unknown-elf` rather than the host matters -- pointer width
+    and ABI change which paths are even reachable, so a host-targeted run is
+    analysing a program the machine never executes.
+
+    This is only possible because TOOLCHAIN=llvm made clang able to compile the
+    target in the first place; before that there was no set of flags under which
+    these files were valid clang input."""
+    clang = need("clang")
+    findings, files = [], 0
+    for unit in C_UNITS:
+        for src in unit["sources"]:
+            if not (ROOT / src).exists():
+                continue
+            files += 1
+            result = run([clang, "--analyze", "--analyzer-output", "text",
+                          "--target=riscv32-unknown-elf", "-Wall", "-Wextra",
+                          *FREESTANDING, *unit["includes"], *unit["defines"],
+                          "-o", os.devnull, src])
+            findings += parse_gcc("clang-analyzer", result.stderr)
+    return findings, f"{files} translation unit(s) analysed at riscv32"
+
+
 def analyse_python():
     ruff = need("ruff")
     result = run([ruff, "check", "--output-format", "json", "."])
@@ -272,6 +305,7 @@ def analyse_cpp():
 ANALYZERS = [
     ("rtl", "SystemVerilog lint, every profile", analyse_rtl),
     ("c", "Freestanding C, GCC path analyzer", analyse_c),
+    ("clang", "Freestanding C, clang analyzer", analyse_clang),
     ("cpp", "Host C++", analyse_cpp),
     ("ruff", "Python", analyse_python),
     ("shell", "Shell", analyse_shell),

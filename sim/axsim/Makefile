@@ -1,4 +1,7 @@
-CXX      := $(or $(shell command -v g++ 2>/dev/null),$(shell command -v clang++ 2>/dev/null))
+include ../../mk/toolchain.mk
+# HOST_CXX honours TOOLCHAIN (llvm picks clang++) and falls back to whichever
+# of the two is installed. An explicit CXX= on the command line still wins.
+CXX      := $(HOST_CXX)
 CXXFLAGS ?= -std=c++17 -O2 -g -Wall -Wextra
 
 SRC := src/main.cpp src/cpu.cpp src/elf.cpp

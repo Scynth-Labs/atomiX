@@ -462,6 +462,19 @@
       "requires": [
         "clang"
       ]
+    },
+    "toolchain-llvm": {
+      "label": "The kernel builds and runs under clang/lld",
+      "command": [
+        "make",
+        "toolchain-llvm"
+      ],
+      "timeout_seconds": 900,
+      "requires": [
+        "clang",
+        "ld.lld",
+        "riscv64-unknown-elf-gcc"
+      ]
     }
   },
   "suites": {
@@ -486,6 +499,7 @@
     ],
     "analysis": [
       "static-analysis",
+      "toolchain-llvm",
       "fuzz-loader"
     ],
     "ci-unit": [

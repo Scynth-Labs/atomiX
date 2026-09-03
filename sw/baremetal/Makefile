@@ -1,8 +1,8 @@
 include ../../mk/toolchain.mk
 BUILD_DIR    ?= build
 RAM_BYTES    ?= 131072
-CC      := $(RISCV_PREFIX)gcc
-OBJCOPY := $(RISCV_PREFIX)objcopy
+CC      := $(RISCV_CC)
+OBJCOPY := $(RISCV_OBJCOPY)
 
 CPPFLAGS := -Iinclude -I$(BUILD_DIR)
 

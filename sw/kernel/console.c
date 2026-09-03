@@ -23,12 +23,6 @@ static uint32_t irq_bytes;
 static uint32_t polled_bytes;
 static uint32_t ring_full_stalls;
 
-static inline uint32_t csr_read_sstatus_(void) {
-  uint32_t value;
-  __asm__ volatile("csrr %0, sstatus" : "=r"(value));
-  return value;
-}
-
 /* SSTATUS.SIE. Kept local rather than shared: this file is the only place that
  * needs to close the window between "the ring looked empty" and "the hart went
  * to sleep", and a general-purpose interrupt-disable helper would invite that

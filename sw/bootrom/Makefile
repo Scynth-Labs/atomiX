@@ -1,6 +1,6 @@
 include ../../mk/toolchain.mk
-CC := $(RISCV_PREFIX)gcc
-OBJCOPY := $(RISCV_PREFIX)objcopy
+CC := $(RISCV_CC)
+OBJCOPY := $(RISCV_OBJCOPY)
 MODE ?= sd
 RAM_BYTES ?= 131072
 BUILD_DIR ?= build

@@ -270,9 +270,20 @@ make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
 make static-analysis             # RTL lint, C path analysis, C++, Python, shell
-make fuzz-loader                 # bounded libFuzzer run over the ELF loader
+make fuzz-loader                 # libFuzzer + ASan/LSan/UBSan over the ELF loader
+#   Findings land in build/static-analysis/fuzz.json in the same schema the
+#   static analysis writes, so the nightly workflow puts both in one issue.
 make fuzz-coverage               # line/branch reach of that corpus in the loader
 make -C sim/fuzz explore         # unbounded fuzzing, for when a parser changed
+make toolchain-llvm              # build and run the kernel with clang/lld
+
+# TOOLCHAIN selects the target compiler; gcc is the default and every recorded
+# size and fmax number was measured with it. clang 14 emits ~45% more text for
+# RV32IM than GCC 10, and the page pool is what is left of RAM after the image,
+# so a clang kernel needs more than the default 128 KiB to leave enough free
+# pages for the ABI tests -- it boots and runs at 128 KiB, it just cannot
+# allocate. That is a size difference, not a miscompilation.
+make -C sw/kernel check-shell TOOLCHAIN=llvm RAM_BYTES=262144
 make pr-gate-check               # partial-bitstream load gate: 7 gates, 12 rejections
 make diagram-check               # every mermaid diagram is well formed
 ```

@@ -13,7 +13,8 @@ that finds the same things says nothing, because a notification that arrives
 every night is a notification nobody opens.  When the report comes back clean
 the issue is closed with the commit that cleared it.
 
-  python3 tools/analysis_issue.py --report build/static-analysis/report.json
+  python3 tools/analysis_issue.py --report build/static-analysis/report.json \
+                                 --report build/static-analysis/fuzz.json
   python3 tools/analysis_issue.py --report ... --dry-run    # print, change nothing
 
 Needs `gh` authenticated with `issues: write`.  In Actions that is GITHUB_TOKEN
@@ -29,6 +30,9 @@ import subprocess
 import sys
 
 MARKER = "<!-- atomix-static-analysis -->"
+# Findings from tools/fuzz_report.py rather than tools/static_analysis.py: they
+# reproduce with a different command.
+FUZZ_TOOLS = {"asan", "lsan", "ubsan", "libfuzzer"}
 LABEL = "static-analysis"
 TITLE = "Static analysis findings"
 MAX_LISTED = 60
@@ -87,7 +91,17 @@ def body(report, sha, run_url):
         out.append(f"- …and {len(shown) - MAX_LISTED} more; the full list is in "
                    f"the `static-analysis-report` artifact.")
 
-    out += ["", "## Reproduce", "", "```bash", "make static-analysis", "```", ""]
+    # Name the command that reproduces *these* findings. A sanitizer report and
+    # a lint finding come from different runs, and telling someone to run the
+    # static analysis to reproduce a leak wastes the first thing they try.
+    tools = set(by_tool)
+    commands = []
+    if tools - FUZZ_TOOLS:
+        commands.append("make static-analysis")
+    if tools & FUZZ_TOOLS:
+        commands.append("make fuzz-loader          # ASan, LSan, UBSan")
+        commands.append("make -C sim/fuzz explore  # unbounded, to reach it faster")
+    out += ["", "## Reproduce", "", "```bash", *commands, "```", ""]
     if run_url:
         out.append(f"[Workflow run]({run_url})")
     out.append("")
@@ -116,7 +130,11 @@ def ensure_label(repo):
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--report", type=pathlib.Path, required=True)
+    ap.add_argument("--report", type=pathlib.Path, action="append", required=True,
+                    metavar="PATH",
+                    help="a findings report; repeat to merge several. Static "
+                         "analysis and the sanitizer output belong in one "
+                         "issue: they are two answers to the same question.")
     ap.add_argument("--repo", default=os.environ.get("GITHUB_REPOSITORY"))
     ap.add_argument("--sha", default=os.environ.get("GITHUB_SHA", "working tree"))
     ap.add_argument("--run-url", default=(
@@ -129,7 +147,18 @@ def main(argv=None):
 
     if not args.repo:
         ap.error("--repo is required outside Actions")
-    report = json.loads(args.report.read_text())
+    report = {"findings": [], "analyzers": []}
+    for path in args.report:
+        if not path.exists():
+            # A stage that never ran leaves no report. Say so in the issue
+            # rather than silently reporting on less than was asked for.
+            report["analyzers"].append(
+                {"name": path.stem, "state": "SKIPPED",
+                 "note": f"{path} was not written; that stage did not run"})
+            continue
+        loaded = json.loads(path.read_text())
+        report["findings"] += loaded.get("findings", [])
+        report["analyzers"] += loaded.get("analyzers", [])
     findings = report["findings"]
     text = body(report, args.sha, args.run_url)
 

@@ -55,7 +55,8 @@ help:
 	@echo "  make diagram-check      # every mermaid diagram is well formed"
 	@echo "  make brand-check        # derived brand assets match the master lockup"
 	@echo "  make static-analysis    # RTL lint, C path analysis, Python, shell"
-	@echo "  make fuzz-loader        # bounded libFuzzer run over the ELF loader"
+	@echo "  make toolchain-llvm     # build and run the kernel with clang/lld"
+	@echo "  make fuzz-loader        # libFuzzer + ASan/LSan/UBSan over the ELF loader"
 	@echo "  make fuzz-coverage      # what that corpus reaches inside the loader"
 	@echo "  make verify-smoke       # fast integrated verification ladder"
 	@echo "  make nightly-integrated # broad software/RTL suite with stage logs"
@@ -222,12 +223,30 @@ static-analysis:
 	$(PYTHON) tools/static_analysis.py $(ANALYSIS_FLAGS) \
 	  --json $(ANALYSIS_JSON) --sarif $(ANALYSIS_SARIF)
 
+# Build the kernel with clang/lld and run it, so a clang-only diagnostic is
+# caught rather than discovered by whoever next tries TOOLCHAIN=llvm. Not a
+# replacement for the GCC build and not a gate on it: GCC stays the toolchain
+# every recorded number was measured with.
+#
+# RAM_BYTES is 256 KiB because clang 14 emits ~45% more text than GCC 10 for
+# this target, and the page pool is what is left of RAM after the image. At the
+# default 128 KiB the clang kernel boots and runs but leaves too few free pages
+# for the ABI tests to allocate. See mk/toolchain.mk.
+LLVM_RAM_BYTES ?= 262144
+CLANG ?= clang
+toolchain-llvm:
+	$(MAKE) -C sim/axsim clean
+	$(MAKE) -C sim/axsim test TOOLCHAIN=llvm
+	$(MAKE) -C sw/kernel check-shell TOOLCHAIN=llvm RAM_BYTES=$(LLVM_RAM_BYTES)
+
 # Coverage-guided fuzzing of the kernel's largest untrusted-input surface.
 # FUZZ_TIMEOUT bounds the CI run; `make -C sim/fuzz explore` is the unbounded
 # one to use when the parser itself has changed.
 FUZZ_TIMEOUT ?= 120
+ANALYSIS_FUZZ_JSON ?= build/static-analysis/fuzz.json
 fuzz-loader:
-	$(MAKE) -C sim/fuzz run TIMEOUT=$(FUZZ_TIMEOUT)
+	$(PYTHON) tools/fuzz_report.py --timeout $(FUZZ_TIMEOUT) \
+	  --json $(ANALYSIS_FUZZ_JSON)
 
 fuzz-coverage:
 	$(MAKE) -C sim/fuzz coverage
@@ -404,4 +423,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

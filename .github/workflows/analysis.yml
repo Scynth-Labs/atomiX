@@ -1,9 +1,17 @@
-# Static analysis, and the issue that carries its findings.
+# Static analysis, sanitizer-instrumented fuzzing, and the one issue that
+# carries everything they find.
 #
-# Separate from CI on purpose. CI is the per-change gate and is pinned to the
-# toolchain in docs/dependencies.md; this job installs analyzers that gate
-# nothing and would only make that gate slower and noisier. It also needs write
-# access to issues, which the CI workflow deliberately does not have.
+# Nightly, and deliberately not on push or on a pull request. A static-analysis
+# finding is not the same kind of thing as a failing test: it is usually a
+# judgement call, sometimes a false positive, and occasionally something whose
+# fix invalidates a content-addressed evidence record. None of that should stand
+# between a change and main. Running overnight means a finding arrives as an
+# issue with time attached to it rather than as a red mark on work in progress.
+#
+# It is also its own workflow rather than a job in nightly.yml, because it needs
+# write access to issues and to code scanning. Adding those permissions to
+# nightly.yml would widen the token for every job in it, including the ones that
+# build and run code.
 #
 # The findings do not live in this log. `tools/analysis_issue.py` keeps one
 # issue in sync with the report -- edited in place, commented on only when the
@@ -11,12 +19,9 @@
 name: Static analysis
 
 on:
-  push:
-    branches: [main]
-  pull_request:
   schedule:
-    # Monday 05:41 UTC, clear of nightly (03:17) and formal (Sunday 04:23).
-    - cron: '41 5 * * 1'
+    # 05:41 UTC nightly, clear of nightly.yml (03:17) and formal (Sunday 04:23).
+    - cron: '41 5 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -25,8 +30,8 @@ concurrency:
 
 permissions:
   contents: read
-  # SARIF upload, so findings also appear inline on the Security tab and, for a
-  # pull request, on the changed lines themselves.
+  # SARIF upload, so findings also appear on the Security tab with their
+  # history rather than only in this run's log.
   security-events: write
   issues: write
 
@@ -46,7 +51,7 @@ jobs:
       - name: Install the analyzers
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cppcheck shellcheck clang
+          sudo apt-get install -y --no-install-recommends cppcheck shellcheck clang lld llvm
           python3 -m pip install --disable-pip-version-check ruff
 
       # ANALYSIS_FLAGS is emptied so a missing analyzer fails the run. Locally
@@ -58,21 +63,35 @@ jobs:
         continue-on-error: true
         run: make static-analysis ANALYSIS_FLAGS=
 
-      # Bounded, and seeded from sim/fuzz/corpus so anything previously found
-      # is replayed in the first second. The unbounded run is a human's job
-      # (`make -C sim/fuzz explore`) when a parser has actually changed.
-      - name: Fuzz the program loader
-        run: make fuzz-loader FUZZ_TIMEOUT=180
+      # A second front end sees different defects. Not a gate on the GCC build
+      # and not a replacement for it -- it catches a clang-only diagnostic here
+      # rather than leaving it for whoever next tries TOOLCHAIN=llvm.
+      - name: Build and run the kernel under clang/lld
+        run: make toolchain-llvm
+
+      # Seeded from sim/fuzz/corpus, so anything previously found is replayed in
+      # the first second. A longer budget than the local default because this
+      # runs overnight and nothing waits on it; the unbounded run is still a
+      # human's job (`make -C sim/fuzz explore`) when a parser has changed.
+      #
+      # continue-on-error so the run reaches the issue sync below. An ASan or
+      # LSan report is the most actionable thing this workflow produces, and
+      # failing the step before the sync would leave it in a log nobody opens.
+      - name: Fuzz the program loader (ASan, LSan, UBSan)
+        id: fuzz
+        continue-on-error: true
+        run: make fuzz-loader FUZZ_TIMEOUT=600
 
       - name: Preserve any crashing input
-        if: failure()
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: fuzz-crashes
           path: |
             sim/fuzz/crash-*
-            sim/fuzz/timeout-*
             sim/fuzz/leak-*
+            sim/fuzz/timeout-*
+            sim/fuzz/oom-*
           if-no-files-found: ignore
 
       - name: Upload SARIF to code scanning
@@ -90,20 +109,18 @@ jobs:
           path: build/static-analysis/
           retention-days: 30
 
-      # Not on pull requests: a fork's token cannot write issues, and a finding
-      # on a branch that may never merge belongs on the pull request as a code
-      # scanning annotation rather than in the repository's issue list.
       - name: Sync the findings issue
-        if: always() && github.event_name != 'pull_request'
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 tools/analysis_issue.py \
-            --report build/static-analysis/report.json
+            --report build/static-analysis/report.json \
+            --report build/static-analysis/fuzz.json
 
-      - name: Fail if the analysis found something
-        if: steps.analysis.outcome != 'success'
+      - name: Fail if anything was found
+        if: steps.analysis.outcome != 'success' || steps.fuzz.outcome != 'success'
         run: |
-          echo "Static analysis reported findings; see the issue and the"
-          echo "static-analysis-report artifact." >&2
+          echo "Static analysis or the sanitizers reported findings; see the"
+          echo "issue, the static-analysis-report artifact, and fuzz-crashes." >&2
           exit 1

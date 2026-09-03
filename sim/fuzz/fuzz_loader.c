@@ -16,9 +16,13 @@
  * What is being looked for, in order of how much it would matter:
  *
  *   1. A read outside the image.  The loader is handed a pointer and a length,
- *      and every offset in the header is untrusted.  ASan's redzones around
- *      the exact-sized copy below turn a one-byte overread into a crash.
- *   2. A write outside a mapped page, which ASan catches the same way.
+ *      and every offset in the header is untrusted.  The image is placed so its
+ *      last byte abuts an unmapped guard page, so reading one byte past the end
+ *      is a SIGSEGV.  No sanitizer: the MMU already does this job, it costs
+ *      nothing at runtime, and it needs no runtime library.
+ *   2. A write past the end of a mapped page, caught the same way -- the model
+ *      page pool below is a plain array, so a stray write lands inside it and
+ *      the invariants at the end of a case are what notice.
  *   3. A W+X mapping.  The loader exists so segments carry separate
  *      permissions; a malformed image talking it into a writable executable
  *      page defeats the reason it is not a flat loader.
@@ -32,6 +36,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/mman.h>
+#include <unistd.h>
 
 #include "loader.h"
 #include "page.h"
@@ -125,17 +131,47 @@ static int mapped(uint32_t va, uint32_t perm) {
   return 0;
 }
 
+/* The image, right-aligned against an unmapped page.
+ *
+ * libFuzzer hands out a pointer into a buffer larger than `size`, so reading
+ * one byte past the end of the input reads something valid and nothing
+ * notices.  Copying it to the very end of a mapping whose next page is
+ * PROT_NONE makes that read a SIGSEGV instead, which is what ASan's redzone
+ * was doing -- except the MMU does it for free and without a runtime.
+ *
+ * Right-aligned rather than left: a guard only catches an overread if the last
+ * valid byte is the last byte of the mapping. */
+struct guarded {
+  uint8_t *base;
+  uint8_t *image;
+  size_t span;
+};
+
+static int guard_image(struct guarded *g, const uint8_t *data, size_t size) {
+  const size_t page = (size_t)sysconf(_SC_PAGESIZE);
+  size_t body = (size + page - 1u) & ~(page - 1u);
+  if (body == 0) body = page;          /* size 0: image *is* the guard, so any
+                                        * dereference at all faults */
+  g->span = body + page;
+  g->base = mmap(NULL, g->span, PROT_READ | PROT_WRITE,
+                 MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+  if (g->base == MAP_FAILED) return -1;
+  if (mprotect(g->base + body, page, PROT_NONE) != 0) {
+    munmap(g->base, g->span);
+    return -1;
+  }
+  g->image = g->base + body - size;
+  memcpy(g->image, data, size);
+  return 0;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   if (size > 1u << 20) return 0;
   model_reset();
 
-  /* Copy to an exact-sized allocation. The input libFuzzer supplies lives in a
-   * larger buffer, so a one-byte overread of `data` would go unnoticed; with
-   * this, ASan has a redzone immediately after the last valid byte, which is
-   * the whole reason the copy is here. */
-  uint8_t *image = (uint8_t *)malloc(size ? size : 1);
-  if (!image) return 0;
-  memcpy(image, data, size);
+  struct guarded g;
+  if (guard_image(&g, data, size) != 0) return 0;
+  uint8_t *const image = g.image;
 
   struct task task;
   memset(&task, 0, sizeof task);
@@ -158,6 +194,6 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
    * load may leave pages mapped and the caller destroys the address space, so
    * requiring otherwise would test a contract the kernel does not rely on. */
 
-  free(image);
+  munmap(g.base, g.span);
   return 0;
 }
