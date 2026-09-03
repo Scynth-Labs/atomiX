@@ -121,6 +121,98 @@ Until stage 4 passes on hardware, "swap without reflashing" on the physical
 board means full-bitstream SRAM reload (~1 s, no flash wear); in simulation
 it means selecting a different role component and rebuilding the model.
 
+## Stage 3 progress: the load gate and a measured role region (2026-09-03)
+
+Stage 3's plan says "iterate until the delta touches only role-region frames".
+That sentence assumes two things nothing had yet supplied: a way to state which
+frames *are* the role region, and a way to check a candidate against it.  Both
+now exist, and neither needs a board.
+
+**A measured region, not a declared one.**  `tools/pr_region.py measure` derives
+the allow-list from the device instead of asserting it.  The method uses the
+one thing `ecppack --delta` gives away on the 45F: a partial bitstream names
+every frame it writes.  Empty every tile inside a rectangle in a copy of a
+routed `.config`, pack that copy as a delta against the original, and the
+emitted `LSC_WRITE_ADDRESS` values *are* the frames those tiles reach.  No
+frame-address function has to be derived — the packer states the addresses and
+the tool reads them back.  A probe-zero round trip runs first: re-rendering the
+parsed config unchanged must pack to a **0-frame** delta, or the parser is
+perturbing something and every address below would be misattributed.  It does.
+
+**The complement probe is the result that matters.**  A second probe empties
+every tile *outside* the rectangle, and the two address sets are intersected.
+If a frame carries bits from both sides, no partial image can rewrite the role
+without also rewriting shell state, and confinement is impossible on that
+geometry however good the floorplan is.  Measured on the seed-1 `ulx3s-45f`
+reference:
+
+| rectangle | role frames | shell frames | shared | separable |
+|---|---:|---:|---:|---|
+| R1..R70 x C1..C13 | 95 | 6,623 | **1** | no |
+| R1..R70 x C2..C13 | 73 | 6,644 | **0** | yes |
+
+The single collision at columns 1..13 is frame **19031**, and it is
+attributable rather than mysterious: inside the rectangle it is reached by
+`CIB_R21C1:CIB_LR` and `CIB_R45C1:CIB_LR`, and outside it by
+`MIB_R71C1:BANKREF6` — the shell-owned I/O bank reference tile one row below
+the rectangle's bottom edge.  Column 1 is therefore excluded from the role
+window, and with that single change **the region is frame-separable**.  This is
+the first positive confinement result on the track: whole-frame isolation is
+achievable on this device, and the boundary that achieves it is now measured to
+the frame.
+
+The 73 frames are a *lower bound* on the rectangle's footprint, and
+deliberately so.  A tile contributes an address only where emptying it actually
+changes a bit, so a frame the role could reach but never sets is absent from
+the allow-list.  That makes a legitimate delta fail the gate, never a hostile
+one pass it, which is the direction an under-measurement has to err in.
+`research/partial-reconfig/ulx3s-45f-role-window.json` carries the manifest,
+its provenance, and both probes.
+
+**The gate.**  `tools/pr_verify_delta.py` runs seven gates over a candidate
+partial bitstream before anything is loaded: stream structure, device identity,
+frame geometry, every-frame-addressed, shell identity, region confinement, and
+a two-part budget.  Following L2, a malformed candidate is a *rejection* and
+not a tool error — no gate raises on candidate input, and a rejected candidate
+produces a withheld load authorisation carrying
+`actuation: org.atomix.not-authorized`.  `make pr-gate-check` runs a self-test
+of 12 rejection cases (truncation mid-frame and mid-command, an empty file, out
+of region above/below/interleaved, wrong shell, missing reference, wrong
+device, an unaddressed full stream, an over-budget delta, and one larger than a
+full reload) plus three accepted stream shapes; it needs no build output and so
+runs on a host with no FPGA toolchain.
+
+Two of those gates deserve their reasons stated.  **Every-frame-addressed**
+rejects the `LSC_INIT_ADDRESS`-plus-sequential-run shape a *full* image uses,
+because confinement checked against addresses the file never states is not a
+check.  **Larger than a full reload** refuses an image bigger than simply
+reprogramming the device: such an image is slower and riskier than the thing it
+replaces, which is a refusal rather than a remark.
+
+**Verdict on the current unconstrained delta.**  Pointed at the real seed-1
+45F artifact, the gate passes structure, device, geometry, addressing and shell
+identity, and rejects on the two that matter:
+
+```
+frames_written 8,225   frames_outside_region 8,175   max_frames 73
+delta 995,282 bytes    full image 413,982 bytes
+```
+
+That is the shell-lock finding restated in the units a loader cares about: the
+delta is **2.4x the size of a full reload** and 99.4% of its frames are outside
+the role window.  Nothing has changed about the conclusion; what changed is
+that it is now enforced by a gate a board-day cannot skip past.
+
+**One bug found on the first real artifact.**  `pr-delta` packed its delta with
+whichever `ECPPACK_ARGS` the *outer* make had resolved, not the candidate's, so
+two 45F builds produced a delta announcing IDCODE `0x41113043` — the 85F part —
+which a real device would refuse at `VERIFY_ID`.  Both full bitstreams carried
+the correct `0x41112043`; only the delta was wrong, and only because the packing
+step ran outside the recursive make that selects the profile.  It is now packed
+by a `pr-delta-pack` target invoked with the candidate config.  The gate caught
+it the first time it was pointed at a real file, which is the argument for
+having built it before the board arrived rather than after.
+
 ## Stage 3 progress: first shell-lock experiment (2026-08-16)
 
 The first attempt established a usable placement-lock apparatus and rejected

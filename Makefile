@@ -51,6 +51,7 @@ help:
 	@echo "  make live-sim-check     # closed-loop virtual FPGA fault scenarios"
 	@echo "  make l3-check           # morph search + volatile RTL canary/rollback"
 	@echo "  make ecp5-frame-check   # compressed/full/partial ECP5 frame decoder"
+	@echo "  make pr-gate-check      # partial-bitstream load gate (R1 stage 3)"
 	@echo "  make verify-smoke       # fast integrated verification ladder"
 	@echo "  make nightly-integrated # broad software/RTL suite with stage logs"
 	@echo "  make component-test"
@@ -194,6 +195,19 @@ l3-check: l3-contract-check
 ecp5-frame-check:
 	$(PYTHON) tools/test_ecp5_bitstream.py
 	$(PYTHON) tools/ecp5_frames.py check-record
+
+# R1 stage-3 load gate. The self-test needs no build output, so it runs on a
+# machine with no FPGA toolchain; point DELTA/REFERENCE at a `pr-delta` build
+# to gate a real candidate as well.
+PR_REGION ?= research/partial-reconfig/ulx3s-45f-role-window.json
+pr-gate-check:
+	$(PYTHON) tools/pr_verify_delta.py self-test
+	@if [ -n "$(DELTA)" ]; then \
+	  $(PYTHON) tools/pr_verify_delta.py verify "$(DELTA)" \
+	    --region $(PR_REGION) \
+	    $(if $(REFERENCE),--reference "$(REFERENCE)") \
+	    $(if $(FULL_IMAGE),--full-image "$(FULL_IMAGE)"); \
+	fi
 
 # Hold the Primer synthesis results to their locked baseline. Give it a sweep
 # report from tools/tangprimer_synth_benchmark.py; --partial checks only the
@@ -339,4 +353,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench

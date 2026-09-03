@@ -269,6 +269,7 @@ make comparison-check
 make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
+make pr-gate-check               # partial-bitstream load gate: 7 gates, 12 rejections
 ```
 
 ```bash
@@ -516,6 +517,32 @@ recorded outcome is a router failure, not an artifact to publish.  Its exact
 no-hardware reproduction commands and the expected diagnostics are in the
 "Stage 3 progress" section of that document; `tools/pr_lock.py` and
 `tools/pr_floorplan.py` are the maintained lock and region apparatus.
+
+Two stage-3 pieces *are* one-command gates.  The allowed role region is
+measured from a routed reference rather than declared, and a candidate partial
+bitstream is checked against it before any load is attempted:
+
+```bash
+# Measure a rectangle's frame footprint, and whether it is separable at all.
+python3 tools/pr_region.py measure \
+  rtl/fpga/build-pr45/pr-delta-seed1/reference.config \
+  --reference-bit rtl/fpga/build-pr45/pr-delta-seed1/reference.bit \
+  --device LFE5U-45F --idcode 0x41112043 --rows 1:70 --columns 2:13 \
+  --output research/partial-reconfig/ulx3s-45f-role-window.json
+
+# Gate a candidate delta. The self-test alone needs no FPGA toolchain.
+make pr-gate-check
+make pr-gate-check \
+  DELTA=rtl/fpga/build-pr45/pr-delta-seed1/candidate.delta.bit \
+  REFERENCE=rtl/fpga/build-pr45/pr-delta-seed1/reference.bit \
+  FULL_IMAGE=rtl/fpga/build-pr45/pr-delta-seed1/candidate.bit
+```
+
+`measure` needs `ecppack` on `PATH`; the gate's self-test does not.  The second
+gate invocation is expected to **fail** today: the current unconstrained delta
+writes 8,175 of its 8,225 frames outside the role window, which is the
+shell-locking problem stated in loader units.  A non-zero exit there is the
+tool working, not a broken build.
 
 ### 4.4 Program the board
 ```bash

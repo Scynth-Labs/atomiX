@@ -258,6 +258,17 @@ pr-delta: check-tools
 	  $(PR_REFERENCE_TEXTCFG) $(PR_CANDIDATE_TEXTCFG) \
 	  --reference-bit $(PR_REFERENCE_BIT) \
 	  --candidate-bit $(PR_CANDIDATE_BIT) --json $(PR_REPORT)
+	$(MAKE) --no-print-directory COMPONENT_CONFIG=$(PR_CANDIDATE_CONFIG) \
+	  PNR_SEED=$(PNR_SEED) pr-delta-pack
+
+# The delta must be packed with the *candidate's* ecppack arguments, not the
+# ones the outer make happens to have resolved.  Packing it inline used to
+# stamp whichever IDCODE COMPONENT_CONFIG defaulted to: two 45F builds
+# produced a delta announcing 0x41113043, the 85F part, which a real device
+# would refuse at VERIFY_ID.  `pr_verify_delta.py` caught it on the first
+# artifact it was pointed at, and the recursive call is what stops it
+# recurring.
+pr-delta-pack:
 	@if $(ECPPACK) $(COMPONENT_ECPPACK_ARGS) $(PR_CANDIDATE_TEXTCFG) \
 	    $(PR_DELTA_BIT) --delta $(PR_REFERENCE_TEXTCFG) \
 	    >$(PR_ECPPACK_LOG) 2>&1; then \
@@ -290,4 +301,4 @@ flash: $(BIT)
 clean:
 	rm -rf $(BUILD)
 
-.PHONY: all synth config check-tools toolchain-report gowin-evidence pr-delta program flash clean
+.PHONY: all synth config check-tools toolchain-report gowin-evidence pr-delta pr-delta-pack program flash clean

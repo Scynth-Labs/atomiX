@@ -131,9 +131,55 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   reference reaches only 21.91 MHz versus 28.62 MHz flattened.  The next iteration must
   use a separately synthesised physical role boundary (or fix nextpnr's
   packed-netlist resume), not make global `-noflatten` the production flow.
-- [ ] **No hardware:** generate a candidate delta, unpack it, and prove it
+- [x] **No hardware:** generate a candidate delta, unpack it, and prove it
   addresses only the allowed region; reject truncated, out-of-region, and
-  wrong-shell inputs before any physical load attempt.
+  wrong-shell inputs before any physical load attempt.  Evidence:
+  `make pr-gate-check`, `tools/pr_verify_delta.py`, `tools/pr_region.py`,
+  `research/partial-reconfig/ulx3s-45f-role-window.json`, and
+  `research/partial-reconfig/ulx3s-45f-delta-verdict.json`.
+
+  The allowed region is **measured, not declared**, which is what keeps the
+  gate from being circular.  Emptying every tile of a rectangle in a routed
+  `.config` and packing that copy as a delta makes `ecppack` name the frames
+  those tiles reach; a probe-zero round trip (an unchanged rewrite must pack to
+  a 0-frame delta) proves the addresses are attributable to the rectangle and
+  not to the rewrite.  A complement probe then empties everything *outside* the
+  rectangle and intersects the two sets.  That intersection is the real result:
+  at rows 1..70 x columns 1..13 exactly **one** frame (19031) is shared, reached
+  inside by `CIB_R21C1`/`CIB_R45C1` and outside by `MIB_R71C1:BANKREF6`, the
+  shell's I/O bank reference tile.  Excluding column 1 makes the region
+  **frame-separable**: 73 role frames, 6,644 shell frames, none shared.  This is
+  the track's first positive confinement result — whole-frame isolation is
+  achievable on this device, and the boundary that achieves it is measured to
+  the frame rather than assumed.  The 73 is a deliberate lower bound: a tile
+  contributes an address only where emptying it changes a bit, so the error
+  direction is a rejected legitimate delta, never an accepted hostile one.
+
+  Seven gates run before any load: stream structure, device identity, frame
+  geometry, every-frame-addressed, shell identity, region confinement, and a
+  two-part budget.  A malformed candidate is a rejection and not a tool error,
+  and every rejected candidate yields a withheld authorisation carrying
+  `actuation: org.atomix.not-authorized`.  The self-test needs no build output
+  and covers 12 rejection cases against 3 accepted stream shapes.  Two gates
+  are load-bearing beyond the obvious: `every-frame-addressed` refuses the
+  `LSC_INIT_ADDRESS`-plus-sequential-run shape a full image uses, because
+  confinement checked against addresses the file never states is not a check;
+  and the size budget refuses any delta at least as large as a full reload,
+  since such an image is slower and riskier than what it replaces.
+
+  **No candidate passes confinement yet, and that is the expected result.**  The
+  real seed-1 45F delta passes structure, device, geometry, addressing and shell
+  identity, then fails on 8,175 of its 8,225 frames landing outside the role
+  window, at 995,282 bytes against a 413,982-byte full image — the shell-lock
+  finding restated in the units a loader cares about.  Producing a delta that
+  passes is the shell-locking item above, which remains the binding constraint.
+
+  The gate found one real defect on the first artifact it was pointed at:
+  `pr-delta` packed with the outer make's `ECPPACK_ARGS` rather than the
+  candidate's, so two 45F builds emitted a delta announcing the 85F IDCODE
+  `0x41113043`, which a device would refuse at `VERIFY_ID`.  Both full
+  bitstreams were correct; only the delta was wrong.  Fixed by packing inside a
+  `pr-delta-pack` recursive call.
 - [!] Load `role.none` and `role.loopback` partial images on an active ULX3S,
   prove the UART/CPU survive, and test isolation during the swap.  **Blocked:**
   no ULX3S is currently available.
@@ -535,3 +581,12 @@ until then left two `axlivemon` counters reading zero by construction.
 Closed on 2026-08-16: the resident hard GPU+TPU alternative.  Both engines pass
 their workload in one simulated session and the payload-agnostic Tang Primer
 loader profile places and routes at 33.18 MHz; no physical run is claimed.
+
+Closed on 2026-09-03: the partial-image load gate, and with it the first
+positive confinement result.  A role rectangle of rows 1..70 x columns 2..13 on
+the ULX3S-45F is **frame-separable** — 73 role frames, 6,644 shell frames, none
+shared — where the same rectangle including column 1 shares exactly one frame
+with the shell's I/O bank reference tile.  `make pr-gate-check` enforces that
+region against a candidate delta through seven gates and 12 rejection cases.
+The current unconstrained delta is rejected on 8,175 of 8,225 frames; producing
+one that passes is the shell-locking item, which stays the binding constraint.
