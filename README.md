@@ -6,9 +6,9 @@
 
 Build the reference machine — or replace the parts that matter to you.
 
-[![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml)
-[![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml)
-[![Formal (4 insns, BMC)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml)
+[![CI](https://github.com/Scynth-Labs/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/Scynth-Labs/atomiX/actions/workflows/ci.yml)
+[![Nightly](https://github.com/Scynth-Labs/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/Scynth-Labs/atomiX/actions/workflows/nightly.yml)
+[![Formal (4 insns, BMC)](https://github.com/Scynth-Labs/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/Scynth-Labs/atomiX/actions/workflows/formal.yml)
 
 [Architecture](DESIGN.md) ·
 [Build, test, deploy](docs/workflow.md) ·
@@ -157,9 +157,9 @@ read rather than a colour you have to trust.
 
 | Pipeline | Runs on | Jobs | Evidence artifact |
 |---|---|---|---|
-| [![CI](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/ci.yml) | every push and pull request | golden ISS, profile manifests, and lock-step cosim · RTL unit testbenches · composed systems and aXos | `verification-ci-*` |
-| [![Nightly](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/nightly.yml) | 03:17 UTC daily | full integrated software and RTL ladder · randomized generation and fuzzing · official RISC-V ISA suite · ISS/QEMU/RTL agreement | `verification-nightly-*` |
-| [![Formal (4 insns, BMC)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/ShubhendraGautam/atomiX/actions/workflows/formal.yml) | 04:23 UTC Sundays | bounded riscv-formal proofs of `insn_add`, `insn_beq`, `insn_lw` and `insn_sw` — on the reference core, `core.minimal`, and both retire channels of `core.ax2` | `formal-counterexamples` |
+| [![CI](https://github.com/Scynth-Labs/atomiX/actions/workflows/ci.yml/badge.svg)](https://github.com/Scynth-Labs/atomiX/actions/workflows/ci.yml) | every push and pull request | golden ISS, profile manifests, and lock-step cosim · RTL unit testbenches · composed systems and aXos | `verification-ci-*` |
+| [![Nightly](https://github.com/Scynth-Labs/atomiX/actions/workflows/nightly.yml/badge.svg)](https://github.com/Scynth-Labs/atomiX/actions/workflows/nightly.yml) | 03:17 UTC daily | full integrated software and RTL ladder · randomized generation and fuzzing · official RISC-V ISA suite · ISS/QEMU/RTL agreement | `verification-nightly-*` |
+| [![Formal (4 insns, BMC)](https://github.com/Scynth-Labs/atomiX/actions/workflows/formal.yml/badge.svg)](https://github.com/Scynth-Labs/atomiX/actions/workflows/formal.yml) | 04:23 UTC Sundays | bounded riscv-formal proofs of `insn_add`, `insn_beq`, `insn_lw` and `insn_sw` — on the reference core, `core.minimal`, and both retire channels of `core.ax2` | `formal-counterexamples` |
 
 **Read the Formal badge narrowly.**  It is four instructions under bounded model
 checking, in an RV32I configuration — 15 checks across three cores, and for
