@@ -60,3 +60,14 @@ sim/web/public/.bundle-tag
 # Formal-generated jobs, solver databases, and counterexample traces.
 formal/build/
 sim/unit/morph_outputs.bin
+
+# libFuzzer working directory: the generated corpus, the built harness, and any
+# crash artifact. A crash worth keeping is promoted to sim/fuzz/corpus/ by hand.
+sim/fuzz/build/
+sim/fuzz/crash-*
+sim/fuzz/leak-*
+sim/fuzz/timeout-*
+# ...but a promoted seed is source, not output. Without this the global *.elf
+# rule above silently drops the regression corpus, and a checked-in seed that
+# was never checked in is worse than none: the claim outlives the file.
+!sim/fuzz/corpus/*.elf

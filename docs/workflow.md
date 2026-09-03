@@ -269,6 +269,10 @@ make comparison-check
 make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
+make static-analysis             # RTL lint, C path analysis, C++, Python, shell
+make fuzz-loader                 # bounded libFuzzer run over the ELF loader
+make fuzz-coverage               # line/branch reach of that corpus in the loader
+make -C sim/fuzz explore         # unbounded fuzzing, for when a parser changed
 make pr-gate-check               # partial-bitstream load gate: 7 gates, 12 rejections
 make diagram-check               # every mermaid diagram is well formed
 ```

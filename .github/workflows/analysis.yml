@@ -1,0 +1,109 @@
+# Static analysis, and the issue that carries its findings.
+#
+# Separate from CI on purpose. CI is the per-change gate and is pinned to the
+# toolchain in docs/dependencies.md; this job installs analyzers that gate
+# nothing and would only make that gate slower and noisier. It also needs write
+# access to issues, which the CI workflow deliberately does not have.
+#
+# The findings do not live in this log. `tools/analysis_issue.py` keeps one
+# issue in sync with the report -- edited in place, commented on only when the
+# finding set changes, closed when the report comes back clean.
+name: Static analysis
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Monday 05:41 UTC, clear of nightly (03:17) and formal (Sunday 04:23).
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: analysis-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  # SARIF upload, so findings also appear inline on the Security tab and, for a
+  # pull request, on the changed lines themselves.
+  security-events: write
+  issues: write
+
+jobs:
+  analyse:
+    name: Static analysis and loader fuzzing
+    # The same pinned host as CI: analysing the code against a toolchain the
+    # project does not target would report findings nobody can reproduce.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-atomix
+        with:
+          cache-key: analysis
+
+      - name: Install the analyzers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cppcheck shellcheck clang
+          python3 -m pip install --disable-pip-version-check ruff
+
+      # ANALYSIS_FLAGS is emptied so a missing analyzer fails the run. Locally
+      # `make static-analysis` tolerates one and says which; here an analyzer
+      # that did not install has silently narrowed coverage, and that is worse
+      # than a red run.
+      - name: Static analysis
+        id: analysis
+        continue-on-error: true
+        run: make static-analysis ANALYSIS_FLAGS=
+
+      # Bounded, and seeded from sim/fuzz/corpus so anything previously found
+      # is replayed in the first second. The unbounded run is a human's job
+      # (`make -C sim/fuzz explore`) when a parser has actually changed.
+      - name: Fuzz the program loader
+        run: make fuzz-loader FUZZ_TIMEOUT=180
+
+      - name: Preserve any crashing input
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-crashes
+          path: |
+            sim/fuzz/crash-*
+            sim/fuzz/timeout-*
+            sim/fuzz/leak-*
+          if-no-files-found: ignore
+
+      - name: Upload SARIF to code scanning
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: build/static-analysis/report.sarif
+          category: atomix-static-analysis
+
+      - name: Preserve the full report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: static-analysis-report
+          path: build/static-analysis/
+          retention-days: 30
+
+      # Not on pull requests: a fork's token cannot write issues, and a finding
+      # on a branch that may never merge belongs on the pull request as a code
+      # scanning annotation rather than in the repository's issue list.
+      - name: Sync the findings issue
+        if: always() && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 tools/analysis_issue.py \
+            --report build/static-analysis/report.json
+
+      - name: Fail if the analysis found something
+        if: steps.analysis.outcome != 'success'
+        run: |
+          echo "Static analysis reported findings; see the issue and the"
+          echo "static-analysis-report artifact." >&2
+          exit 1

@@ -159,6 +159,7 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
 
   uint32_t phdr_va = 0;
   uint32_t image_end = USER_CODE_VA;      /* highest byte any segment occupies */
+  int entry_executable = 0;               /* e_entry lands in a PF_X segment */
 
   for (uint16_t i = 0; i < e_phnum; ++i) {
     const uint8_t *const ph = image + e_phoff + (uint32_t)i * e_phentsize;
@@ -197,6 +198,9 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
      * only meaningful if a PT_LOAD segment happens to cover them. */
     if (p_vaddr + p_memsz > image_end) image_end = p_vaddr + p_memsz;
 
+    if ((p_flags & PF_X) && e_entry >= p_vaddr && e_entry < p_vaddr + p_memsz)
+      entry_executable = 1;
+
     if (e_phoff >= p_offset && e_phoff < p_offset + p_filesz)
       phdr_va = p_vaddr + (e_phoff - p_offset);
   }
@@ -205,6 +209,14 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
     return LOADER_ENOSPACE;
   if (vm_translate_user(task, e_entry & ~(PAGE_SIZE - 1u), 0) == 0)
     return LOADER_EBADIMAGE;   /* entry point is not in any loaded segment */
+  /* ...and in a segment that can be executed.  Being mapped is not enough: an
+   * entry pointing into rodata or into .data passes the check above and then
+   * faults on the first instruction fetch, which surfaces as a dead task with
+   * no explanation rather than as a rejected image.  The MMU does contain it
+   * either way -- this is about refusing a bad image here instead of letting
+   * it fail later.  Found by sim/fuzz. */
+  if (!entry_executable)
+    return LOADER_EBADIMAGE;   /* entry point is in a segment without PF_X */
 
   /* --- initial stack -------------------------------------------------------
    * One page below the top of the user region, holding argument strings and

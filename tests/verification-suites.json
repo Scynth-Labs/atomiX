@@ -439,6 +439,29 @@
       ],
       "timeout_seconds": 120,
       "requires": []
+    },
+    "static-analysis": {
+      "label": "RTL lint, C path analysis, Python, and shell",
+      "command": [
+        "make",
+        "static-analysis"
+      ],
+      "timeout_seconds": 900,
+      "requires": [
+        "verilator",
+        "riscv64-unknown-elf-gcc"
+      ]
+    },
+    "fuzz-loader": {
+      "label": "Malformed ELF images against the program loader",
+      "command": [
+        "make",
+        "fuzz-loader"
+      ],
+      "timeout_seconds": 600,
+      "requires": [
+        "clang"
+      ]
     }
   },
   "suites": {
@@ -460,6 +483,10 @@
       "cosim-directed",
       "diagrams",
       "brand-assets"
+    ],
+    "analysis": [
+      "static-analysis",
+      "fuzz-loader"
     ],
     "ci-unit": [
       "rtl-units"

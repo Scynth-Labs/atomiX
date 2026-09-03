@@ -441,7 +441,7 @@ def simulate(programs: list[dict[str, Any]], config: Path, boot_rom: Path,
              kernel: Path, max_cycles: int) -> list[tuple[str, int, int]]:
     """Run candidates through the same RTL host-link path the board uses."""
     sys.path.insert(0, str(ROOT / "sw/host"))
-    import axhost  # noqa: E402  (path-dependent import)
+    import axhost
 
     requests = [axhost.request(axhost.OP_PING), axhost.request(axhost.OP_INFO)]
     for program in programs:
@@ -513,7 +513,7 @@ def self_test() -> int:
         return mutated
 
     sys.path.insert(0, str(ROOT / "sw/host"))
-    from gpu_programs import gpu_insn  # noqa: E402
+    from gpu_programs import gpu_insn
 
     accepted_index = next(
         index for index, item in enumerate(document["evaluations"])

@@ -36,7 +36,6 @@ the gate, never a hostile one pass it.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import subprocess

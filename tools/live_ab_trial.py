@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
-import hashlib
 import json
 import struct
 import sys
@@ -37,7 +36,7 @@ import candidate_registry as cr  # noqa: E402
 import live_shadow as ls  # noqa: E402
 import axhost  # noqa: E402
 from gpu_programs import (  # noqa: E402
-    GPU_ADD, GPU_ADDI, GPU_HALT, GPU_LDX, GPU_MUL, GPU_MULI, GPU_STX, GPU_TID,
+    GPU_ADDI, GPU_HALT, GPU_LDX, GPU_MUL, GPU_STX, GPU_TID,
     gpu_insn, reviewed_fast_switch_programs,
 )
 

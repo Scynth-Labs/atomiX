@@ -242,13 +242,16 @@ def cmd_show(args) -> int:
               f"{'DSP':>5}{'fmax':>9}  ")
     print(header)
     print("-" * len(header))
+    # A row for a build that has never placed carries no counts at all, so every
+    # column has to survive a missing value.
+    def cell(row, field):
+        return "-" if row.get(field) is None else str(row[field])
+
     for name, want in baseline["profiles"].items():
-        # A row for a build that has never placed carries no counts at all, so
-        # every column has to survive a missing value.
-        cell = lambda f: "-" if want.get(f) is None else str(want[f])  # noqa: E731
         fmax = f"{want['fmax_mhz']:.2f}" if want.get("fmax_mhz") else "-"
-        print(f"{name:<13}{want['expect']:<8}{cell('lut4'):>7}{cell('dff'):>7}"
-              f"{cell('bsram'):>7}{cell('dsp'):>5}{fmax:>9}  "
+        print(f"{name:<13}{want['expect']:<8}{cell(want, 'lut4'):>7}"
+              f"{cell(want, 'dff'):>7}{cell(want, 'bsram'):>7}"
+              f"{cell(want, 'dsp'):>5}{fmax:>9}  "
               f"{'STALE' if name in stale else ''}")
     # A locked number that is already known to be wrong is worse than no number
     # if the reader cannot tell which is which, so say so here rather than only

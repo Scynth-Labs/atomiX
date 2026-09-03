@@ -1,0 +1,65 @@
+# Ruff is here to find bugs, not to have opinions about layout.
+#
+# The rule set is deliberately narrow.  A linter that reports import ordering
+# and line length alongside an undefined name trains you to skim past both, and
+# the undefined name is the one that fails at runtime in front of a user.  Style
+# is not enforced here at all; the existing code is consistent because it was
+# written that way, not because a tool insisted.
+line-length = 100
+
+# Submodules are other people's code under other people's standards, and build
+# trees are generated. Neither is ours to hold to this configuration.
+extend-exclude = [
+  "tests/riscv-tests",
+  "gator-tools",
+  "build",
+  "**/obj_dir*",
+  "**/build",
+]
+
+[lint]
+select = [
+  "E9",     # syntax and IO errors -- the file does not even parse
+  "F",      # pyflakes: undefined names, unused imports and locals
+  "B",      # bugbear: late-binding closures, mutable defaults, silent excepts
+  "PLE",    # pylint's error class only, none of its conventions
+  "E402",   # imports below code -- several tools sys.path first and say so
+  "RUF100", # a `noqa` for a rule that is not enabled is a stale claim
+]
+
+ignore = [
+  # zip(strict=) is a 3.10 API preference, not a defect class, and the call
+  # sites here zip sequences whose lengths are established a line earlier.
+  "B905",
+  # Exception chaining changes a traceback's shape, not a program's behaviour.
+  # These are command-line tools whose except clauses end in SystemExit with a
+  # message written for a person, where the original traceback is noise.
+  "B904",
+  # An unused loop variable is usually the clearest way to spell a destructure.
+  "B007",
+]
+
+[lint.per-file-ignores]
+# nextpnr executes this file with `ctx` already bound as a global; there is no
+# import that would satisfy the linter and no way to run it standalone.
+"tools/pr_floorplan.py" = ["F821"]
+
+# The three files below are content-addressed: a record under research/ pins
+# their SHA-256 because a recorded experimental result was produced by exactly
+# that text. Any edit -- including adding a `noqa` comment, which is why these
+# exemptions are here and not in the files -- breaks the digest and makes the
+# record describe code that no longer exists. Re-sealing without re-running the
+# experiment would be a lie, and re-running one to delete an unused import is
+# not a trade worth making, so the finding is exempted where it can be seen.
+#
+# `make registry-check` and `make ecp5-frame-check` are what catch an edit to
+# one of these; tools/static_analysis.py labels findings that land in them.
+# When an experiment is next re-run and re-sealed for its own reasons, clean the
+# file then and drop its line here.
+#
+# gpu_programs: `base_a` is bound and never read on purpose -- block A sits at
+# offset 0, which is why the first LDX indexes the raw tid with no ADDI ahead
+# of it, and naming it keeps the three-block layout readable.
+"sw/host/gpu_programs.py" = ["F841"]
+"sw/host/axhost.py" = ["F401"]
+"tools/pr_delta.py" = ["F401"]

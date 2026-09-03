@@ -451,6 +451,55 @@ kind of evidence the machine does.
   the physics the mark is sampled from are in
   [docs/assets/README.md](assets/README.md).
 
+## Hardening: what is checked without running the machine
+
+The verification above answers "does it do the right thing on the inputs we
+thought of".  These three answer the other question.
+
+- [x] **Static analysis over every language, with nothing silently skipped.**
+  `make static-analysis` runs Verilator lint across *every* profile in
+  `configs/` (20 elaborated designs -- a component only some unbuilt profile
+  selects is still linted), GCC's `-fanalyzer` over 42 freestanding translation
+  units with each unit's own build flags, cppcheck over the host C++, ruff over
+  ~9,000 lines of Python that nothing was checking at all, and shellcheck.  An
+  analyzer whose tool is missing reports SKIPPED with the reason and exits
+  non-zero; it never counts as a pass.  Findings carry a `content-addressed`
+  label when they land in a file a record under `research/` pins by SHA-256,
+  because fixing one of those needs the owning experiment re-sealed and that is
+  a decision, not a cleanup.  Rule selection is in `ruff.toml` and is
+  deliberately narrow: defects only, no style, because a linter that reports
+  import order beside an undefined name teaches you to skim past both.
+- [x] **The findings live in an issue, not a log.**
+  `.github/workflows/analysis.yml` runs the analysis, uploads SARIF to code
+  scanning, and `tools/analysis_issue.py` keeps one issue in sync -- edited in
+  place, commented on only when the finding *set* changes, closed when the
+  report comes back clean.  One issue reused rather than one per run, because
+  the failure mode of this kind of automation is a repository nobody can read.
+- [x] **Grey-box fuzzing of the largest untrusted-input surface.**
+  `make fuzz-loader` drives `loader.elf32` -- the component that parses an ELF
+  arriving from an AXFS image or a UART upload -- under libFuzzer with ASan and
+  UBSan.  The harness models the page allocator and VM seam and asserts what
+  the kernel depends on: no W+X mapping, no read outside the image (the image
+  is copied to an exact-sized allocation so ASan's redzone sits on the last
+  valid byte), and no success return whose entry point or stack pointer is
+  unmapped.  **It found a real defect on its first run**, at 15,158 executions:
+  the loader checked that `e_entry`'s page was mapped but not that it was
+  executable, so an image entering rodata was accepted and the task died on its
+  first instruction fetch instead of being rejected.  Fixed by tracking whether
+  `e_entry` falls in a `PF_X` segment; the crashing input is checked in at
+  `sim/fuzz/corpus/` so it is replayed on every run.
+- [x] **White-box coverage of what the fuzzing actually reaches.**
+  `make fuzz-coverage` replays the corpus under source-based instrumentation
+  and reports the loader's own line and branch coverage: **93.60% of lines and
+  81.11% of branches**.  "We fuzzed the parser" is a claim about effort; this is
+  the claim about reach, and it is what says whether a corpus is exercising the
+  rejection paths or bouncing off the magic check.
+- [ ] Extend the fuzzing to the other parsers that take untrusted bytes: the
+  AXFS on-disk structures, the AXK1 kernel-upload envelope, and the host-link
+  request decoder.  The loader was first because it is in the kernel's trusted
+  computing base and its input is the most attacker-shaped; the others are the
+  same technique against a smaller blast radius.
+
 ## Change-ready checklist
 
 Use this for a substantive implementation or interface change:
