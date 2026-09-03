@@ -207,9 +207,20 @@ brand:
 brand-check:
 	$(PYTHON) tools/brand_cloud.py --check
 
+# check-record cross-checks the recorded decode against prjtrellis's device
+# database, which ships with the FPGA toolchain and not with this repository.
+# The evidence record pins a digest of tools/ecp5_frames.py, so the tool cannot
+# absorb the absence without invalidating the record it verifies -- a runner
+# with no toolchain gets the deterministic decoder tests and a stated skip.
+TRELLIS_DB ?= $(HOME)/opt/oss-cad-suite/share/trellis/database
 ecp5-frame-check:
 	$(PYTHON) tools/test_ecp5_bitstream.py
-	$(PYTHON) tools/ecp5_frames.py check-record
+	@if [ -f "$(TRELLIS_DB)/devices.json" ]; then \
+	  TRELLIS_DB="$(TRELLIS_DB)" $(PYTHON) tools/ecp5_frames.py check-record; \
+	else \
+	  echo "ECP5 frame evidence: SKIPPED (no Trellis device database at"; \
+	  echo "  $(TRELLIS_DB) -- set TRELLIS_DB to cross-check the geometry)"; \
+	fi
 
 # R1 stage-3 load gate. The self-test needs no build output, so it runs on a
 # machine with no FPGA toolchain; point DELTA/REFERENCE at a `pr-delta` build

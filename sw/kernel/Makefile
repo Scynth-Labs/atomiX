@@ -78,7 +78,6 @@ CPPFLAGS += $(patsubst +define+%,-D%,$(COMPONENT_DEFINES))
 AXOS_CAPACITIES := \
   $(if $(COMPONENT_SETTING_TASK_SLOTS),-DTASK_SLOTS=$(COMPONENT_SETTING_TASK_SLOTS))
 CPPFLAGS += $(AXOS_CAPACITIES)
-CPPFLAGS += -DAXOS_EMBED_USER_NAME='"$(notdir $(USER_ELF))"'
 ifeq ($(KERNEL_MODE),monitor)
 CPPFLAGS += -DAXOS_MONITOR=1 -DAXOS_EMBED_USER=0
 else
@@ -116,6 +115,17 @@ LDFLAGS = -nostdlib -Wl,-T,link.ld -Wl,--defsym=AXOS_RAM_BYTES=$(RAM_BYTES) \
 USER_BUILD := $(BUILD_DIR)/userprog$(KERNEL_CONFIG_KEY)
 USER_ELF := $(USER_BUILD)/hello.elf
 USER_IMAGE := $(BUILD_DIR)/userprog_image.h
+
+# This has to sit below USER_ELF, not up with the rest of CPPFLAGS: CPPFLAGS is
+# simply-expanded, so `+=` expands the reference at the line it is written on.
+# Set above, it compiled to -DAXOS_EMBED_USER_NAME='""' -- a valid build whose
+# embedded program answered to no name, so `run hello.elf` returned ENOENT and
+# only check-shell noticed. Empty is never right here, so say so at parse time
+# rather than let the next reordering fail the same silent way.
+ifeq ($(strip $(USER_ELF)),)
+$(error USER_ELF must be defined before AXOS_EMBED_USER_NAME is built from it)
+endif
+CPPFLAGS += -DAXOS_EMBED_USER_NAME='"$(notdir $(USER_ELF))"'
 # User programs are built against the selected libc component, and with libgcc
 # linked so 64-bit arithmetic resolves (-lgcc after the objects, since it only
 # needs to satisfy references they leave behind).
@@ -289,23 +299,10 @@ check-storage-write: images $(USER_ELF)
 	python3 make_fs_image.py $(USER_ELF) build/axfs.img
 	SD_IMAGE=$(abspath build/axfs.img) python3 check_boot.py --storage-write
 
-# The loader's W^X rejection, end to end. The fixture lives on the AXFS image
-# rather than in the built-in root, so testing a rejection costs the shipped
-# kernel image nothing.
 # The ABI under attack rather than under demonstration: null, kernel-space and
 # straddling pointers, a read into a read-only page, an unterminated path, a
-# full descriptor table, and seek arithmetic that overflows.
-# Linked for 1 MiB rather than the default 128 KiB. The RTL already provides
-# 32 MiB; the kernel's own AXOS_RAM_BYTES is what bounds its page pool, and at
-# 128 KiB there are about fifteen free pages -- not enough to clone an address
-# space, so the fork checks could not run at all.
-check-abi-torture: images $(USER_ELF) $(TORTURE_ELF)
-	$(MAKE) -B images STORAGE=1 RAM_BYTES=1048576
-	python3 make_fs_image.py --with-torture $(TORTURE_ELF) $(USER_ELF) \
-	  build/axfs-torture.img
-	SD_IMAGE=$(abspath build/axfs-torture.img) python3 check_boot.py --torture
-
-# The adversarial ABI program, at whatever capacities the profile declares.
+# full descriptor table, and seek arithmetic that overflows -- at whatever
+# capacities the profile declares.
 #
 # One recipe, invoked through a sub-make so that KERNEL_CONFIG is a command-line
 # variable and the := paths below it (which are keyed by the profile) resolve
@@ -338,6 +335,9 @@ check-abi-torture-small:
 	  KERNEL_CONFIG=$(abspath ../../configs/kernel-small-caps.json) \
 	  TORTURE_IMG=build/axfs-torture-small.img
 
+# The loader's W^X rejection, end to end. The fixture lives on the AXFS image
+# rather than in the built-in root, so testing a rejection costs the shipped
+# kernel image nothing.
 check-loader-wx: images $(USER_ELF)
 	$(MAKE) -B images STORAGE=1
 	python3 make_fs_image.py --with-wx $(USER_ELF) build/axfs-wx.img
