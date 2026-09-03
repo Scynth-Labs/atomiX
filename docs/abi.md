@@ -125,7 +125,7 @@ flowchart TB
 
   mshim["M-mode timer shim in trap.S<br/>re-arms mtimecmp, raises SSIP"] -.->|"delegated"| sched
 
-  classDef comp fill:#e8f0fe,stroke:#3367d6
+  classDef comp fill:#3b82f633,stroke:#3b82f6
   class disp,ops,k3 comp
 ```
 

@@ -74,8 +74,8 @@ flowchart LR
 
   bit -->|"programmed to SRAM once"| board["running board"]
 
-  classDef slow fill:#fce8e6,stroke:#c5221f
-  classDef fast fill:#e6f4ea,stroke:#137333
+  classDef slow fill:#e5484d33,stroke:#e5484d
+  classDef fast fill:#2ea04333,stroke:#2ea043
   class synth slow
   class runtime fast
 ```

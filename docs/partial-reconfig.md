@@ -84,9 +84,9 @@ flowchart TB
 
   s1 --> s2 --> s3 --> s4 --> s5
 
-  classDef done fill:#e6f4ea,stroke:#137333
-  classDef part fill:#fef7e0,stroke:#f9ab00
-  classDef blocked fill:#fce8e6,stroke:#c5221f,stroke-dasharray: 4 4
+  classDef done fill:#2ea04333,stroke:#2ea043
+  classDef part fill:#bf870033,stroke:#bf8700
+  classDef blocked fill:#e5484d33,stroke:#e5484d,stroke-dasharray: 4 4
   class s1,s2 done
   class s3 part
   class s4,s5 blocked
@@ -124,8 +124,8 @@ flowchart TB
   ok --> g6
   cand["candidate partial bitstream"] --> g1
 
-  classDef good fill:#e6f4ea,stroke:#137333
-  classDef bad fill:#fce8e6,stroke:#c5221f
+  classDef good fill:#2ea04333,stroke:#2ea043
+  classDef bad fill:#e5484d33,stroke:#e5484d
   class ok,permit good
   class no,withhold bad
 ```

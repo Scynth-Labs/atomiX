@@ -49,7 +49,7 @@ flowchart TB
   mk --> fpga["rtl/fpga<br/>yosys → nextpnr → pack"]
   mk --> kern["sw/kernel<br/>aXos + user programs"]
 
-  classDef bad fill:#fce8e6,stroke:#c5221f
+  classDef bad fill:#e5484d33,stroke:#e5484d
   class err bad
 ```
 

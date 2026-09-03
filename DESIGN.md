@@ -158,7 +158,7 @@ flowchart LR
   v3 -->|"identity"| p7
   v1 -.->|"no path — U-mode never<br/>reaches the window directly"| p6
 
-  classDef blocked stroke-dasharray: 4 4,stroke:#c5221f
+  classDef blocked stroke-dasharray: 4 4,stroke:#e5484d
   class v1 blocked
 ```
 
@@ -198,8 +198,8 @@ flowchart TB
   shell ==>|"fixed 64 KiB window at 0x4000_0000<br/>ID · DOORBELL · STATUS · irq · reject_event"| rolebox
   host <-->|"framed protocol over USB/UART<br/>never raw MMIO"| shell
 
-  classDef immutable fill:#e8f0fe,stroke:#3367d6,stroke-width:2px
-  classDef swappable fill:#fef7e0,stroke:#f9ab00,stroke-width:2px
+  classDef immutable fill:#3b82f633,stroke:#3b82f6,stroke-width:2px
+  classDef swappable fill:#bf870033,stroke:#bf8700,stroke-width:2px
   class shell immutable
   class rolebox swappable
 ```
@@ -601,8 +601,8 @@ flowchart TB
   formal -->|"writeback, PC ordering,<br/>trap precision"| rtl
   rtl -->|"same image, no source change"| board
 
-  classDef sim fill:#e8f0fe,stroke:#3367d6
-  classDef phys fill:#e6f4ea,stroke:#137333
+  classDef sim fill:#3b82f633,stroke:#3b82f6
+  classDef phys fill:#2ea04333,stroke:#2ea043
   class iss,qemu,rtl,formal sim
   class board phys
 ```
@@ -625,8 +625,8 @@ flowchart LR
   c --> d["volatile board run<br/>it behaved on real silicon"]
   d --> e["live reconfiguration<br/>it changed while running"]
 
-  classDef done fill:#e6f4ea,stroke:#137333
-  classDef open fill:#fef7e0,stroke:#f9ab00
+  classDef done fill:#2ea04333,stroke:#2ea043
+  classDef open fill:#bf870033,stroke:#bf8700
   class a,b,c,d done
   class e open
 ```
