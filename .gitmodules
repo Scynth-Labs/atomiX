@@ -3,4 +3,4 @@
 	url = https://github.com/riscv-software-src/riscv-tests
 [submodule "gator-tools"]
 	path = gator-tools
-	url = https://github.com/ShubhendraGautam/gator-tools
+	url = https://github.com/Scynth-Labs/gator-tools
