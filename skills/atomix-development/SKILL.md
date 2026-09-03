@@ -15,6 +15,43 @@ description: Implement, review, or verify atomiX architecture, RISC-V, aXos, FPG
 
 ## Implement
 
+### A knob is only real once it is wired, bounded, and exercised
+
+atomiX exists to be modified, so a capacity, limit, or name a build could
+reasonably want to change belongs in a profile rather than in a literal. Four
+steps, and skipping any one of them produces something that reads as
+configurable and is not:
+
+1. **Put it where its owner is.** If a component owns the knob, declare it in
+   that component's `parameters` with a `default` and a `doc`
+   (`components/syscall/linux-compat/component.json` is the model). If the
+   kernel owns it — `TASK_SLOTS` belongs to no single component, since the
+   scheduler and the VM only index what they are handed — it is a profile
+   `setting`, registered in `SETTINGS` in `tools/configure.py`.
+2. **Wire it to the build.** `sw/kernel/Makefile` converts `COMPONENT_DEFINES`
+   to `-D` and passes the same flags to user programs. This wire was missing for
+   two years: the syscall component declared `max_fds`, `path_max`, `write_max`,
+   `io_chunk` and `role_max_payload` with defaults and documentation,
+   `configure.py` resolved them, and the kernel build dropped them — setting one
+   in a profile changed nothing and said nothing.
+3. **Bound it where the bound is known.** `configure.py` rejects an unknown or
+   out-of-range setting (a typo used to become a make variable nothing read).
+   Relationships *between* knobs go in a `_Static_assert` beside their
+   definitions, because that is the only place that knows them — see
+   `KERNEL_PROCESS_ARG_MAX <= LOADER_ARG_MAX` in `sw/kernel/kernel.c`.
+4. **Exercise it at a non-default value.** `configs/kernel-small-caps.json` and
+   `make -C sw/kernel check-abi-torture-small` run the adversarial ABI program
+   at 2 task slots, 3 descriptors, a 12-byte path limit and 3 argv entries. The
+   test derives every limit from the same `-D` the kernel was built with, and
+   asserts *exact* counts, so re-hardcoding a value makes exactly one of the two
+   runs fail. A test that repeats the numbers instead of deriving them is the
+   same bug one level up.
+
+Artifacts built with a profile's flags must be keyed by that profile
+(`USER_BUILD` in `sw/kernel/Makefile`). A single output directory means
+switching profiles silently reuses the previous one's binary, and switching
+back does not rebuild it either.
+
 ### Software must never be part of a bitstream's identity
 
 **A new example, game, benchmark, or kernel change must never require

@@ -11,6 +11,15 @@
   simulation or synthesis results for another board into a physical claim.
 - Tang Primer main RAM is 32 KiB. Keep `kernel-evolve-small`, `-mid`, and
   `-large` independently selectable and enforce their existing fit gates.
+- A capacity, limit, or name that a build could reasonably want to change is a
+  profile knob, not a literal. Put it where its owner is: a component's own
+  `parameters` in its manifest (with a default and a `doc`) if a component owns
+  it, a profile `setting` if the kernel does. Then make it *reach* the build,
+  check its bounds where they are known, and test at a non-default value --
+  `make -C sw/kernel check-abi-torture-small` is the pattern. A knob that is
+  declared but not wired, or wired but never exercised, reads as configurable
+  and is not; that is worse than an honest constant, because it fails silently.
+  See `skills/atomix-development/SKILL.md`.
 - Never make software part of a bitstream's identity. Adding an example, game,
   or kernel must not require re-synthesis or re-open a board claim: synthesize
   the loader bitstream once and ship programs as runtime payloads over it. The

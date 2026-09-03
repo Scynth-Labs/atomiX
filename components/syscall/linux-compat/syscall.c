@@ -42,6 +42,15 @@
 #define AXOS_ROLE_MAX_PAYLOAD 1280
 #endif
 
+/* Each of the above is a profile knob, so the bounds that make them usable are
+ * stated here rather than left to whoever sets them.  A path buffer with no
+ * room for a name, or a descriptor table with no descriptors, would fail far
+ * from the setting that caused it. */
+_Static_assert(AXOS_MAX_FDS >= 1, "AXOS_MAX_FDS leaves no room for a file");
+_Static_assert(AXOS_PATH_MAX >= 2, "AXOS_PATH_MAX leaves no room for a name");
+_Static_assert(AXOS_IO_CHUNK >= 1, "AXOS_IO_CHUNK must move at least one byte");
+_Static_assert(AXOS_WRITE_MAX >= 1, "AXOS_WRITE_MAX must allow one byte");
+
 /* asm-generic/unistd.h numbers.  Only the ones this kernel answers are named;
  * everything else falls through to -ENOSYS, which a libc handles correctly. */
 enum {

@@ -1,0 +1,29 @@
+{
+  "schema": 1,
+  "name": "kernel-small-caps",
+  "components": {
+    "scheduler": "scheduler.round-robin",
+    "vm": "vm.sv32",
+    "allocator": "allocator.free-list",
+    "shell": "shell.axsh",
+    "filesystem": "filesystem.axfs",
+    "block": "block.spi-sd",
+    "syscall": "syscall.linux-compat",
+    "loader": "loader.elf32",
+    "libc": "libc.axlibc",
+    "evolution": "evolution.none",
+    "fitness": "fitness.none"
+  },
+  "settings": {
+    "task_slots": 2
+  },
+  "parameters": {
+    "syscall": {
+      "max_fds": 3,
+      "path_max": 12
+    },
+    "loader": {
+      "arg_max": 3
+    }
+  }
+}

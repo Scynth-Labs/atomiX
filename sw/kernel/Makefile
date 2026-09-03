@@ -57,6 +57,28 @@ CPPFLAGS += -DAX_EVOLUTION_TIER=$(COMPONENT_EVOLUTION_TIER) \
             -DAX_EVOLUTION_STATE_BUDGET=$(COMPONENT_EVOLUTION_STATE_BUDGET)
 CPPFLAGS += -DAX_FITNESS_ENABLED=$(COMPONENT_FITNESS_ENABLED) \
             -DAX_FITNESS_OBJECTIVE=$(COMPONENT_FITNESS_OBJECTIVE)
+
+# Component parameters reach the kernel the same way they reach the RTL.
+# configure.py resolves a component's declared parameters -- with the profile's
+# overrides applied and unknown names rejected -- into COMPONENT_DEFINES using
+# Verilator's +define+ spelling; this is the compiler's spelling of the same
+# thing.
+#
+# Without this line the mechanism was complete except for its last wire: the
+# syscall component declared max_fds, path_max, write_max, io_chunk and
+# role_max_payload with defaults and documentation, configure.py resolved them,
+# and the kernel build dropped them on the floor. Setting one in a profile
+# changed nothing and said nothing.
+CPPFLAGS += $(patsubst +define+%,-D%,$(COMPONENT_DEFINES))
+
+# TASK_SLOTS is not any one component's: the scheduler and the VM both only
+# index what they are handed, so it belongs to the profile rather than to a
+# manifest. Its #ifndef default lives in include/task.h, so a profile that does
+# not name it builds exactly as before.
+AXOS_CAPACITIES := \
+  $(if $(COMPONENT_SETTING_TASK_SLOTS),-DTASK_SLOTS=$(COMPONENT_SETTING_TASK_SLOTS))
+CPPFLAGS += $(AXOS_CAPACITIES)
+CPPFLAGS += -DAXOS_EMBED_USER_NAME='"$(notdir $(USER_ELF))"'
 ifeq ($(KERNEL_MODE),monitor)
 CPPFLAGS += -DAXOS_MONITOR=1 -DAXOS_EMBED_USER=0
 else
@@ -86,7 +108,13 @@ LDFLAGS = -nostdlib -Wl,-T,link.ld -Wl,--defsym=AXOS_RAM_BYTES=$(RAM_BYTES) \
           -Wl,--defsym=AXOS_RESIDENT_BUDGET=$(RESIDENT_BUDGET) \
           -Wl,--gc-sections -Wl,-Map,$(@:.elf=.map)
 
-USER_ELF := $(BUILD_DIR)/userprog/hello.elf
+# User programs are compiled with the profile's capacities, so their artifacts
+# are keyed by the profile the way rtl/fpga keys its bitstreams. A single
+# `userprog/` directory made switching profiles produce a stale binary carrying
+# the previous profile's limits -- and because make compares against a
+# *different* .mk file per profile, switching back did not rebuild it either.
+USER_BUILD := $(BUILD_DIR)/userprog$(KERNEL_CONFIG_KEY)
+USER_ELF := $(USER_BUILD)/hello.elf
 USER_IMAGE := $(BUILD_DIR)/userprog_image.h
 # User programs are built against the selected libc component, and with libgcc
 # linked so 64-bit arithmetic resolves (-lgcc after the objects, since it only
@@ -94,9 +122,14 @@ USER_IMAGE := $(BUILD_DIR)/userprog_image.h
 USER_CFLAGS := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
                -msmall-data-limit=0 -ffreestanding -fno-builtin -fno-pic \
                -fno-stack-protector -Wall -Wextra -Werror -O2 -nostdlib \
-               -I$(COMPONENT_LIBC_INCLUDE)
+               -I$(COMPONENT_LIBC_INCLUDE) $(AXOS_CAPACITIES) \
+               $(patsubst +define+%,-D%,$(COMPONENT_DEFINES))
 
-$(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES)
+# The capacities reach these programs as -D, so the resolved profile is a
+# real prerequisite: without it a stale binary keeps the previous
+# profile's limits and disagrees with the kernel it is testing.
+$(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
+             $(KERNEL_COMPONENT_MK)
 	mkdir -p $(@D)
 	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
 	  userprog/hello.c $(COMPONENT_LIBC_SOURCES) -lgcc
@@ -105,8 +138,9 @@ $(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES)
 # The adversarial ABI program. It is never embedded in the kernel: it reaches
 # the machine from the AXFS image, so testing every refusal path costs the
 # shipped image nothing.
-TORTURE_ELF := $(BUILD_DIR)/userprog/torture.elf
-$(TORTURE_ELF): userprog/torture.c userprog/user.ld $(COMPONENT_LIBC_SOURCES)
+TORTURE_ELF := $(USER_BUILD)/torture.elf
+$(TORTURE_ELF): userprog/torture.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
+                $(KERNEL_COMPONENT_MK)
 	mkdir -p $(@D)
 	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
 	  userprog/torture.c $(COMPONENT_LIBC_SOURCES) -lgcc
@@ -271,6 +305,39 @@ check-abi-torture: images $(USER_ELF) $(TORTURE_ELF)
 	  build/axfs-torture.img
 	SD_IMAGE=$(abspath build/axfs-torture.img) python3 check_boot.py --torture
 
+# The adversarial ABI program, at whatever capacities the profile declares.
+#
+# One recipe, invoked through a sub-make so that KERNEL_CONFIG is a command-line
+# variable and the := paths below it (which are keyed by the profile) resolve
+# to that profile's artifacts. Setting it as a target-specific variable does not
+# work here: those apply to the recipe, but the paths were already expanded at
+# parse time against the default profile.
+TORTURE_IMG ?= build/axfs-torture.img
+torture-run: $(TORTURE_ELF) $(USER_ELF)
+	$(MAKE) -B images STORAGE=1 RAM_BYTES=$(TORTURE_RAM_BYTES)
+	python3 make_fs_image.py --with-torture $(TORTURE_ELF) $(USER_ELF) \
+	  $(TORTURE_IMG)
+	SD_IMAGE=$(abspath $(TORTURE_IMG)) python3 check_boot.py --torture
+
+# Linked for 1 MiB rather than the default 128 KiB. The RTL already provides
+# 32 MiB; the kernel's own AXOS_RAM_BYTES is what bounds its page pool, and at
+# 128 KiB there are about fifteen free pages -- not enough to clone an address
+# space, so the fork checks could not run at all.
+TORTURE_RAM_BYTES ?= 1048576
+
+check-abi-torture:
+	$(MAKE) torture-run
+
+# The same program against non-default capacities: 2 task slots, 3 descriptors,
+# a 12-byte path limit, 3 argv entries. It derives every limit from the same -D
+# the kernel was built with, so passing here *and* at the defaults is the
+# evidence that the knobs are real -- a hardcoded capacity makes exactly one of
+# the two runs fail, and each of the counts it checks is exact.
+check-abi-torture-small:
+	$(MAKE) torture-run \
+	  KERNEL_CONFIG=$(abspath ../../configs/kernel-small-caps.json) \
+	  TORTURE_IMG=build/axfs-torture-small.img
+
 check-loader-wx: images $(USER_ELF)
 	$(MAKE) -B images STORAGE=1
 	python3 make_fs_image.py --with-wx $(USER_ELF) build/axfs-wx.img
@@ -374,4 +441,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write check-loader-wx check-abi-torture boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write check-loader-wx check-abi-torture check-abi-torture-small torture-run boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean

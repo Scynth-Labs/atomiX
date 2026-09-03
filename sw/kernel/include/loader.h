@@ -22,10 +22,13 @@ enum {
   /* The image is valid but does not fit: a segment outside the mappable user
    * region, or not enough physical pages. */
   LOADER_ENOSPACE = -2,
-  /* Kernel-owned argv is deliberately bounded so malformed management input
-   * cannot consume the one-page initial user stack. */
-  LOADER_ARG_MAX = 8,
 };
+
+/* Kernel-owned argv is deliberately bounded so malformed management input
+ * cannot consume the one-page initial user stack. */
+#ifndef LOADER_ARG_MAX
+#define LOADER_ARG_MAX 8
+#endif
 
 /* Load `image` into `task`'s address space and set up its initial state.
  *

@@ -3,6 +3,25 @@
   "id": "loader.elf32",
   "kind": "loader",
   "title": "Static ELF32 RISC-V program loader (PT_LOAD segments, System V initial stack)",
-  "sources": ["components/loader/elf32/loader.c"],
-  "capabilities": ["elf32", "riscv", "static-exec", "pt-load", "per-segment-permissions", "bss-zero-fill", "sysv-initial-stack", "argv", "auxv"]
+  "sources": [
+    "components/loader/elf32/loader.c"
+  ],
+  "capabilities": [
+    "elf32",
+    "riscv",
+    "static-exec",
+    "pt-load",
+    "per-segment-permissions",
+    "bss-zero-fill",
+    "sysv-initial-stack",
+    "argv",
+    "auxv"
+  ],
+  "parameters": {
+    "arg_max": {
+      "default": 8,
+      "define": "LOADER_ARG_MAX",
+      "doc": "Most argv entries the kernel will place on a new program's initial stack. Bounded so malformed management input cannot consume the one-page initial user stack; the shell's own limit follows this."
+    }
+  }
 }

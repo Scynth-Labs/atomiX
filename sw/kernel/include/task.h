@@ -5,8 +5,16 @@
 /* This is the small, intentionally visible contract shared by scheduler and
  * virtual-memory components.  The kernel owns trap/syscall semantics; a
  * component only observes the task state and address-space fields it needs. */
+/* How many tasks exist at once.  A profile sets this; it is not a property of
+ * the scheduler or the VM, both of which only ever index what they are given.
+ * Two is the floor because fork needs a slot to put a child in. */
+#ifndef TASK_SLOTS
+#define TASK_SLOTS 4
+#endif
+_Static_assert(TASK_SLOTS >= 2, "TASK_SLOTS < 2 leaves no slot for a child");
+_Static_assert(TASK_SLOTS <= 64, "TASK_SLOTS is scanned linearly; keep it small");
+
 enum {
-  TASK_SLOTS = 4,
   TASK_NONE = TASK_SLOTS,
   TASK_UNUSED = 0,
   TASK_RUNNABLE = 1,

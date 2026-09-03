@@ -345,6 +345,62 @@ Linux subset, and the loader takes ELF directly rather than a pre-flattened
 image — in both cases because it is what the toolchain already produces, and
 deviating would cost work without buying capability.
 
+## Configurability the build actually honours
+
+The first goal of the project is that a user can replace the parts that matter
+to them.  Three of the bugs above were the same failure of that goal: a literal
+standing in for something a profile should decide.  `void *pages[32]` capped
+bootable RAM at 128 KiB, `user_pt[1]` assumed one program's page-table layout,
+and `0x51a00001` assumed one program's stack contents.  Each was invisible
+until something changed the configuration.
+
+- [x] **Every capacity is a knob, and every knob is wired, bounded and
+  exercised.**  The mechanism mostly existed; what was missing was the last
+  wire and any check that a knob did anything.
+
+  *Wired.*  `sw/kernel/Makefile` now converts `COMPONENT_DEFINES` to `-D` the
+  way `rtl/fpga/Makefile` already did.  Until it did, the syscall component's
+  `max_fds`, `path_max`, `write_max`, `io_chunk` and `role_max_payload` — each
+  declared in its manifest with a default and a `doc`, each resolved by
+  `configure.py` — were dropped by the kernel build.  Setting one in a profile
+  changed nothing and reported nothing.  `loader.elf32` now declares `arg_max`
+  the same way, and the shell's own argument limit follows it rather than being
+  a second literal that can disagree.  `TASK_SLOTS` is a profile *setting*
+  rather than a component parameter, because the scheduler and the VM both only
+  index what they are handed — it belongs to no single component.
+
+  *Bounded.*  Settings were free-form: an unrecognised key became a make
+  variable nothing read, so `task_slot` for `task_slots` silently kept the
+  default and the profile appeared to work.  `configure.py` now carries a
+  `SETTINGS` registry with types and ranges, rejects an unknown key (suggesting
+  the near-miss), and rejects an out-of-range value.  Relationships *between*
+  knobs are `_Static_assert`s beside their definitions, which is the only place
+  that knows them: `TASK_SLOTS >= 2` because fork needs a slot for a child,
+  `KERNEL_PROCESS_ARG_MAX <= LOADER_ARG_MAX` because the shell must not accept
+  more arguments than the loader can place.
+
+  *Exercised.*  `configs/kernel-small-caps.json` sets 2 task slots, 3
+  descriptors, a 12-byte path limit and 3 argv entries, and
+  `make -C sw/kernel check-abi-torture-small` runs the adversarial ABI program
+  against it.  The program derives every limit from the same `-D` the kernel was
+  built with — repeating them would be the same bug one level up — and asserts
+  *exact* counts, so it forks `TASK_SLOTS - 1` times and no other number.
+  Mutation-tested: re-hardcoding `TASK_SLOTS` in the kernel makes the
+  small-capacity run fail while the default run still passes, which is what
+  makes the two runs together evidence rather than a pair of green ticks.
+
+  Two build defects surfaced while proving this, both the same shape.  User
+  programs are compiled with the profile's capacities but were written to one
+  `userprog/` directory, so switching profiles silently reused the previous
+  profile's binary against the new kernel; and because make compares against a
+  *different* `.mk` file per profile, switching back did not rebuild either.
+  Artifacts are now keyed by profile, as `rtl/fpga` already keys bitstreams.
+
+  The embedded program's *name* was also a literal, in two places that had to
+  agree: `kernel.c` would only run a program called `hello.elf`, and the shell
+  repeated the string as its default.  Both now read one define the Makefile
+  derives from the embedded ELF's own filename.
+
 ## Change-ready checklist
 
 Use this for a substantive implementation or interface change:

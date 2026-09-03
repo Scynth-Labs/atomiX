@@ -484,7 +484,7 @@ static void command_fork(uint32_t argc, char **argv) {
 }
 
 static void command_exec(uint32_t argc, char **argv) {
-  const char *default_argv[] = {"hello.elf"};
+  const char *default_argv[] = {AXOS_EMBED_USER_NAME};
   const char *const label = argv[0];
   const char *name;
   const char *const *program_argv;

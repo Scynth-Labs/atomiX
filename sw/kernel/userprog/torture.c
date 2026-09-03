@@ -30,10 +30,25 @@ enum {
   SYS_ROLE_INFO = 0x1000,
 };
 
+/* The kernel's capacities reach this program as the same -D the kernel was
+ * built with (see sw/kernel/Makefile), with the same defaults in the same
+ * shape.  Repeating the numbers here is what a test must not do: a profile
+ * that raises AXOS_MAX_FDS would otherwise leave the test asserting the old
+ * limit and calling the disagreement a kernel bug. */
+#ifndef AXOS_PATH_MAX
+#define AXOS_PATH_MAX 32
+#endif
+#ifndef AXOS_MAX_FDS
+#define AXOS_MAX_FDS 8
+#endif
+#ifndef TASK_SLOTS
+#define TASK_SLOTS 4
+#endif
+
 enum {
   AT_FDCWD = -100,
-  PATH_MAX = 32,          /* AXOS_PATH_MAX in the syscall component */
-  MAX_FDS = 8,            /* AXOS_MAX_FDS */
+  PATH_MAX = AXOS_PATH_MAX,
+  MAX_FDS = AXOS_MAX_FDS,
   FD_FIRST = 3,
   PAGE = 4096,
 };
@@ -156,15 +171,18 @@ static int check_descriptors(void) {
   if (opened != MAX_FDS) return 45;
   if (open("motd", O_RDONLY) != -1 || errno != EMFILE) return 46;
 
-  /* Freeing one slot must make exactly that number available again. */
-  if (close(fds[3]) != 0) return 47;
+  /* Freeing one slot must make exactly that number available again.  The
+   * middle of the table rather than a fixed index, so this still means
+   * something when a profile sets AXOS_MAX_FDS to 1 or 2. */
+  const int freed = MAX_FDS / 2;
+  if (close(fds[freed]) != 0) return 47;
   const int reused = open("motd", O_RDONLY);
-  if (reused != fds[3]) return 48;
+  if (reused != fds[freed]) return 48;
   if (close(reused) != 0) return 49;
   if (close(reused) != -1 || errno != EBADF) return 50;
 
   for (int i = 0; i < MAX_FDS; ++i)
-    if (i != 3 && close(fds[i]) != 0) return 51;
+    if (i != freed && close(fds[i]) != 0) return 51;
   return 0;
 }
 
@@ -348,9 +366,13 @@ static int check_clone(void) {
       break;
     }
     children++;
-    if (children > 8) return 101;         /* the table is not bounded */
+    if (children >= TASK_SLOTS) return 101;   /* the table is not bounded */
   }
-  if (children == 0) return 102;          /* no slot at all is not exhaustion */
+  /* Exactly the slots the profile asked for, minus the one this program is
+   * running in.  An exact count rather than "at least one" is what makes the
+   * setting falsifiable: a kernel ignoring TASK_SLOTS forks a different number
+   * of times and fails here. */
+  if (children != TASK_SLOTS - 1) return 102;
   for (int i = 0; i < children; ++i) {
     int status = -1;
     if (__libc_syscall5(260, -1, (long)&status, 0, 0, 0) < 0) return 103;

@@ -209,6 +209,73 @@ def resolved_config(path: Path) -> dict[str, Any]:
             "settings": settings, "parameters": parameters}
 
 
+# Every setting a profile may name, with the bounds that make it usable.
+#
+# Settings used to be free-form: an unrecognised key became a make variable
+# nothing read, so `task_slot` instead of `task_slots` silently kept the
+# default and the profile appeared to work.  That is the failure mode a
+# configurable system invites, and the answer is not to stop making things
+# configurable but to make an unknown or out-of-range setting say so.
+#
+# Bounds here are the coarse "this cannot possibly be right" limits.  The
+# relationships *between* settings are checked where both are visible --
+# _Static_assert in the headers that define them -- because that is the only
+# place that knows them.
+SETTINGS: dict[str, dict[str, Any]] = {
+    # System sizing.
+    "ram_bytes": {"type": int, "min": 4096, "max": 1 << 30},
+    "caches": {"type": bool},
+    "reset_pc": {"type": str},
+    "kernel_mode": {"type": str, "choices": ("full", "monitor")},
+    # Kernel-owned capacity. Component-owned ones (max_fds, path_max,
+    # write_max, io_chunk, role_max_payload, the loader's arg_max) are
+    # component `parameters`, not settings: the component that owns a
+    # knob declares it, with its default and its documentation.
+    "task_slots": {"type": int, "min": 2, "max": 64},
+    # Cache geometry.
+    "cache_lines": {"type": int, "min": 1, "max": 1 << 16},
+    "cache_words_per_line": {"type": int, "min": 1, "max": 256},
+    # Place-and-route.
+    "pnr_seed": {"type": int, "min": 1, "max": 1 << 16},
+    "pnr_extra_args": {"type": str},
+}
+
+
+def check_setting(path: Path, key: str, value: Any) -> None:
+    spec = SETTINGS.get(key)
+    if spec is None:
+        near = [name for name in SETTINGS if name.startswith(key[:4])]
+        hint = f" (did you mean {' or '.join(sorted(near))}?)" if near else ""
+        raise ConfigError(
+            f"{path}: unknown setting {key!r}{hint}. Known settings: "
+            f"{', '.join(sorted(SETTINGS))}")
+    expected = spec["type"]
+    # bool is a subclass of int, so check it first and exactly.
+    if expected is bool:
+        if not isinstance(value, bool):
+            raise ConfigError(f"{path}: setting {key!r} must be true or false")
+        return
+    if expected is int:
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ConfigError(f"{path}: setting {key!r} must be an integer")
+        low, high = spec.get("min"), spec.get("max")
+        if low is not None and value < low:
+            raise ConfigError(
+                f"{path}: setting {key!r} is {value}, below the minimum {low}")
+        if high is not None and value > high:
+            raise ConfigError(
+                f"{path}: setting {key!r} is {value}, above the maximum {high}")
+        return
+    if expected is str:
+        if not isinstance(value, str):
+            raise ConfigError(f"{path}: setting {key!r} must be a string")
+        choices = spec.get("choices")
+        if choices is not None and value not in choices:
+            raise ConfigError(
+                f"{path}: setting {key!r} is {value!r}; expected one of "
+                f"{', '.join(choices)}")
+
+
 def source_list(component: dict[str, Any]) -> list[str]:
     sources: list[str] = []
     for source in component.get("sources", []):
@@ -318,6 +385,7 @@ def to_make(resolved: dict[str, Any]) -> str:
         "reset_pc": "COMPONENT_RESET_PC",
     }
     for key, value in settings.items():
+        check_setting(resolved["path"], key, value)
         output = setting_names.get(key, f"COMPONENT_SETTING_{key.upper()}")
         if not SAFE_MAKE_NAME.fullmatch(output):
             raise ConfigError(f"{resolved['path']}: invalid setting name {key!r}")

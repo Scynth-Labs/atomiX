@@ -272,6 +272,23 @@ make ecp5-frame-check            # compressed/full/partial frame decoder contrac
 make pr-gate-check               # partial-bitstream load gate: 7 gates, 12 rejections
 ```
 
+Kernel and ABI conformance, including the same program run against a profile
+whose capacities are not the defaults:
+
+```bash
+make -C sw/kernel check-abi-torture        # adversarial ABI program, default caps
+make -C sw/kernel check-abi-torture-small  # 2 task slots, 3 fds, 12-byte paths
+make -C sw/kernel check-loader-wx          # loader refuses a W+X segment
+make -C sw/kernel kernel-config-check-all  # every kernel profile resolves
+```
+
+`check-abi-torture-small` is not a duplicate run.  The program derives every
+limit from the same `-D` the kernel was built with and asserts exact counts, so
+a capacity that is hardcoded somewhere makes exactly one of the two runs fail.
+Passing both is the evidence that the profile knobs are real; passing one is
+not.  Both link at 1 MiB rather than the default 128 KiB, because cloning an
+address space needs more than the ~15 free pages 128 KiB leaves.
+
 ```bash
 make config-check-all              # all profiles resolve
 make component-test                # runs the supplied composition matrix (slower)

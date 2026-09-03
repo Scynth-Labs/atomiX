@@ -218,6 +218,13 @@ void m_setup(void) {
 }
 
 static uint32_t *sys_fork(uint32_t *trap_frame);
+/* Capacities come from the profile, so the relationships between them have to
+ * be checked rather than assumed.  The shell accepting more arguments than the
+ * loader can place would be a silently truncated argv, which is exactly the
+ * class of bug configurability introduces if nothing enforces the seams. */
+_Static_assert(KERNEL_PROCESS_ARG_MAX <= LOADER_ARG_MAX,
+               "the shell accepts more arguments than the loader can place");
+
 static uint32_t *sys_wait(uint32_t *trap_frame, uint32_t status_va);
 static uint32_t *sys_exit(uint32_t *trap_frame, uint32_t code);
 static const struct syscall_ops kernel_ops;
@@ -762,7 +769,7 @@ int kernel_run_program(const char *name, uint32_t argc,
   expect_fork_markers = 0;
   scheduler_free_pages = page_free_count();
 #if AXOS_EMBED_USER
-  if (!same_name(name, "hello.elf")) return KERNEL_RUN_ENOENT;
+  if (!same_name(name, AXOS_EMBED_USER_NAME)) return KERNEL_RUN_ENOENT;
   const int loaded = scheduler_make_loaded_task(
       0, name, axos_user_image, axos_user_image_size, argc, argv);
 #else
