@@ -270,6 +270,17 @@ make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
 make pr-gate-check               # partial-bitstream load gate: 7 gates, 12 rejections
+make diagram-check               # every mermaid diagram is well formed
+```
+
+`diagram-check` runs in `ci-quick`. Diagrams are documentation that breaks
+silently -- a mermaid block with a typo renders as an error box on GitHub and no
+ordinary build looks at it. The check needs no toolchain and no network. For a
+real render (worth doing before publishing, but it pulls a headless browser):
+
+```bash
+npx --yes puppeteer browsers install chrome-headless-shell
+npx --yes @mermaid-js/mermaid-cli -i diagram.mmd -o diagram.svg
 ```
 
 Kernel and ABI conformance, including the same program run against a profile

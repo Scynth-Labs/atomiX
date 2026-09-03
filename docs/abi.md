@@ -95,6 +95,46 @@ interesting and has no business being disguised as an `ioctl`:
 
 These are ours to define and to change.  Anything in the standard range is not.
 
+## How a call reaches the kernel
+
+Two controllers reach aXos by different routes, because RISC-V lets only one of
+them be delegated. The machine timer is M-mode state that cannot be delegated,
+so a small M-mode shim re-arms it and raises a delegated `SSIP`; device
+interrupts need no shim, because the PLIC has a supervisor context and
+`mideleg` bit 9 delegates them directly.
+
+```mermaid
+flowchart TB
+  user["U-mode program<br/>a7 = number, a0-a5 = arguments"]
+  ecall["ecall"]
+  stvec["stvec → trap.S<br/>save frame, switch to kernel stack"]
+  strap["supervisor_trap<br/>reads scause"]
+
+  user --> ecall --> stvec --> strap
+
+  strap -->|"user ecall"| disp["syscall_dispatch<br/>syscall component"]
+  strap -->|"supervisor external"| plic["plic_dispatch<br/>claim → device → complete"]
+  strap -->|"supervisor software"| sched["scheduler tick"]
+  strap -->|"anything else"| fault["print sepc + stval,<br/>stop"]
+
+  disp --> ops["struct syscall_ops<br/>the kernel's side of the seam"]
+  ops --> k1["copy_from_user / copy_to_user<br/>per byte, per page permission"]
+  ops --> k2["fork · wait · exit · brk"]
+  ops --> k3["file_open / file_read<br/>filesystem component"]
+  ops --> k4["role_info / role_submit / role_wait"]
+
+  mshim["M-mode timer shim in trap.S<br/>re-arms mtimecmp, raises SSIP"] -.->|"delegated"| sched
+
+  classDef comp fill:#e8f0fe,stroke:#3367d6
+  class disp,ops,k3 comp
+```
+
+The seam is `struct syscall_ops`: the syscall component decides what a number
+means and what error convention applies, while the kernel keeps owning the
+trap. That is why replacing the ABI does not mean reimplementing the kernel —
+and why `sstatus.SUM` stays clear and every user pointer goes through
+`vm_translate_user`, so `-EFAULT` is enforced by the MMU rather than hoped for.
+
 ## Program loading
 
 **ELF32, little-endian, RISC-V**, loaded directly rather than pre-flattened.

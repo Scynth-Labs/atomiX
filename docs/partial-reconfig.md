@@ -74,6 +74,68 @@ only for the 45k device; the ULX3S-85F may need fuzzing work.
 
 ## Staged plan and evidence gates
 
+```mermaid
+flowchart TB
+  s1["Stage 1 — baseline<br/>ECP5 place and route to a .bit"]
+  s2["Stage 2 — delta measurement<br/>where two builds actually differ"]
+  s3["Stage 3 — confinement<br/>lock the shell, measure the region,<br/>gate the candidate"]
+  s4["Stage 4 — live load<br/>SRAM, board at hand"]
+  s5["Stage 5 — promote the capability"]
+
+  s1 --> s2 --> s3 --> s4 --> s5
+
+  classDef done fill:#e6f4ea,stroke:#137333
+  classDef part fill:#fef7e0,stroke:#f9ab00
+  classDef blocked fill:#fce8e6,stroke:#c5221f,stroke-dasharray: 4 4
+  class s1,s2 done
+  class s3 part
+  class s4,s5 blocked
+```
+
+Stage 4 is blocked on hardware, not on tooling. Stage 3 is where the work is,
+and it now has two halves that exist and one that does not: the region is
+**measured**, a candidate is **gated**, and no candidate **passes** yet.
+
+```mermaid
+flowchart TB
+  subgraph measure["Region measurement — pr_region.py"]
+    direction TB
+    m0["probe zero: re-render the config unchanged<br/>must pack to a 0-frame delta"]
+    m1["empty the rectangle's tiles → pack delta<br/>ecppack names the frames it writes"]
+    m2["empty everything outside → pack delta"]
+    m3["intersect"]
+    m0 --> m1 --> m3
+    m2 --> m3
+    m3 --> sep{"shared frames?"}
+    sep -->|"none"| ok["separable<br/>region manifest"]
+    sep -->|"any"| no["not separable on this geometry<br/>a result, not an error"]
+  end
+
+  subgraph gate["Load gate — pr_verify_delta.py"]
+    direction TB
+    g1["stream structure"] --> g2["device identity"] --> g3["frame geometry"]
+    g3 --> g4["every frame addressed"] --> g5["shell identity"]
+    g5 --> g6["region confinement"] --> g7["frame + size budget"]
+    g7 --> verdict{"all gates pass?"}
+    verdict -->|"yes"| permit["load authorisation: permitted"]
+    verdict -->|"no"| withhold["withheld<br/>actuation: not-authorized"]
+  end
+
+  ok --> g6
+  cand["candidate partial bitstream"] --> g1
+
+  classDef good fill:#e6f4ea,stroke:#137333
+  classDef bad fill:#fce8e6,stroke:#c5221f
+  class ok,permit good
+  class no,withhold bad
+```
+
+Today's unconstrained delta reaches `region confinement` and stops there: 8,175
+of its 8,225 frames land outside the role window, and the image is 2.4x the size
+of simply reloading the whole device. That is the shell-locking problem stated
+in the units a loader cares about.
+
+
 1. **Baseline.** Build evidence is in: `make fpga CONFIG=configs/ulx3s-85f.json`
    runs ECP5 place-and-route to a `.bit`, routing at **28.42 MHz against the
    25 MHz constraint** with 13,782/83,640 LUT4 (16%), 3,096 FF, 0 BRAM, 0 DSP.

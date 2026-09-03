@@ -370,6 +370,52 @@ and the later
 
 ### Capability ladder
 
+Each level is gated on the one below it, and the gate is a safety boundary
+rather than a milestone. Nothing above L3 is claimed.
+
+```mermaid
+flowchart TB
+  L0["L0 Observe<br/>counters: correctness, stalls,<br/>throughput, errors, resets"]
+  L1["L1 Select<br/>policy picks among reviewed programs"]
+  L2["L2 Improve offline<br/>host generates, simulates, scores,<br/>stages a candidate"]
+  L3["L3 Adapt an overlay<br/>optimizer changes a bounded<br/>PE/route genome at runtime"]
+  L4["L4 Mutate FPGA frames<br/>native LUT and routing bits"]
+
+  L0 -->|"no configuration change"| L1
+  L1 -->|"allow-listed descriptors only"| L2
+  L2 -->|"correctness gate plus rollback"| L3
+  L3 -->|"morph fabric only"| L4
+  R1["R1 exit gate<br/>frame confinement, isolation,<br/>live recovery, bad-image rejection"] -.->|"required before L4"| L4
+
+  classDef done fill:#e6f4ea,stroke:#137333
+  classDef blocked fill:#fce8e6,stroke:#c5221f,stroke-dasharray: 4 4
+  class L0,L1,L2,L3 done
+  class L4,R1 blocked
+```
+
+The closed loop those levels compose into, and where each safety boundary sits:
+
+```mermaid
+flowchart LR
+  tel["L0 telemetry<br/>axlivemon counters"] --> fit["fitness<br/>deterministic, correctness is a hard gate"]
+  fit --> pol["L1 policy<br/>reviewed candidates only"]
+  pol --> shad["L2 shadow evaluation<br/>5 static gates, then the oracle"]
+  shad -->|"signed-off request<br/>actuation: not-authorized"| mgr["external manager<br/>the only actuator"]
+  mgr --> trial["volatile trial<br/>primary + canary workloads"]
+  trial -->|"canary fails, or watchdog"| roll["rollback to last known good"]
+  trial -->|"both pass"| tel
+  roll --> tel
+
+  classDef gate fill:#fef7e0,stroke:#f9ab00
+  class shad,mgr gate
+```
+
+The proposal path never actuates. Every record a search or a policy produces
+carries `actuation: org.atomix.not-authorized`, and a separate manager is the
+only thing that can start a volatile run — which is what makes an optimizer
+that proposes something wrong a rejected candidate rather than an incident.
+
+
 | Level | Capability | Safety boundary |
 |---|---|---|
 | L0 Observe | counters report correctness, stalls, throughput, errors, and resets | no configuration change |

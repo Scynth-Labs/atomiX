@@ -61,30 +61,47 @@ we build.
 
 ## 3. System architecture
 
+```mermaid
+flowchart TB
+  host["Host PC<br/>axhost driver"]
+
+  subgraph soc["atomiX SoC — the shell, identical in every bitstream"]
+    direction TB
+    core["aXcore CPU<br/>RV32IM + Zicsr, 5-stage<br/>M / S / U modes, Sv32 MMU"]
+    cache["optional I$ / D$"]
+    bus["aXbus interconnect<br/>valid / ready, 32-bit, arbiter-ready"]
+    rom["Boot ROM<br/>0x0000_1000"]
+    ram["RAM<br/>0x8000_0000<br/>BRAM or SDRAM"]
+    clint["CLINT<br/>0x0200_0000"]
+    plic["PLIC<br/>0x0C00_0000"]
+    uart["UART0<br/>0x1000_0000"]
+    spi["SPI0 / SD<br/>0x1001_0000"]
+    fence["axroleiso + telemetry<br/>0x1002_0000<br/>shell space, not the window"]
+  end
+
+  role["ROLE window — differs per bitstream<br/>0x4000_0000, 64 KiB<br/>ID / VERSION / DOORBELL / STATUS"]
+
+  core --- cache
+  cache --- bus
+  bus --- rom
+  bus --- ram
+  bus --- clint
+  bus --- plic
+  bus --- uart
+  bus --- spi
+  bus --- fence
+  fence ==>|"gated bus + reset"| role
+  role -.->|"irq, reject_event"| fence
+  fence -.-> plic
+  plic -.->|"external"| core
+  clint -.->|"timer / software"| core
+  uart <-->|"console + host link"| host
 ```
-                 ┌─────────────────────────────────────────────┐
-                 │                  atomiX SoC                  │
-                 │                                             │
-   ┌─────────┐  │  ┌───────────────────────────────────────┐  │
-   │  UART   │◄─┼─►│            aXbus interconnect          │  │
-   │ (host   │  │  │      (valid/ready, 32-bit, 1 master    │  │
-   │ terminal│  │  │       now, arbiter-ready for DMA)      │  │
-   └─────────┘  │  └───┬───────────┬───────────┬───────────┘  │
-                 │      │           │           │              │
-                 │  ┌───┴────┐ ┌────┴────┐ ┌────┴────┐         │
-                 │  │ CLINT  │ │ Boot ROM│ │  RAM    │         │
-                 │  │ mtime, │ │ (BRAM)  │ │ (BRAM → │         │
-                 │  │ msip   │ │         │ │  SDRAM) │         │
-                 │  └───▲────┘ └─────────┘ └─────────┘         │
-                 │      │ timer/sw irq                         │
-                 │  ┌───┴──────────────────────────────┐       │
-                 │  │        aXcore CPU                 │       │
-                 │  │  RV32I(M) Zicsr, 5-stage pipeline │       │
-                 │  │  M/S/U modes, Sv32 MMU            │       │
-                 │  │  optional I$ and D$ cache path    │       │
-                 │  └───────────────────────────────────┘       │
-                 └─────────────────────────────────────────────┘
-```
+
+The fence is the load-bearing detail. `axroleiso` sits between the address
+decoders and the role, and its control register is in **shell** space at
+`0x1002_0000` rather than inside the window it fences — a register inside that
+window would be unreachable at exactly the moment it is needed.
 
 ### 3.1 Platform compatibility rule
 
@@ -114,30 +131,83 @@ bus returns an error response rather than hanging.
 Role-visible RAM windows (for descriptor rings in main memory) will be
 assigned from remaining unused space when a role needs bus mastering.
 
+The same physical role window is reachable at two different virtual addresses,
+which is the part of this map most worth drawing:
+
+```mermaid
+flowchart LR
+  subgraph phys["Physical address space"]
+    direction TB
+    p1["0x0000_1000 boot ROM"]
+    p2["0x0200_0000 CLINT"]
+    p3["0x0C00_0000 PLIC"]
+    p4["0x1000_0000 UART0"]
+    p5["0x1002_0000 shell control<br/>fence + telemetry"]
+    p6["0x4000_0000 role window<br/>64 KiB"]
+    p7["0x8000_0000 RAM<br/>kernel loads here"]
+  end
+
+  subgraph sv32["Sv32 virtual, per task"]
+    direction TB
+    v1["0x4000_0000 user text<br/>U-mode, 4 MiB region"]
+    v2["0x5000_0000 role alias<br/>supervisor only"]
+    v3["0x8000_0000 kernel<br/>identity mapped"]
+  end
+
+  v2 -->|"kernel-only alias"| p6
+  v3 -->|"identity"| p7
+  v1 -.->|"no path — U-mode never<br/>reaches the window directly"| p6
+
+  classDef blocked stroke-dasharray: 4 4,stroke:#c5221f
+  class v1 blocked
+```
+
+User text keeps virtual `0x4000_0000` while aXos reaches the same physical
+window through a supervisor-only alias at `0x5000_0000`. That is what lets a
+U-mode program be linked at the natural base without ever being able to address
+the accelerator: it submits checked jobs through `role_info` / `role_submit` /
+`role_wait` instead, and the kernel copies the encoding.
+
 ### 3.3 Shell + role platform model
 
 The endgame architecture. The FPGA design is split into two parts:
 
+```mermaid
+flowchart TB
+  subgraph fpga["FPGA bitstream"]
+    direction TB
+    subgraph shell["SHELL — identical RTL in every bitstream"]
+      direction LR
+      s1["aXcore + aXos"]
+      s2["memory controller"]
+      s3["host link"]
+      s4["UART / SD"]
+      s5["axroleiso fence<br/>watchdog + telemetry"]
+    end
+    subgraph rolebox["ROLE — the only part that differs"]
+      direction LR
+      r1["role.none"]
+      r2["role.loopback"]
+      r3["role.tpu-lite"]
+      r4["role.gpu1-*"]
+      r5["role.morph"]
+    end
+  end
+  host["Host PC — axhost<br/>submit work, move buffers,<br/>upload kernels and payloads"]
+
+  shell ==>|"fixed 64 KiB window at 0x4000_0000<br/>ID · DOORBELL · STATUS · irq · reject_event"| rolebox
+  host <-->|"framed protocol over USB/UART<br/>never raw MMIO"| shell
+
+  classDef immutable fill:#e8f0fe,stroke:#3367d6,stroke-width:2px
+  classDef swappable fill:#fef7e0,stroke:#f9ab00,stroke-width:2px
+  class shell immutable
+  class rolebox swappable
 ```
-┌────────────────────── FPGA ──────────────────────┐
-│  SHELL (identical RTL in every bitstream)        │
-│  ┌────────┐ ┌──────┐ ┌───────────┐ ┌──────────┐  │
-│  │ aXcore │ │ SDRAM│ │ host link │ │ UART/SD  │  │
-│  │ + aXos │ │ ctrl │ │   (USB)   │ │          │  │
-│  └───┬────┘ └──┬───┘ └─────┬─────┘ └────┬─────┘  │
-│      └───── aXbus ─────────┴────────────┘        │
-│                 │                                │
-│  ┌──────────────┴───────────────────────────┐    │
-│  │  ROLE (differs per bitstream)            │    │
-│  │  none/extra-CPU │ TPU (systolic) │ ...   │    │
-│  └──────────────────────────────────────────┘    │
-└──────────────────────────────────────────────────┘
-         ▲ USB
-┌────────┴─────────┐
-│ Host PC (Linux)  │  axhost driver/daemon: upload bitstream (mode switch),
-│                  │  submit work, move buffers — via the shell protocol only
-└──────────────────┘
-```
+
+Everything a recovery path needs — the CPU, the loader, the UART, the fence
+itself — is on the immutable side. That is what makes a role safe to replace:
+the thing being changed is never the thing you would need in order to undo the
+change.
 
 - **Shell** = aXcore + aXos + aXbus + memory controller + host link + boot.
   Same source, present in every bitstream. This is where "the ISA is common"
@@ -148,6 +218,65 @@ The endgame architecture. The FPGA design is split into two parts:
   doorbell, a status register, and role-defined descriptor registers and
   windows, plus an interrupt line via PLIC when it exists. aXos discovers
   the role via `ROLE_ID`, feeds it work, and exposes it over the host link.
+
+**The job cycle.** aXos discovers the role, submits work, and collects the
+result; U-mode never touches MMIO.
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant U as U-mode program
+  participant K as aXos kernel driver
+  participant F as axroleiso fence
+  participant R as role
+
+  K->>F: read ROLE_ID / VERSION
+  F->>R: forwarded
+  R-->>K: id, version, capabilities
+  Note over K: id == 0 means "no role present"<br/>and an isolated window reads the same,<br/>so re-discovery needs no new code path
+
+  U->>K: role_submit, checked encoding
+  K->>R: write descriptor registers
+  K->>R: write DOORBELL
+  R-->>R: STATUS.BUSY
+  alt descriptor refused
+    R-->>K: reject_event pulse, REJECTS++
+    K-->>U: -EINVAL
+  else accepted
+    R-->>K: STATUS.DONE, irq held while DONE stands
+    K->>K: wfi, or bounded poll where there is no PLIC
+    K-->>U: tokenized result
+  end
+```
+
+**Isolation, and why it is unconditional.** Replacing a role means the window
+may stop answering. The fence exists for exactly that moment:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Transparent
+  Transparent --> Isolated: write ISO_CTRL.ISOLATE
+  note right of Isolated
+    valid held low into the role
+    bus answered ready / zero / no error
+    irq masked so half-configured fabric
+    cannot storm a level-sensitive PLIC
+    window reads as ROLE_ID == 0
+  end note
+  Isolated --> Held: write ISO_CTRL.ROLE_RESET
+  note right of Held
+    region held in reset so rewritten
+    fabric starts from a defined state
+  end note
+  Held --> Isolated: release reset
+  Isolated --> Transparent: clear ISOLATE
+  Transparent --> Transparent: out of reset the fence is transparent,<br/>so a profile that never writes it is unchanged
+```
+
+Isolation is immediate and unconditional rather than waiting for in-flight
+traffic to retire. The role it protects against is the one that has *stopped
+answering*, so a fence that drains first deadlocks on the very failure it exists
+to contain; quiescing stays the driver's job one level up.
 
 **Writing your own role.** A role is one SystemVerilog module named `axrole`
 plus a `components/role/<name>/component.json` naming its sources; selecting it
@@ -456,9 +585,57 @@ slave  → master: ready, rdata[31:0], err
 3. **riscv-formal + SymbiYosys:** bounded formal proofs of the pipeline
    (register writeback correctness, PC ordering, trap precision).
 
-The recommended automation policy is to run simulation legs on every relevant
-change and formal jobs on core/RVFI changes.  The reproducible commands and
-current evidence are in [docs/workflow.md](docs/workflow.md) and
+```mermaid
+flowchart TB
+  src["one program source<br/>bare-metal test, aXos, user ELF"]
+  iss["aXsim — our RV32 ISS<br/>instruction-accurate"]
+  qemu["QEMU virt<br/>independent implementation"]
+  rtl["Verilated RTL SoC"]
+  formal["riscv-formal + SymbiYosys<br/>bounded proofs"]
+  board["physical FPGA board"]
+
+  src --> iss
+  src --> qemu
+  src --> rtl
+  iss <==>|"lock-step: PC, instruction, rd write,<br/>CSR effects, trap taken — per retire"| rtl
+  formal -->|"writeback, PC ordering,<br/>trap precision"| rtl
+  rtl -->|"same image, no source change"| board
+
+  classDef sim fill:#e8f0fe,stroke:#3367d6
+  classDef phys fill:#e6f4ea,stroke:#137333
+  class iss,qemu,rtl,formal sim
+  class board phys
+```
+
+The same software running unchanged on three platforms is what separates
+"software bug" from "hardware bug": a test that fails on the RTL and passes on
+both the ISS and QEMU is pointing at the hardware, and one that fails on all
+three is pointing at itself.  QEMU matters precisely because it is not ours —
+agreeing with an implementation we did not write is evidence our memory map and
+programming models are the standard ones rather than self-consistent.
+
+**Evidence levels are never merged.**  A reviewer should read every claim in
+this repository as belonging to exactly one of these, and the words are used
+strictly:
+
+```mermaid
+flowchart LR
+  a["synthesis<br/>the design compiles"] --> b["place & route<br/>it fits and meets timing"]
+  b --> c["simulation<br/>it behaves correctly"]
+  c --> d["volatile board run<br/>it behaved on real silicon"]
+  d --> e["live reconfiguration<br/>it changed while running"]
+
+  classDef done fill:#e6f4ea,stroke:#137333
+  classDef open fill:#fef7e0,stroke:#f9ab00
+  class a,b,c,d done
+  class e open
+```
+
+Never call a result `verified`, `adaptive`, `partial`, or `live` when it only
+demonstrates the level to its left.  The recommended automation policy is to run
+simulation legs on every relevant change and formal jobs on core/RVFI changes.
+The reproducible commands and current evidence are in
+[docs/workflow.md](docs/workflow.md) and
 [docs/design-checklist.md](docs/design-checklist.md).
 
 ## 7. Software stack

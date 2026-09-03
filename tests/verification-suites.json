@@ -3,180 +3,433 @@
   "stages": {
     "axsim-directed": {
       "label": "Golden ISS smoke and trap tests",
-      "command": ["make", "-C", "sim/axsim", "test"],
+      "command": [
+        "make",
+        "-C",
+        "sim/axsim",
+        "test"
+      ],
       "timeout_seconds": 300,
-      "requires": ["make"]
+      "requires": [
+        "make"
+      ]
     },
     "system-profiles": {
       "label": "Resolve every supplied system profile",
-      "command": ["make", "config-check-all"],
+      "command": [
+        "make",
+        "config-check-all"
+      ],
       "timeout_seconds": 300,
-      "requires": ["make", "python3"]
+      "requires": [
+        "make",
+        "python3"
+      ]
     },
     "kernel-profiles": {
       "label": "Resolve every supplied kernel profile",
-      "command": ["make", "-C", "sw/kernel", "kernel-config-check-all"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "kernel-config-check-all"
+      ],
       "timeout_seconds": 300,
-      "requires": ["make", "python3"]
+      "requires": [
+        "make",
+        "python3"
+      ]
     },
     "research-contracts": {
       "label": "Personality, comparison, and ECP5 frame research contracts",
-      "command": ["make", "comparison-check", "ecp5-frame-check"],
+      "command": [
+        "make",
+        "comparison-check",
+        "ecp5-frame-check"
+      ],
       "timeout_seconds": 300,
-      "requires": ["make", "python3"]
+      "requires": [
+        "make",
+        "python3"
+      ]
     },
     "l3-search": {
       "label": "All-mode morph search, mutation, canary, and rollback",
-      "command": ["make", "l3-check"],
+      "command": [
+        "make",
+        "l3-check"
+      ],
       "timeout_seconds": 900,
-      "requires": ["make", "python3", "verilator"]
+      "requires": [
+        "make",
+        "python3",
+        "verilator"
+      ]
     },
     "live-rtl": {
       "label": "Immutable Live FPGA monitor and isolation RTL",
-      "command": ["make", "live-check"],
+      "command": [
+        "make",
+        "live-check"
+      ],
       "timeout_seconds": 900,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "candidate-registry": {
       "label": "Content-addressed evolution candidates and record chains",
-      "command": ["make", "registry-check"],
+      "command": [
+        "make",
+        "registry-check"
+      ],
       "timeout_seconds": 300,
-      "requires": ["make", "python3"]
+      "requires": [
+        "make",
+        "python3"
+      ]
     },
     "live-closed-loop": {
       "label": "Live FPGA policy, RV32 shadow evaluation, and rollback",
-      "command": ["make", "live-sim-check"],
+      "command": [
+        "make",
+        "live-sim-check"
+      ],
       "timeout_seconds": 900,
-      "requires": ["make", "python3"]
+      "requires": [
+        "make",
+        "python3"
+      ]
     },
     "cosim-directed": {
       "label": "Directed ISS/RTL lock-step cosimulation",
-      "command": ["make", "-C", "sim/cosim", "test"],
+      "command": [
+        "make",
+        "-C",
+        "sim/cosim",
+        "test"
+      ],
       "timeout_seconds": 1200,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "rtl-units": {
       "label": "All RTL units, core-directed tests, and parameter suites",
-      "command": ["make", "-C", "sim/unit", "test"],
+      "command": [
+        "make",
+        "-C",
+        "sim/unit",
+        "test"
+      ],
       "timeout_seconds": 7200,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "component-composition": {
       "label": "Component composition across supplied profiles",
-      "command": ["make", "component-test"],
+      "command": [
+        "make",
+        "component-test"
+      ],
       "timeout_seconds": 5400,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "baremetal-peripherals": {
       "label": "Bare-metal SPI and SD paths on RTL",
-      "command": ["make", "-C", "sw/baremetal", "check-spi", "check-sd"],
+      "command": [
+        "make",
+        "-C",
+        "sw/baremetal",
+        "check-spi",
+        "check-sd"
+      ],
       "timeout_seconds": 2400,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "baremetal-role": {
       "label": "Bare-metal role window and interrupt path on RTL",
-      "command": ["make", "-C", "sw/baremetal", "check-role", "check-role-irq"],
+      "command": [
+        "make",
+        "-C",
+        "sw/baremetal",
+        "check-role",
+        "check-role-irq"
+      ],
       "timeout_seconds": 2400,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "baremetal-games": {
       "label": "Shipped games replayed on RTL: exact final state, no missed frame, and the same result when uploaded to blank RAM rather than baked into the image",
-      "command": ["make", "-C", "sw/baremetal", "check-game2048", "check-snake", "check-snake-loader"],
+      "command": [
+        "make",
+        "-C",
+        "sw/baremetal",
+        "check-game2048",
+        "check-snake",
+        "check-snake-loader"
+      ],
       "timeout_seconds": 2400,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "baremetal-accelerators": {
       "label": "GPU, TPU, scalable GPU, and performance workloads on RTL",
-      "command": ["make", "-C", "sw/baremetal", "check-tpu", "check-gpu", "check-gpu-perf", "check-gpu1", "check-cpu-perf"],
+      "command": [
+        "make",
+        "-C",
+        "sw/baremetal",
+        "check-tpu",
+        "check-gpu",
+        "check-gpu-perf",
+        "check-gpu1",
+        "check-cpu-perf"
+      ],
       "timeout_seconds": 10800,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "architecture-suites": {
       "label": "Minimal-host and dual-issue composed architecture suites",
-      "command": ["make", "-C", "sw/baremetal", "check-suite-minimal", "check-suite-ax2"],
+      "command": [
+        "make",
+        "-C",
+        "sw/baremetal",
+        "check-suite-minimal",
+        "check-suite-ax2"
+      ],
       "timeout_seconds": 10800,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "kernel-shell": {
       "label": "aXos shell, role driver, interrupt, and host-link",
-      "command": ["make", "-C", "sw/kernel", "check-shell", "check-role-driver", "check-role-irq", "check-hostlink"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-shell",
+        "check-role-driver",
+        "check-role-irq",
+        "check-hostlink"
+      ],
       "timeout_seconds": 5400,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "kernel-runtime-switch": {
       "label": "Primer host-managed runtime switching",
-      "command": ["make", "-C", "sw/kernel", "check-primer-runtime"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-primer-runtime"
+      ],
       "timeout_seconds": 5400,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "kernel-primer-ci": {
       "label": "Primer 32 KiB boot and UART kernel upload",
-      "command": ["make", "-C", "sw/kernel", "check-primer", "check-uartboot"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-primer",
+        "check-uartboot"
+      ],
       "timeout_seconds": 3600,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "kernel-storage-mutation": {
       "label": "aXos filesystem writes and SD boot",
-      "command": ["make", "-C", "sw/kernel", "check-storage-write", "check-sdboot"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-storage-write",
+        "check-sdboot"
+      ],
       "timeout_seconds": 7200,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "kernel-storage-ci": {
       "label": "aXos on external memory with caches",
-      "command": ["make", "-C", "sw/kernel", "check-storage"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-storage"
+      ],
       "timeout_seconds": 3600,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "randomized-fuzz": {
       "label": "Deterministic randomized M-mode instruction campaign",
-      "command": ["make", "-C", "sim/testgen", "fuzz"],
+      "command": [
+        "make",
+        "-C",
+        "sim/testgen",
+        "fuzz"
+      ],
       "timeout_seconds": 7200,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "randomized-paging": {
       "label": "Deterministic randomized Sv32 paging campaign",
-      "command": ["make", "-C", "sim/testgen", "paging"],
+      "command": [
+        "make",
+        "-C",
+        "sim/testgen",
+        "paging"
+      ],
       "timeout_seconds": 7200,
-      "requires": ["make", "verilator", "python3"]
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "isa-build": {
       "label": "Build official RV32UI, RV32MI, and RV32UM suites",
-      "command": ["./tests/build-isa.sh", "rv32ui", "rv32mi", "rv32um"],
+      "command": [
+        "./tests/build-isa.sh",
+        "rv32ui",
+        "rv32mi",
+        "rv32um"
+      ],
       "timeout_seconds": 2400,
-      "requires": ["make"]
+      "requires": [
+        "make"
+      ]
     },
     "isa-iss": {
       "label": "Official ISA suites against the golden ISS",
-      "command": ["./tests/run-riscv-tests.sh", "rv32ui", "rv32mi", "rv32um"],
+      "command": [
+        "./tests/run-riscv-tests.sh",
+        "rv32ui",
+        "rv32mi",
+        "rv32um"
+      ],
       "timeout_seconds": 5400,
-      "requires": ["make"]
+      "requires": [
+        "make"
+      ]
     },
     "isa-cosim-build": {
       "label": "Build the RTL lock-step ISA harness",
-      "command": ["make", "-C", "sim/cosim", "axcosim"],
+      "command": [
+        "make",
+        "-C",
+        "sim/cosim",
+        "axcosim"
+      ],
       "timeout_seconds": 2400,
-      "requires": ["make", "verilator"]
+      "requires": [
+        "make",
+        "verilator"
+      ]
     },
     "isa-cosim": {
       "label": "Official ISA suites against RTL in lock-step",
-      "command": ["./tests/run-riscv-tests.sh", "rv32ui", "rv32mi", "rv32um"],
+      "command": [
+        "./tests/run-riscv-tests.sh",
+        "rv32ui",
+        "rv32mi",
+        "rv32um"
+      ],
       "timeout_seconds": 10800,
-      "requires": ["make", "verilator"],
+      "requires": [
+        "make",
+        "verilator"
+      ],
       "env": {
         "SIM": "{root}/sim/cosim/obj_dir/axcosim"
       }
     },
     "three-platform-baremetal": {
       "label": "Bare-metal agreement across ISS, QEMU, and RTL",
-      "command": ["make", "-C", "sw/baremetal", "check-hello", "check-timer", "check-preempt", "check-fencei"],
+      "command": [
+        "make",
+        "-C",
+        "sw/baremetal",
+        "check-hello",
+        "check-timer",
+        "check-preempt",
+        "check-fencei"
+      ],
       "timeout_seconds": 10800,
-      "requires": ["make", "verilator", "qemu-system-riscv32"]
+      "requires": [
+        "make",
+        "verilator",
+        "qemu-system-riscv32"
+      ]
     },
     "three-platform-kernel": {
       "label": "aXos scheduler profiles across ISS, QEMU, and RTL",
-      "command": ["make", "-C", "sw/kernel", "kernel-component-test"],
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "kernel-component-test"
+      ],
       "timeout_seconds": 10800,
-      "requires": ["make", "verilator", "qemu-system-riscv32"]
+      "requires": [
+        "make",
+        "verilator",
+        "qemu-system-riscv32"
+      ]
+    },
+    "diagrams": {
+      "label": "Every mermaid diagram is structurally well formed",
+      "command": [
+        "make",
+        "diagram-check"
+      ],
+      "timeout_seconds": 120,
+      "requires": []
     }
   },
   "suites": {
@@ -195,7 +448,8 @@
       "system-profiles",
       "kernel-profiles",
       "candidate-registry",
-      "cosim-directed"
+      "cosim-directed",
+      "diagrams"
     ],
     "ci-unit": [
       "rtl-units"
@@ -230,7 +484,8 @@
       "kernel-primer-ci",
       "kernel-runtime-switch",
       "kernel-storage-ci",
-      "kernel-storage-mutation"
+      "kernel-storage-mutation",
+      "diagrams"
     ],
     "randomized": [
       "randomized-fuzz",

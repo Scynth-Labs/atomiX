@@ -39,6 +39,34 @@ Kernel builds follow the same rule: the fixed image boots an immutable UART
 loader and `axhost --upload-kernel` installs aXos into blank RAM with CRC-32
 verification, so kernel changes never invoke FPGA tools.
 
+```mermaid
+flowchart LR
+  subgraph synth["Synthesis — run once per hardware change"]
+    direction TB
+    prof["profile JSON<br/>components + parameters"] --> pnr["yosys → nextpnr → pack"]
+    pnr --> bit["bitstream<br/>shell + role + immutable UART loader<br/>blank RAM"]
+  end
+
+  subgraph runtime["Runtime — seconds, no FPGA tools"]
+    direction TB
+    kern["aXos kernel .bin"] -->|"axhost --upload-kernel<br/>CRC-32 checked AXK1 envelope"| board
+    prog["program payload<br/>game, benchmark, test"] -->|"make load"| board
+    micro["accelerator microcode<br/>GPU program, morph genome"] -->|"~0.46 ms over UART"| board
+  end
+
+  bit -->|"programmed to SRAM once"| board["running board"]
+
+  classDef slow fill:#fce8e6,stroke:#c5221f
+  classDef fast fill:#e6f4ea,stroke:#137333
+  class synth slow
+  class runtime fast
+```
+
+**Software is never part of a bitstream's identity.** A new example, game, or
+kernel change must not require re-synthesis and must not re-open an existing
+board claim — which is why a board result names hardware rather than a program.
+The baked-payload path exists for first bring-up only.
+
 It is designed to be modified.  A user can substitute the CPU, memory,
 interconnect, peripherals, board, simulation harness, or aXos service policy
 without forking the rest of the project.

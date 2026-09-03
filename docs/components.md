@@ -21,16 +21,44 @@ supplied profiles select the reference versions, but every one can name a
 built-in ID or an external manifest file. aXos has an independent
 `KERNEL_CONFIG` profile for its scheduler, VM, allocator, shell, filesystem,
 and block components. Custom component kinds such as `gpio` are also preserved
-for a custom SoC or harness. A profile may carry arbitrary `settings`; known
-settings set RAM size, cache enable, and reset PC, while unknown settings are
-exported rather than rejected.
+for a custom SoC or harness.
 
-```text
-configuration JSON → configure.py → generated component-config.mk
-                                      ├─ sim/soc Makefile
-                                      ├─ rtl/fpga Makefile
-                                      └─ sw/kernel Makefile (kernel services)
+A profile carries two different kinds of knob, and the distinction is which
+thing owns the value. **`parameters`** override a knob a *component* declares in
+its own manifest, with its default and its documentation — the component owns
+it, so a profile may only name what that component declared. **`settings`** are
+system-level values no single component owns, such as `ram_bytes` or
+`task_slots`; they are checked against the `SETTINGS` registry in
+`tools/configure.py`. Both are validated: an unknown name, a wrong type, or an
+out-of-range value is a configuration error naming the problem, not a silently
+ignored line.
+
+```mermaid
+flowchart TB
+  json["profile JSON<br/>components · parameters · settings"]
+  manifests["component.json manifests<br/>sources, declared parameters,<br/>defaults, capabilities"]
+  conf["tools/configure.py<br/>resolve + validate"]
+  mk["generated component-config.mk<br/>SOURCES · COMPONENT_DEFINES · SETTINGS"]
+
+  json --> conf
+  manifests --> conf
+  conf -->|"unknown component, undeclared parameter,<br/>unknown or out-of-range setting"| err["configuration error<br/>naming the offending key"]
+  conf --> mk
+
+  mk --> sim["sim/soc<br/>Verilated SoC"]
+  mk --> fpga["rtl/fpga<br/>yosys → nextpnr → pack"]
+  mk --> kern["sw/kernel<br/>aXos + user programs"]
+
+  classDef bad fill:#fce8e6,stroke:#c5221f
+  class err bad
 ```
+
+The three consumers spell the same defines differently — Verilator wants
+`+define+NAME=VALUE`, the compilers want `-DNAME=VALUE` — so each converts. A
+consumer that forgets to is the failure this flow is most prone to: the syscall
+component's parameters were declared, documented and resolved for a long time
+while `sw/kernel/Makefile` silently dropped them, so setting one changed
+nothing and reported nothing.
 
 `make sim CONFIG=configs/sim-delayed.json ...` composes a Verilated SoC;
 `make fpga CONFIG=configs/ulx3s-85f.json` composes the ECP5 flow. Existing
