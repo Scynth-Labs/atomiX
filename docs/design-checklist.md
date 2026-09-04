@@ -762,13 +762,14 @@ Use this for a substantive implementation or interface change:
   registered ROM into blank RAM, uploads snake, and still reaches the baked
   image's exact `checksum=0xd824f761`.  `make -C sw/kernel check-uartboot`
   continues to cover the combinational timing.
-- [ ] Finish decoupling the remaining Primer profiles from their payloads.
+- [x] Finish decoupling every Primer profile that fits the device from its
+  payload.
   `tangprimer25k-{ax2,gpu,tpu}` baked `hello`/`gpu_perf`/`tpu` into synthesis,
   so their board evidence named a program and a change to that program
-  re-opened the claim.  Each now has a loader variant carrying identical
-  hardware and differing only in `reset_pc`, which is what declares a runtime
-  profile — `rtl/fpga/Makefile` derives blank RAM and a correctly sized UART
-  ROM from it, so the profiles name no payload at all:
+  re-opened the claim.  Each now has a loader variant retaining the matching
+  component selection and capacity; `reset_pc` declares a runtime profile, and
+  `rtl/fpga/Makefile` derives blank RAM and a correctly sized UART ROM from it,
+  so the profiles name no payload at all:
   `tangprimer25k-runtime-ax2.json`, `-runtime-gpu4.json` (the 4-lane minimal
   host of `-gpu.json`; `-runtime-gpu.json` was already taken by the 1-lane
   reference-core aXos platform, which is a different machine), and
@@ -815,6 +816,10 @@ Use this for a substantive implementation or interface change:
   loader variant fails for the same reason and says nothing about the loader.
   Measuring AX2 properly needs a bigger board (the ULX3S-85F is the obvious
   candidate); until one is in hand, both rows stay locked `expect: fail`.
+  The runtime CPU profile independently raises its UART baud for host-managed
+  use, and runtime TPU pins its documented seed; those are operational profile
+  choices, not payload coupling.  Current profile resolution passed for all
+  four runtime variants on 2026-09-04 (`make config-check CONFIG=...`).
 - [ ] Remaining host-link enhancements: a dedicated second byte pipe so console
   and host-link coexist; buffer/stream and asynchronous-completion ops; cached
   prebuilt-bitstream selection for physical datapath changes.
