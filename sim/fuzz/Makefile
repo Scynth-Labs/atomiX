@@ -42,9 +42,10 @@ CFLAGS := -g -O1 -std=c11 -D_DEFAULT_SOURCE -Wall -Wextra \
 
 LOADER_SRC := $(ROOT)/components/loader/elf32/loader.c
 AXFS_SRC := $(ROOT)/components/filesystem/axfs/fs.c
+AXK1_SRC := $(ROOT)/sw/bootrom/boot.c
 
-.PHONY: all run run-loader run-axfs explore explore-axfs corpus corpus-axfs coverage clean
-all: build/fuzz_loader build/fuzz_axfs
+.PHONY: all run run-loader run-axfs run-axk1-format explore explore-axfs explore-axk1-format corpus corpus-axfs corpus-axk1 coverage clean
+all: build/fuzz_loader build/fuzz_axfs build/format_axk1
 
 build/fuzz_loader: fuzz_loader.c $(LOADER_SRC)
 	@mkdir -p $(@D)
@@ -53,6 +54,10 @@ build/fuzz_loader: fuzz_loader.c $(LOADER_SRC)
 build/fuzz_axfs: fuzz_axfs.c $(AXFS_SRC)
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -I$(ROOT)/sw/kernel/include -o $@ fuzz_axfs.c
+
+build/format_axk1: format_axk1.c $(AXK1_SRC)
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -o $@ format_axk1.c
 
 # Seed the corpus with images the toolchain actually produced. Starting from
 # valid ELF is what makes the run productive: mutating a real header reaches
@@ -77,6 +82,11 @@ corpus-axfs:
 	@cp corpus/axfs-* build/corpus-axfs/ 2>/dev/null || true
 	@echo "AXFS corpus: $$(ls build/corpus-axfs | wc -l) seed(s)"
 
+corpus-axk1:
+	@mkdir -p build/corpus-axk1
+	@cp corpus/axk1-* build/corpus-axk1/ 2>/dev/null || true
+	@echo "AXK1 corpus: $$(ls build/corpus-axk1 | wc -l) seed(s)"
+
 # A bounded run, for CI: enough to catch a regression in a parser that was
 # already fuzzed, not enough to call the space explored.
 run: run-loader
@@ -91,12 +101,20 @@ run-axfs: build/fuzz_axfs corpus-axfs
 	./build/fuzz_axfs build/corpus-axfs -runs=$(RUNS) -max_total_time=$(TIMEOUT) \
 	  -max_len=65536 -print_final_stats=1 -detect_leaks=1
 
+run-axk1-format: build/format_axk1 corpus-axk1
+	ASAN_OPTIONS=detect_leaks=1:symbolize=1 \
+	./build/format_axk1 build/corpus-axk1 -runs=$(RUNS) -max_total_time=$(TIMEOUT) \
+	  -max_len=65536 -print_final_stats=1 -detect_leaks=1
+
 # Unbounded, for when the parser has actually changed.
 explore: build/fuzz_loader corpus
 	./build/fuzz_loader build/corpus -max_len=65536
 
 explore-axfs: build/fuzz_axfs corpus-axfs
 	./build/fuzz_axfs build/corpus-axfs -max_len=65536
+
+explore-axk1-format: build/format_axk1 corpus-axk1
+	./build/format_axk1 build/corpus-axk1 -max_len=65536
 
 # White box, on the same component the fuzzing drives: replay the corpus with
 # source-based instrumentation and report which of the loader's own lines and

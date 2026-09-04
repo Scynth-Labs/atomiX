@@ -1,5 +1,22 @@
 #include <stdint.h>
 
+#ifndef AXBOOT_FORMAT_REGRESSION
+#define AXBOOT_FORMAT_REGRESSION 0
+#endif
+
+#if AXBOOT_FORMAT_REGRESSION
+/* The production UART loader is intentionally one streaming function: it
+ * never needs to buffer a potentially large payload before checking it.  The
+ * host regression harness supplies this tiny hardware seam so it can run that exact
+ * parser text under host sanitizers.  None of these symbols or branches are
+ * present in a target build. */
+extern uint8_t axboot_format_get(void);
+extern void axboot_format_put(uint8_t byte);
+extern volatile uint8_t *axboot_format_ram;
+extern const uint32_t axboot_format_ram_bytes;
+extern void axboot_format_accept(uint32_t length) __attribute__((noreturn));
+#endif
+
 enum {
   UART = 0x10000000u,
   UART_LSR = 0x10000005u,
@@ -20,13 +37,21 @@ static inline uint32_t read32(uint32_t address) {
   return *(volatile const uint32_t *)(uintptr_t)address;
 }
 static void uart_put(uint8_t byte) {
+#if AXBOOT_FORMAT_REGRESSION
+  axboot_format_put(byte);
+#else
   while (!(*(volatile const uint8_t *)(uintptr_t)UART_LSR & 0x20u)) {}
   *(volatile uint8_t *)(uintptr_t)UART = byte;
+#endif
 }
 #if AXBOOT_UART
 static uint8_t uart_get(void) {
+#if AXBOOT_FORMAT_REGRESSION
+  return axboot_format_get();
+#else
   while (!(*(volatile const uint8_t *)(uintptr_t)UART_LSR & 0x01u)) {}
   return *(volatile const uint8_t *)(uintptr_t)UART;
+#endif
 }
 #endif
 static void uart_text(const char *text) {
@@ -87,14 +112,22 @@ static __attribute__((noreturn)) void uart_boot(void) {
     find_magic();
     const uint32_t length = get_u32();
     const uint32_t expected_crc = get_u32();
+#if AXBOOT_FORMAT_REGRESSION
+    const uint32_t ram_bytes = axboot_format_ram_bytes;
+#else
     const uint32_t ram_bytes = (uint32_t)(uintptr_t)&AXBOOT_RAM_BYTES;
+#endif
     if (length == 0u || length > ram_bytes - 4096u) {
       response("AXER", 1u);
       continue;
     }
 
+#if AXBOOT_FORMAT_REGRESSION
+    volatile uint8_t *const ram = axboot_format_ram;
+#else
     volatile uint8_t *const ram =
         (volatile uint8_t *)(uintptr_t)0x80000000u;
+#endif
     uint32_t crc = 0xffffffffu;
     for (uint32_t i = 0; i < length; ++i) {
       const uint8_t byte = uart_get();
@@ -107,9 +140,13 @@ static __attribute__((noreturn)) void uart_boot(void) {
       continue;
     }
     response("AXOK", length);
+#if AXBOOT_FORMAT_REGRESSION
+    axboot_format_accept(length);
+#else
     __asm__ volatile("fence.i" ::: "memory");
     ((void (*)(void))(uintptr_t)0x80000000u)();
     response("AXER", 3u);
+#endif
   }
 }
 

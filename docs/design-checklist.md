@@ -550,15 +550,17 @@ thought of".  These three answer the other question.
   miscompilation, which is why GCC stays the default rather than clang being
   called broken.
 - [~] Extend binary-format parser regression testing to the remaining inputs.
-  AXFS on-disk metadata is now covered by the production filesystem component
-  under
-  libFuzzer, ASan, LSan, and UBSan; every input runs both raw framing rejection
-  and a reachable-directory pass, then exercises each parsed extent through
-  `fs_read`.  Evidence: `make fuzz-loader`; use `make -C sim/fuzz
-  explore-axfs` for an unbounded run.  The AXK1 kernel-upload envelope and
-  host-link request decoder remain open.  The loader was first because it is in
-  the kernel's boot path and its input has the most complex framing; the others
-  use the same technique against a smaller code path.
+  AXFS on-disk metadata and the AXK1 UART upload envelope are now covered by
+  the production parser sources under libFuzzer, ASan, LSan, and UBSan.  AXFS
+  runs both raw framing rejection and a reachable-directory pass, then
+  exercises each parsed extent through `fs_read`.  AXK1 substitutes only the
+  UART, RAM, and handoff hardware seams, so its actual ROM code processes raw
+  byte streams and valid/corrupt envelopes through magic resynchronization,
+  bounds, copy, CRC, and retry handling.  Evidence: `make fuzz-loader`; use
+  `make -C sim/fuzz explore-axfs` or `make -C sim/fuzz explore-axk1-format`
+  for an unbounded run.  The host-link request decoder remains open.  The loader was first
+  because it is in the kernel's boot path and its input has the most complex
+  framing; the other paths use the same technique against a smaller code path.
 
 ## Change-ready checklist
 
