@@ -228,10 +228,45 @@ SETTINGS: dict[str, dict[str, Any]] = {
     "reset_pc": {"type": str},
     "kernel_mode": {"type": str, "choices": ("full", "monitor")},
     # Kernel-owned capacity. Component-owned ones (max_fds, path_max,
-    # write_max, io_chunk, role_max_payload, the loader's arg_max) are
-    # component `parameters`, not settings: the component that owns a
-    # knob declares it, with its default and its documentation.
+    # write_max, io_chunk, the loader's arg_max) are component
+    # `parameters`, not settings: the component that owns a knob declares
+    # it, with its default and its documentation.
     "task_slots": {"type": int, "min": 2, "max": 64},
+    # role_max_payload was a syscall.linux-compat parameter until three
+    # paths came to share it. The syscall component's role_submit, the
+    # role dispatcher, and the host-link service all stage the same
+    # encoded job through the same role_execute, and the host-link
+    # personality runs no syscalls at all -- so a syscall-component
+    # parameter was sizing a buffer in a build that does not contain that
+    # component's reason for existing. By the task_slots criterion it
+    # belongs to no single component, so it is a setting. One resolved
+    # value now reaches all three through one define.
+    "role_max_payload": {"type": int, "min": 64, "max": 65535},
+    # The staged path marshals a whole job through arrays on
+    # role_execute's stack, so this bounds the kernel stack, not the
+    # accelerator. Kept distinct from role_data_words for that reason:
+    # they answer different questions and a profile may want to move one
+    # without the other.
+    "role_staged_words": {"type": int, "min": 8, "max": 4096},
+    # Role global memory the kernel may address, in 32-bit words. The role owns
+    # this number in reality, but the kernel is not built against a role: this
+    # file's own component selection is software-only, the role comes from the
+    # hardware profile, and one kernel image discovers whatever role is present
+    # at runtime. So the kernel profile carries its assumption about the
+    # hardware it will meet, the way ram_bytes already does.
+    #
+    # There is deliberately no default anywhere. A profile that does not
+    # declare this does not get the chunked transfer ops at all -- they are not
+    # compiled and the service answers BAD_OP -- because a capacity the build
+    # was never told is not a capacity to guess. Guessing high faults the
+    # kernel from a host request: a role bounds its own decode and answers
+    # anything past its memory with a bus error, which arrives as a store
+    # access fault in supervisor mode.
+    #
+    # The upper bound is the role window's geometry rather than a round number:
+    # the window is 64 KiB and the data region starts at 0x1000, so
+    # (0x10000 - 0x1000) / 4 words is the most any role can decode.
+    "role_data_words": {"type": int, "min": 64, "max": 15360},
     # Cache geometry.
     "cache_lines": {"type": int, "min": 1, "max": 1 << 16},
     "cache_words_per_line": {"type": int, "min": 1, "max": 256},

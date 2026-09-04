@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "name": "kernel-primer-monitor",
+  "name": "kernel-hostlink-stream",
   "components": {
     "scheduler": "scheduler.round-robin",
     "vm": "vm.sv32",
     "allocator": "allocator.free-list",
-    "shell": "shell.monitor",
+    "shell": "shell.axsh",
     "filesystem": "filesystem.axfs",
     "block": "block.spi-sd",
     "syscall": "syscall.linux-compat",
@@ -14,9 +14,5 @@
     "evolution": "evolution.none",
     "fitness": "fitness.none"
   },
-  "settings": {
-    "kernel_mode": "monitor",
-    "ram_bytes": 32768,
-    "role_data_words": 256
-  }
+  "settings": {"role_data_words": 4096}
 }

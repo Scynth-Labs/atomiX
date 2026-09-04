@@ -75,8 +75,21 @@ CPPFLAGS += $(patsubst +define+%,-D%,$(COMPONENT_DEFINES))
 # index what they are handed, so it belongs to the profile rather than to a
 # manifest. Its #ifndef default lives in include/task.h, so a profile that does
 # not name it builds exactly as before.
+#
+# The three role capacities are the same shape for the same reason. The role
+# owns its memory size, but the kernel is built without a role -- KERNEL_CONFIG
+# selects software components and the role comes from the hardware profile --
+# so the kernel profile carries its assumptions about the role it will meet.
+# ROLE_MAX_PAYLOAD and ROLE_STAGED_WORDS have #ifndef defaults in
+# include/role.h, where task_slots' default also lives. ROLE_DATA_WORDS
+# deliberately has none: a profile that does not declare the role's memory does
+# not get the chunked transfer ops, because a capacity the build was never told
+# is not one to guess.
 AXOS_CAPACITIES := \
-  $(if $(COMPONENT_SETTING_TASK_SLOTS),-DTASK_SLOTS=$(COMPONENT_SETTING_TASK_SLOTS))
+  $(if $(COMPONENT_SETTING_TASK_SLOTS),-DTASK_SLOTS=$(COMPONENT_SETTING_TASK_SLOTS)) \
+  $(if $(COMPONENT_SETTING_ROLE_DATA_WORDS),-DROLE_DATA_WORDS=$(COMPONENT_SETTING_ROLE_DATA_WORDS)) \
+  $(if $(COMPONENT_SETTING_ROLE_MAX_PAYLOAD),-DROLE_MAX_PAYLOAD=$(COMPONENT_SETTING_ROLE_MAX_PAYLOAD)) \
+  $(if $(COMPONENT_SETTING_ROLE_STAGED_WORDS),-DROLE_STAGED_WORDS=$(COMPONENT_SETTING_ROLE_STAGED_WORDS))
 CPPFLAGS += $(AXOS_CAPACITIES)
 ifeq ($(KERNEL_MODE),monitor)
 CPPFLAGS += -DAXOS_MONITOR=1 -DAXOS_EMBED_USER=0
@@ -289,6 +302,46 @@ check-hostlink:
 	  --image $(abspath build/axos_boot.hex) \
 	  --config $(abspath ../../configs/sim-gpu-compute.json)
 
+# The same control plane, but a job whose data no longer fits the frame that
+# asks for it.
+#
+# Three legs, all on sim-gpu-compute, so the hardware is constant at 4096 role
+# words and what varies is only what the kernel profile declares. That is the
+# point: pairing each declared capacity with matching hardware would leave both
+# bounds agreeing and the run unable to say which one it measured.
+#
+#   1. 4096 declared -- reaches all of it, rejects word 4096.
+#   2. 1024 declared, with the payload and staged caps also moved off their
+#      defaults -- bounds at exactly 1024 on 4096-word hardware, and the
+#      79-word chunk cap that a 320-byte frame implies is enforced too.
+#   3. nothing declared -- the ops are not compiled and answer BAD_OP, because
+#      a capacity the build was never told is not one to guess.
+#
+# The host derives every limit from the profile and from role.h's #ifndef
+# defaults, and probes the device for its own edge, so no number is written
+# down in the test. Re-hardcoding any of the three fails at least one leg.
+check-hostlink-stream:
+	$(MAKE) -B images HOSTLINK=1 BUILD_DIR=build/stream \
+	  KERNEL_CONFIG=$(abspath ../../configs/kernel-hostlink-stream.json)
+	$(PYTHON) ../host/axstream.py \
+	  --image $(abspath build/stream/axos_boot.hex) \
+	  --kernel-config $(abspath ../../configs/kernel-hostlink-stream.json) \
+	  --config $(abspath ../../configs/sim-gpu-compute.json) \
+	  --max-cycles 4000000
+	$(MAKE) -B images HOSTLINK=1 BUILD_DIR=build/stream-caps \
+	  KERNEL_CONFIG=$(abspath ../../configs/kernel-stream-caps.json)
+	$(PYTHON) ../host/axstream.py \
+	  --image $(abspath build/stream-caps/axos_boot.hex) \
+	  --kernel-config $(abspath ../../configs/kernel-stream-caps.json) \
+	  --config $(abspath ../../configs/sim-gpu-compute.json) \
+	  --max-cycles 4000000
+	$(MAKE) -B images HOSTLINK=1 BUILD_DIR=build/stream-none
+	$(PYTHON) ../host/axstream.py \
+	  --image $(abspath build/stream-none/axos_boot.hex) \
+	  --kernel-config $(abspath ../../configs/kernel-default.json) \
+	  --config $(abspath ../../configs/sim-gpu-compute.json) \
+	  --max-cycles 4000000
+
 check-memory: images
 	$(MAKE) -B images STORAGE=0
 	python3 check_boot.py --external-memory
@@ -445,4 +498,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-memory check-storage check-storage-write check-loader-wx check-abi-torture check-abi-torture-small torture-run boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-hostlink-stream check-memory check-storage check-storage-write check-loader-wx check-abi-torture check-abi-torture-small torture-run boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean

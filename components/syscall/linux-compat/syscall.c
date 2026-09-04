@@ -38,9 +38,14 @@
 #ifndef AXOS_IO_CHUNK
 #define AXOS_IO_CHUNK 128
 #endif
-#ifndef AXOS_ROLE_MAX_PAYLOAD
-#define AXOS_ROLE_MAX_PAYLOAD 1280
-#endif
+/* Kernel profile setting, not this component's parameter: the role
+ * dispatcher and the host-link service stage the same encoded jobs through
+ * the same role_execute, and the host-link personality contains no syscalls
+ * at all, so no one component owns this number. sw/kernel/Makefile passes
+ * the resolved value; the fallback is the profile-less default and is
+ * spelled once, in sw/kernel/include/role.h, which this file already
+ * includes. */
+#define AXOS_ROLE_MAX_PAYLOAD AX_ROLE_MAX_PAYLOAD
 
 /* Each of the above is a profile knob, so the bounds that make them usable are
  * stated here rather than left to whoever sets them.  A path buffer with no

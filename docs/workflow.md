@@ -448,6 +448,7 @@ make -C sw/kernel check-uartboot        # immutable ROM + blank RAM + runtime ke
 make -C sw/kernel check-role-driver     # aXos drives role.loopback from its own shell
 make -C sw/kernel check-role-irq        # completion arrives as an S-mode interrupt, not a poll
 make -C sw/kernel check-hostlink        # axhost drives loopback, TPU-lite, and GPU-compute over the link
+make -C sw/kernel check-hostlink-stream # chunked GPU transfer; the three capacity settings at declared, non-default, and undeclared
 ```
 
 `check-role-driver` also executes `hello.elf` in U-mode against the loopback
@@ -483,7 +484,7 @@ make -C sw/baremetal images
 make -C sw/baremetal check-hello check-timer check-preempt check-fencei check-role check-tpu check-gpu check-gpu-tpu
 make component-test
 make -C sw/kernel kernel-component-test QEMU=/path/to/qemu-system-riscv32
-make -C sw/kernel check-role-driver check-role-irq check-hostlink check-uartboot
+make -C sw/kernel check-role-driver check-role-irq check-hostlink check-hostlink-stream check-uartboot
 make -C formal check          # after core/RVFI changes
 ```
 

@@ -4,9 +4,15 @@
  * responses, so a host PC running axhost can discover and drive the
  * accelerator over the link.  The protocol is docs/host-protocol.md.
  *
- * This is the base: one request/response exchange at a time over the console
- * UART, including the loopback, TPU, and GPU job opcodes. A dedicated
- * USB-serial channel can carry the same frame codec without changing it. */
+ * One request/response exchange at a time over the console UART, including the
+ * loopback, TPU, and GPU job opcodes. A dedicated USB-serial channel can carry
+ * the same frame codec without changing it.
+ *
+ * The chunked GPU ops are dispatched here exactly like the staged ones: they
+ * are a different way to fill the role's memory, not a different control
+ * plane, so they reach the device through the same checked role_execute and
+ * the same staging buffer. What they change is that the buffer no longer has
+ * to hold a whole job -- which is why a job may now be larger than it. */
 #include <stdint.h>
 
 #include "hostlink.h"
@@ -110,7 +116,10 @@ void host_service(void) {
       case HOSTLINK_OP_TPU_GEMM:
       case HOSTLINK_OP_GPU_RUN:
       case HOSTLINK_OP_GPU_LOAD:
-      case HOSTLINK_OP_GPU_EXEC: {
+      case HOSTLINK_OP_GPU_EXEC:
+      case HOSTLINK_OP_GPU_WRITE:
+      case HOSTLINK_OP_GPU_LAUNCH:
+      case HOSTLINK_OP_GPU_READ: {
         uint32_t out_len = 0;
         const int rc = role_execute(op, payload, len, payload,
                                     sizeof(payload), &out_len);

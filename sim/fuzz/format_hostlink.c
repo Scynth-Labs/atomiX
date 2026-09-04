@@ -15,11 +15,26 @@
 #include "hostlink.h"
 #include "role.h"
 
+/* The service answers every request frame it can parse, so the reply this
+ * harness has to capture is bounded by the input, not by any constant the
+ * service knows.  Deriving it: consuming one reply costs at least four input
+ * bytes (a sync byte, an opcode, and two length bytes -- a shorter tail
+ * reaches EOF and answers nothing), and the largest reply any op produces here
+ * is INFO's four header bytes plus eight of payload.  Twelve bytes out per
+ * four bytes in is three times the input, and the input is bounded below.
+ *
+ * This was 2048, which no reachable input had exceeded.  Putting the chunked
+ * transfer ops into the directed op range grew the corpus enough to find one;
+ * the overflow was in this capture buffer, not in the service, which streams
+ * its bytes to a UART and has no such limit. */
+#define MAX_INPUT 65536u
+#define MAX_REPLY (3u * MAX_INPUT)
+
 static jmp_buf stop;
 static const uint8_t *stream;
 static size_t stream_size;
 static size_t stream_at;
-static uint8_t reply[2048];
+static uint8_t reply[MAX_REPLY];
 static size_t reply_size;
 
 enum event { EVENT_EOF = 1, EVENT_FINISH = 2 };
@@ -42,7 +57,11 @@ uint32_t role_version(void) { return 1u; }
 int role_execute(uint32_t op, const uint8_t *request, uint32_t request_len,
                  uint8_t *response, uint32_t response_cap,
                  uint32_t *response_len) {
-  assert(op >= HOSTLINK_OP_ROLE_RUN && op <= HOSTLINK_OP_GPU_EXEC);
+  /* The chunked transfer ops dispatch through this same path, so the range
+   * the double accepts is the range hostlink.c forwards -- otherwise a raw
+   * input carrying op 0x15 would trip this assertion instead of exercising
+   * the framing it was meant to reach. */
+  assert(op >= HOSTLINK_OP_ROLE_RUN && op <= HOSTLINK_OP_GPU_READ);
   assert(request_len <= HOSTLINK_MAX_PAYLOAD);
   assert(response_cap == HOSTLINK_MAX_PAYLOAD);
   *response_len = 0;
@@ -93,7 +112,7 @@ static size_t frame(uint8_t *out, uint8_t op, const uint8_t *data,
 }
 
 int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
-  if (size > 65536u) return 0;
+  if (size > MAX_INPUT) return 0;
 
   /* Raw bytes cover sync recovery and partial headers. */
   (void)run(data, size);
@@ -102,7 +121,9 @@ int LLVMFuzzerTestOneInput(const uint8_t *data, size_t size) {
   uint16_t length = (uint16_t)(size > HOSTLINK_MAX_PAYLOAD
       ? HOSTLINK_MAX_PAYLOAD : size);
   if (length) memcpy(&request[4], data, length);
-  const uint8_t op = (uint8_t)(HOSTLINK_OP_ROLE_RUN + (size & 3u));
+  /* 0x10..0x17: every op that reaches role_execute, so the directed case
+   * covers the chunked ops as well as the staged ones. */
+  const uint8_t op = (uint8_t)(HOSTLINK_OP_ROLE_RUN + (size % 8u));
   const size_t request_size = frame(request, op, &request[4], length);
   assert(run(request, request_size) == EVENT_EOF);
   const uint8_t status = length == 0 ? HOSTLINK_ST_OK :

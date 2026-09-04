@@ -1,11 +1,11 @@
 {
   "schema": 1,
-  "name": "kernel-primer-monitor",
+  "name": "kernel-stream-caps",
   "components": {
     "scheduler": "scheduler.round-robin",
     "vm": "vm.sv32",
     "allocator": "allocator.free-list",
-    "shell": "shell.monitor",
+    "shell": "shell.axsh",
     "filesystem": "filesystem.axfs",
     "block": "block.spi-sd",
     "syscall": "syscall.linux-compat",
@@ -15,8 +15,8 @@
     "fitness": "fitness.none"
   },
   "settings": {
-    "kernel_mode": "monitor",
-    "ram_bytes": 32768,
-    "role_data_words": 256
+    "role_data_words": 1024,
+    "role_max_payload": 320,
+    "role_staged_words": 48
   }
 }

@@ -281,6 +281,40 @@ static uint32_t cycle_now(void) {
   return mmio_read32(AX_CLINT_BASE + 0xbff8u);
 }
 
+#ifdef AX_ROLE_GPU_DATA_WORDS
+/* Chunked transfer.  These are role_gpu_exec's three steps, separated: it
+ * already moved the buffer a word at a time through the role window, so the
+ * only thing that changes is who owns the loop bounds and that no array sits
+ * between the request bytes and the device.  A streamed job therefore costs
+ * one frame of kernel memory regardless of its size, which is what lets a
+ * 32 KiB profile drive a role memory several times larger than its own RAM.
+ *
+ * Bounds are not checked here.  role_execute checks them once, on the path
+ * both the userspace ABI and the host link take, so there is one place to read
+ * and one place to get it wrong. */
+void role_gpu_write(uint32_t offset, const uint8_t *words_le, uint32_t nwords) {
+  for (uint32_t i = 0; i < nwords; ++i)
+    mmio_write32(AX_ROLE_GPU_DATA + 4u * (offset + i),
+                 get_u32(&words_le[4u * i]));
+}
+
+void role_gpu_read(uint32_t offset, uint8_t *words_le, uint32_t nwords) {
+  for (uint32_t i = 0; i < nwords; ++i)
+    put_u32(&words_le[4u * i],
+            mmio_read32(AX_ROLE_GPU_DATA + 4u * (offset + i)));
+}
+
+/* Launch what is already resident.  Still synchronous: this change decouples
+ * transfer from execution, which is the prerequisite for a non-blocking
+ * submit, not the non-blocking submit itself. */
+int role_gpu_launch(uint32_t nthreads) {
+  if (gpu_loaded_ninsn == 0u) return -1;
+  mmio_write32(AX_ROLE_GPU_NTHREADS, nthreads);
+  role_ring_doorbell();
+  return role_wait_done();
+}
+#endif
+
 /* The single checked dispatch shared by U-mode and the host-link service.
  * Payloads deliberately retain the host protocol's little-endian wire shape,
  * which makes requests portable across the local and remote control paths. */
@@ -374,6 +408,50 @@ int role_execute(uint32_t op, const uint8_t *request, uint32_t request_len,
     *response_len = 4u;
     return AX_ROLE_EXEC_OK;
   }
+
+#ifdef AX_ROLE_GPU_DATA_WORDS
+  /* Chunked transfer.  The bound is the role memory this profile declares,
+   * so these are the only ops whose size limit is a property of the
+   * accelerator rather than of the frame that carried the request. */
+  if (op == AX_ROLE_OP_GPU_WRITE || op == AX_ROLE_OP_GPU_READ) {
+    if (role_discover() != AX_ROLE_ID_GPU) return AX_ROLE_EXEC_NO_ROLE;
+    if (request_len < 4u) return AX_ROLE_EXEC_BAD_LEN;
+    const uint32_t offset = get_u16(&request[0]);
+    const uint32_t nwords = get_u16(&request[2]);
+    const uint32_t data_len = 4u * nwords;
+    const uint32_t expect = (op == AX_ROLE_OP_GPU_WRITE) ? 4u + data_len : 4u;
+    if (request_len != expect) return AX_ROLE_EXEC_BAD_LEN;
+    /* Bounded from both ends: the chunk has to have arrived in one frame,
+     * and it has to land inside the role's memory.  Subtracting keeps the
+     * second check exact where offset + nwords would wrap; both are 16-bit
+     * reads, so the sum cannot exceed 32 bits, but the form that is right for
+     * any width is the one to write down. */
+    if (nwords > AX_ROLE_GPU_CHUNK_WORDS) return AX_ROLE_EXEC_BAD_LEN;
+    if (nwords > AX_ROLE_GPU_DATA_WORDS ||
+        offset > AX_ROLE_GPU_DATA_WORDS - nwords) return AX_ROLE_EXEC_BAD_LEN;
+
+    if (op == AX_ROLE_OP_GPU_WRITE) {
+      role_gpu_write(offset, &request[4], nwords);
+      return AX_ROLE_EXEC_OK;
+    }
+    if (data_len > response_cap) return AX_ROLE_EXEC_NO_SPACE;
+    role_gpu_read(offset, response, nwords);
+    *response_len = data_len;
+    return AX_ROLE_EXEC_OK;
+  }
+
+  if (op == AX_ROLE_OP_GPU_LAUNCH) {
+    if (role_discover() != AX_ROLE_ID_GPU) return AX_ROLE_EXEC_NO_ROLE;
+    if (request_len != 2u) return AX_ROLE_EXEC_BAD_LEN;
+    if (response_cap < 4u) return AX_ROLE_EXEC_NO_SPACE;
+    const uint32_t nthreads = get_u16(request);
+    const uint32_t start = cycle_now();
+    if (role_gpu_launch(nthreads) != 0) return AX_ROLE_EXEC_TIMEOUT;
+    put_u32(response, cycle_now() - start);
+    *response_len = 4u;
+    return AX_ROLE_EXEC_OK;
+  }
+#endif
 
   if (op == AX_ROLE_OP_GPU_EXEC) {
     if (role_discover() != AX_ROLE_ID_GPU) return AX_ROLE_EXEC_NO_ROLE;

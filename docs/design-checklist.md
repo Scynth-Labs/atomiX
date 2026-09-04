@@ -820,9 +820,54 @@ Use this for a substantive implementation or interface change:
   use, and runtime TPU pins its documented seed; those are operational profile
   choices, not payload coupling.  Current profile resolution passed for all
   four runtime variants on 2026-09-04 (`make config-check CONFIG=...`).
-- [ ] Remaining host-link enhancements: a dedicated second byte pipe so console
-  and host-link coexist; buffer/stream and asynchronous-completion ops; cached
-  prebuilt-bitstream selection for physical datapath changes.
+- [x] Chunked host-link buffer transfer: `GPU_WRITE`, `GPU_LAUNCH` and
+  `GPU_READ` move a job's data through the role window in frame-sized pieces,
+  so a job's size is bounded by the accelerator's own memory rather than by
+  what one request frame and one kernel stack frame can hold.  The staged
+  `GPU_RUN`/`GPU_EXEC` encoding is unchanged and still carries whole jobs that
+  fit a frame.  This also closes a knob that read as configurable and was not:
+  `role.gpu-compute` declares 4096 data words and a host could address 200 of
+  them, because the kernel's cap was a literal.  It is now the `role_data_words`
+  profile setting, bounded 64..15360 — the window's own geometry — with no
+  default at all: a profile that does not declare it does not get the chunked
+  ops, which are not compiled and answer `BAD_OP`.  A capacity the build was
+  never told is not one to guess, and guessing high is the dangerous direction,
+  because `role.gpu-tpu` presents the same `"GPUC"` identity over a quarter of
+  the memory and a role answers an access past its buffer with a bus error.
+  Two neighbouring knobs moved to their real owner in the same change:
+  `role_max_payload` left `syscall.linux-compat`, because the syscall
+  component's `role_submit`, the role dispatcher and the host-link service all
+  stage the same encoded job through the same `role_execute` and the host-link
+  personality contains no syscalls at all; and the staged path's 200-word bound
+  became `role_staged_words`, since it sizes `role_execute`'s stack arrays
+  rather than the accelerator.  Both relations between them are `_Static_assert`
+  beside their definitions, which is the only place that sees both.
+  Evidence: `make -C sw/kernel check-hostlink-stream` runs the same SoC profile
+  three times, changing only what the kernel profile declares, so what it
+  proves is the kernel's bound and not the role's.  4096 declared streams a
+  768-word job and rejects word 4096; 1024 declared — with the payload cap at
+  320 and the staged cap at 48, all three off their defaults — bounds at
+  exactly 1024 on that same 4096-word hardware and rejects an 80-word chunk
+  against the 79 a 320-byte frame allows; a profile declaring nothing answers
+  `BAD_OP` on all three ops.  The host derives every limit from the profile and
+  from the header's defaults and probes the device for its own edge, so no
+  number appears in the test; re-hardcoding any of them fails a leg.  The host side is a new `sw/host/axstream.py`
+  rather than an extension of `axhost.py`, because `axhost.py` is pinned by
+  seven `research/live-fpga/` records including physical Primer evidence, and
+  `make registry-check` is what caught the attempt to edit it.  `make -C sw/kernel check-hostlink` and
+  `make -C sw/kernel check-primer-runtime` are unchanged, and no synthesis is
+  involved, so no board claim moves.
+- [ ] Remaining host-link enhancements, both gated on hardware this project
+  does not have: a dedicated second byte pipe so console and host-link coexist
+  — a second USB-serial channel is an RTL and pin change, so synthesis, P&R,
+  and every Primer claim re-opened — and cached prebuilt-bitstream selection
+  for physical datapath changes, which needs a bitstream artifact class in the
+  R3 registry and a load path onto a board the open Gowin flow cannot partially
+  reconfigure.  Asynchronous completion is the remaining software half: the
+  chunked ops above decouple transfer from execution, which is what a
+  non-blocking submit would build on, but `GPU_LAUNCH` still blocks and
+  splitting `role_execute` into submit/poll/fetch crosses the userspace
+  `role_submit` ABI that shares the same dispatcher.
 - [x] PLIC/role interrupt integration.  The shell's PLIC (`plic.qemu-virt`:
   per-source priority, enable, threshold, claim/complete, level-sensitive
   gateway) arbitrates two sources — UART receive and role completion.  Every

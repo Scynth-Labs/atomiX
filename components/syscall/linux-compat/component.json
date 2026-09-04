@@ -24,11 +24,6 @@
       "default": 128,
       "define": "AXOS_IO_CHUNK",
       "doc": "Bounce-buffer size read() copies through, also on the trap stack. Larger means fewer filesystem calls per read and a deeper kernel stack."
-    },
-    "role_max_payload": {
-      "default": 1280,
-      "define": "AXOS_ROLE_MAX_PAYLOAD",
-      "doc": "Maximum encoded accelerator request and retained completion in bytes. The reference role encodings fit within 1280 bytes."
     }
   },
   "capabilities": ["riscv-linux-abi", "asm-generic-numbers", "errno-returns", "private-range-0x1000", "clone-fork", "wait4-exit-status", "per-task-fds", "write-console", "brk", "getpid", "openat-readonly", "read-file", "llseek", "fstat", "close", "role-info", "role-submit-wait"]
