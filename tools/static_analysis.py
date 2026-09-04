@@ -145,16 +145,9 @@ def need(binary):
 
 
 def analyse_rtl():
-    """Lint every profile's resolved design, not just the ones that get built."""
-    verilator = need("verilator")
+    """Lint every profile through the simulator's canonical source ordering."""
+    need("verilator")
     BUILD.mkdir(parents=True, exist_ok=True)
-    version = run([verilator, "--version"]).stdout.split()
-    major = int(version[1].split(".")[0]) if len(version) > 1 else 0
-    flags = ["--lint-only", "-Wall"]
-    if major >= 5:
-        # Shared component packages declare operation constants that a given
-        # selection does not consume; that is component API, not dead hardware.
-        flags.append("-Wno-UNUSEDPARAM")
 
     findings, linted = [], 0
     for profile in sorted((ROOT / "configs").glob("*.json")):
@@ -171,17 +164,12 @@ def analyse_rtl():
         top = re.search(r"^COMPONENT_SIM_TOP := (\S+)", text, re.M)
         if not top:
             continue                      # synthesis-only profile: no elaboration top
-        svs, seen = [], set()
-        for line in re.findall(r"^COMPONENT_\w+_SOURCES := (.*)$", text, re.M):
-            for src in line.split():
-                if src.endswith(".sv") and src not in seen:
-                    seen.add(src)
-                    svs.append(src)
-        defines = re.search(r"^COMPONENT_DEFINES := (.*)$", text, re.M)
-        cmd = [verilator, *flags, "--top-module", top.group(1)]
-        if defines:
-            cmd += defines.group(1).split()
-        result = run(cmd + svs)
+        # Do not recover the command here from sorted COMPONENT_* variables:
+        # that put a package's client before its package under Verilator 4.
+        # The lint target shares the actual simulator's source ordering and
+        # elaboration flags, so there is one authority for both.
+        result = run(["make", "-s", "--no-print-directory", "-C", "sim/soc",
+                      "lint", f"COMPONENT_CONFIG={profile.resolve()}"])
         linted += 1
         findings += parse_verilator(result.stdout + result.stderr, profile.name)
     return findings, f"{linted} profile(s) elaborated and linted"
@@ -278,28 +266,36 @@ def analyse_shell():
 
 
 def analyse_cpp():
-    """The host-side C++ -- ISS and Verilator harness -- via cppcheck."""
+    """The host-side C++ via cppcheck, one independently linked program at a time."""
     cppcheck = need("cppcheck")
-    sources = sorted(str(p.relative_to(ROOT))
-                     for p in (ROOT / "sim").rglob("*.cpp")
-                     if "obj_dir" not in str(p) and "build" not in p.parts)
-    sources += sorted(str(p.relative_to(ROOT))
-                      for p in (ROOT / "components/harness").rglob("*.cpp"))
-    if not sources:
+    axsim = ["sim/axsim/src/main.cpp", "sim/axsim/src/cpu.cpp",
+             "sim/axsim/src/elf.cpp"]
+    cosim = ["sim/cosim/tb_cosim.cpp", "sim/axsim/src/cpu.cpp",
+             "sim/axsim/src/elf.cpp"]
+    standalone = sorted(str(p.relative_to(ROOT))
+                        for p in (ROOT / "sim/unit").glob("tb_*.cpp"))
+    standalone += sorted(str(p.relative_to(ROOT))
+                         for p in (ROOT / "components/harness").rglob("*.cpp"))
+    standalone += ["sim/web/tb_soc_wasm.cpp"]
+    units = [unit for unit in (axsim, cosim, *([src] for src in standalone))
+             if all((ROOT / src).exists() for src in unit)]
+    if not units:
         return [], "no host C++ sources"
-    result = run([cppcheck, "--enable=warning,performance,portability",
-                  "--inline-suppr", "--quiet",
-                  "--template={file}:{line}:{column}: {severity}: {message} [{id}]",
-                  *sources])
     findings = []
-    for raw in result.stderr.splitlines():
-        m = re.match(r"^(?P<file>[^:]+):(?P<line>\d+):(?P<col>\d+): "
-                     r"(?P<sev>\w+): (?P<msg>.*?) \[(?P<rule>[\w-]+)\]$", raw)
-        if m:
-            findings.append(finding("cppcheck", m.group("file"), m.group("line"),
-                                    m.group("col"), "warning", m.group("rule"),
-                                    m.group("msg")))
-    return findings, f"{len(sources)} host C++ file(s) checked"
+    for unit in units:
+        result = run([cppcheck, "--enable=warning,performance,portability",
+                      "--inline-suppr", "--quiet",
+                      "--template={file}:{line}:{column}: {severity}: {message} [{id}]",
+                      *unit])
+        for raw in result.stderr.splitlines():
+            m = re.match(r"^(?P<file>[^:]+):(?P<line>\d+):(?P<col>\d+): "
+                         r"(?P<sev>\w+): (?P<msg>.*?) \[(?P<rule>[\w-]+)\]$", raw)
+            if m:
+                findings.append(finding("cppcheck", m.group("file"), m.group("line"),
+                                        m.group("col"), "warning", m.group("rule"),
+                                        m.group("msg")))
+    files = len({src for unit in units for src in unit})
+    return findings, f"{files} host C++ file(s) checked in {len(units)} program(s)"
 
 
 ANALYZERS = [

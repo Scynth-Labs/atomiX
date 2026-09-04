@@ -16,7 +16,7 @@
 # implement machine mode with physical addressing, so the "-v" virtual-memory
 # binaries are out of scope by design, not by omission.
 set -u
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit
 
 # The cross-toolchain tuple differs by distribution, so honour RISCV_PREFIX the
 # way the Makefiles do (mk/toolchain.mk exports it) and otherwise find the
@@ -46,9 +46,10 @@ mapfile -t exclude < <(sed 's/#.*//' ../../tests/isa-exclusions.txt |
 
 pass=0 fail=0
 failed=()
+isa_dir=../../tests/riscv-tests/isa
 for suite in "${suites[@]}"; do
   before=$((pass + fail))
-  for t in ../../tests/riscv-tests/isa/$suite-p-*; do
+  for t in "$isa_dir"/"${suite}-p-"*; do
     [[ $t == *.dump || ! -f $t ]] && continue
     name=$(basename "$t")
     [[ " ${exclude[*]} " == *" $name "* ]] && continue

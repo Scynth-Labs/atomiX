@@ -10,6 +10,13 @@ VFLAGS := -Wall --cc -O2
 ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
 VFLAGS += -Wno-UNUSEDPARAM
 endif
+# Keep lint in this Makefile rather than reconstructing the selected source
+# list elsewhere.  SystemVerilog packages must precede users in older
+# Verilator releases, and SOC_SVS is the ordering the simulator actually uses.
+VLINTFLAGS := -Wall --lint-only
+ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
+VLINTFLAGS += -Wno-UNUSEDPARAM
+endif
 .DEFAULT_GOAL := run
 
 COMPONENT_CONFIG ?= ../../configs/sim-bram.json
@@ -105,6 +112,17 @@ build-model: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
 	  -GRAM_INIT_FILE=\"$(RAM_INIT_FILE)\" -GROM_INIT_FILE=\"$(ROM_INIT_FILE)\" \
 	  -o axsoc $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) >/dev/null
 
+# Profile-wide static analysis calls this target.  It deliberately mirrors the
+# selected RTL, top, defines, and elaboration parameters above, but stops
+# before C++ generation or requiring a RAM image.
+lint: $(SOC_SVS) $(HARNESS_SVS) $(COMPONENT_MK)
+	@test -n "$(SIM_TOP)" || (echo "simulation profile must select a harness"; exit 2)
+	$(VERILATOR) $(VLINTFLAGS) --top-module $(SIM_TOP) \
+	  -GRESET_PC=$(RESET_PC) -GRAM_BYTES=$(RAM_BYTES) -GUSE_DRAM_MODEL=$(EXTERNAL_MEMORY) -GUSE_CACHES=$(CACHES) \
+	  -GSYNC_READ=$(SYNC_READ) \
+	  -GCACHE_LINES=$(CACHE_LINES) -GCACHE_WORDS_PER_LINE=$(CACHE_WORDS_PER_LINE) \
+	  $(DEFINES) $(SOC_SVS) $(HARNESS_SVS)
+
 run: build-model
 	./$(MDIR)/axsoc --max-cycles $(MAX_CYCLES) --uart-input '$(UART_INPUT)' $(if $(UART_INPUT_FILE),--uart-input-file "$(UART_INPUT_FILE)",) $(if $(SD_IMAGE),--sd-image "$(SD_IMAGE)",)
 
@@ -129,4 +147,4 @@ run-sdram: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
 clean:
 	rm -rf obj_dir build
 
-.PHONY: config run run-sdram run-config build-model model-path clean
+.PHONY: config run run-sdram run-config build-model lint model-path clean

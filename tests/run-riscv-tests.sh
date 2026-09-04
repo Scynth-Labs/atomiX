@@ -9,7 +9,7 @@ set -u
 # repository root reports every test as failed rather than as not-found.
 sim=${SIM:-}
 [[ -n $sim && $sim != /* ]] && sim="$PWD/$sim"
-cd "$(dirname "$0")"
+cd "$(dirname "$0")" || exit
 sim=${sim:-../sim/axsim/axsim}
 globs=("${@:-rv32ui rv32mi}")
 [[ $# -eq 0 ]] && globs=(rv32ui rv32mi)

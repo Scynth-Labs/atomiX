@@ -15,11 +15,11 @@ static uint32_t model(uint32_t i, int sel) {
     case IMM_S:
       return (uint32_t)((int32_t)(i & 0xFE000000) >> 20) | ((i >> 7) & 0x1F);
     case IMM_B:
-      return (uint32_t)((int32_t)(i & 0x80000000) >> 19) | ((i & 0x80) << 4) |
+      return ((i & 0x80000000u) ? 0xfffff000u : 0u) | ((i & 0x80) << 4) |
              ((i >> 20) & 0x7E0) | ((i >> 7) & 0x1E);
     case IMM_U: return i & 0xFFFFF000;
     case IMM_J:
-      return (uint32_t)((int32_t)(i & 0x80000000) >> 11) | (i & 0xFF000) |
+      return ((i & 0x80000000u) ? 0xfff00000u : 0u) | (i & 0xFF000) |
              ((i >> 9) & 0x800) | ((i >> 20) & 0x7FE);
   }
   return 0;

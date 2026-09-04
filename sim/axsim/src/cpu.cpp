@@ -10,12 +10,12 @@ static uint32_t imm_s(uint32_t i) {
   return (uint32_t)((int32_t)(i & 0xFE000000) >> 20) | ((i >> 7) & 0x1F);
 }
 static uint32_t imm_b(uint32_t i) {
-  return (uint32_t)((int32_t)(i & 0x80000000) >> 19) | ((i & 0x80) << 4) |
+  return ((i & 0x80000000u) ? 0xfffff000u : 0u) | ((i & 0x80) << 4) |
          ((i >> 20) & 0x7E0) | ((i >> 7) & 0x1E);
 }
 static uint32_t imm_u(uint32_t i) { return i & 0xFFFFF000; }
 static uint32_t imm_j(uint32_t i) {
-  return (uint32_t)((int32_t)(i & 0x80000000) >> 11) | (i & 0xFF000) |
+  return ((i & 0x80000000u) ? 0xfff00000u : 0u) | (i & 0xFF000) |
          ((i >> 9) & 0x800) | ((i >> 20) & 0x7FE);
 }
 

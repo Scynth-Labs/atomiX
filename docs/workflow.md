@@ -270,6 +270,7 @@ make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
 make static-analysis             # RTL lint, C path analysis, C++, Python, shell
+#   The RTL pass uses the selected simulator's exact source ordering.
 make fuzz-loader                 # libFuzzer + ASan/LSan/UBSan over the ELF loader
 #   Findings land in build/static-analysis/fuzz.json in the same schema the
 #   static analysis writes, so the nightly workflow puts both in one issue.
