@@ -278,6 +278,7 @@ make fuzz-coverage               # line/branch reach of that corpus in the loade
 make -C sim/fuzz explore         # unbounded ELF-loader fuzzing, for when it changed
 make -C sim/fuzz explore-axfs    # unbounded AXFS-metadata fuzzing
 make -C sim/fuzz explore-axk1-format # unbounded AXK1 upload-format regression
+make -C sim/fuzz explore-hostlink-format # unbounded host-link request-format regression
 make toolchain-llvm              # build and run the kernel with clang/lld
 
 # TOOLCHAIN selects the target compiler; gcc is the default and every recorded

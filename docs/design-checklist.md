@@ -549,7 +549,7 @@ thought of".  These three answer the other question.
   kernel passes at 256 KiB.  That is a size difference and not a
   miscompilation, which is why GCC stays the default rather than clang being
   called broken.
-- [~] Extend binary-format parser regression testing to the remaining inputs.
+- [x] Extend binary-format parser regression testing to the remaining inputs.
   AXFS on-disk metadata and the AXK1 UART upload envelope are now covered by
   the production parser sources under libFuzzer, ASan, LSan, and UBSan.  AXFS
   runs both raw framing rejection and a reachable-directory pass, then
@@ -558,9 +558,14 @@ thought of".  These three answer the other question.
   byte streams and valid/corrupt envelopes through magic resynchronization,
   bounds, copy, CRC, and retry handling.  Evidence: `make fuzz-loader`; use
   `make -C sim/fuzz explore-axfs` or `make -C sim/fuzz explore-axk1-format`
-  for an unbounded run.  The host-link request decoder remains open.  The loader was first
-  because it is in the kernel's boot path and its input has the most complex
-  framing; the other paths use the same technique against a smaller code path.
+  for an unbounded run.  The host-link service's request parser is also covered
+  through its production source with only the byte pipe, role execution seam,
+  and terminal action replaced: raw/partial requests, valid role frames, each
+  status translation, oversize payload draining, resynchronization, and BYE
+  all run in memory.  Use `make -C sim/fuzz explore-hostlink-format` for a
+  longer run.  The loader was first because it is in the kernel's boot path and
+  its input has the most complex framing; the other paths use the same technique
+  against a smaller code path.
 
 ## Change-ready checklist
 

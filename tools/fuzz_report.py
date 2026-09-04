@@ -37,6 +37,8 @@ TARGETS = [
      "what": "filesystem.axfs against malformed on-disk metadata"},
     {"name": "axk1-upload-format", "dir": "sim/fuzz", "target": "run-axk1-format",
      "what": "immutable UART loader against malformed AXK1 envelopes"},
+    {"name": "hostlink-request-format", "dir": "sim/fuzz", "target": "run-hostlink-format",
+     "what": "host-link service against malformed request frames"},
 ]
 
 # ==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x...

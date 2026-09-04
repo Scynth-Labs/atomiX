@@ -13,6 +13,19 @@
 #include "platform.h"
 #include "role.h"
 
+#ifndef AXHOST_FORMAT_REGRESSION
+#define AXHOST_FORMAT_REGRESSION 0
+#endif
+
+#if AXHOST_FORMAT_REGRESSION
+/* The service owns its streaming byte pipe and terminates only after BYE.
+ * These host-only seams let the format-regression harness exercise that exact
+ * request parser without a UART device or a machine halt. */
+extern uint8_t axhost_format_get(void);
+extern void axhost_format_put(uint8_t byte);
+extern void axhost_format_finish(void) __attribute__((noreturn));
+#endif
+
 /* Frame payload staging.  role_execute accepts an overlapping request/result
  * buffer, so this is the only host-link job buffer. */
 static uint8_t payload[HOSTLINK_MAX_PAYLOAD];
@@ -21,8 +34,20 @@ static uint8_t payload[HOSTLINK_MAX_PAYLOAD];
  * spinning while a *human* thinks; a host-link session streams framed binary
  * back-to-back and never idles, so buffering it would add a queue to overrun
  * and win nothing.  This is the case polling is right for. */
-static uint8_t get_byte(void) { return (uint8_t)uart_getchar(); }
-static void put_byte(uint8_t b) { uart_putchar((char)b); }
+static uint8_t get_byte(void) {
+#if AXHOST_FORMAT_REGRESSION
+  return axhost_format_get();
+#else
+  return (uint8_t)uart_getchar();
+#endif
+}
+static void put_byte(uint8_t b) {
+#if AXHOST_FORMAT_REGRESSION
+  axhost_format_put(b);
+#else
+  uart_putchar((char)b);
+#endif
+}
 
 static uint16_t get_u16(void) {
   const uint8_t lo = get_byte();
@@ -101,7 +126,11 @@ void host_service(void) {
       }
       case HOSTLINK_OP_BYE:
         put_frame(HOSTLINK_ST_OK, 0, 0);
+#if AXHOST_FORMAT_REGRESSION
+        axhost_format_finish();
+#else
         test_finish(0);   /* acknowledged; end the session and the program */
+#endif
         break;
       default:
         put_frame(HOSTLINK_ST_BAD_OP, 0, 0);
