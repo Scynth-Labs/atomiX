@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>atomiX — machines side by side</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="shell wide">
+  <header class="masthead">
+    <h1>atomiX</h1>
+    <p>
+      One binary. Three machines that differ in exactly one component — the
+      CPU core — each running the RTL cycle for cycle in this tab, each
+      reporting its own cycle count. This is the argument for a component
+      system, and it is not one you can make in prose.
+    </p>
+  </header>
+
+  <section class="race-bar">
+    <button type="button" id="run" disabled>Run all</button>
+    <span class="badge" id="race-state" data-state="loading">loading</span>
+    <p class="race-note" id="race-note">
+      Every machine is advanced by the same number of simulated cycles per
+      slice, so what you are watching is simulated time, not this laptop:
+      the console that finishes first belongs to the machine that needed
+      fewer cycles.
+    </p>
+  </section>
+
+  <section class="machines" id="machines" aria-label="Machines"></section>
+
+  <section class="results" id="results" hidden>
+    <h2>Result</h2>
+    <table class="scoreboard">
+      <thead>
+        <tr>
+          <th scope="col">profile</th>
+          <th scope="col">core</th>
+          <th scope="col">workload cycles</th>
+          <th scope="col">relative</th>
+          <th scope="col">checksum</th>
+        </tr>
+      </thead>
+      <tbody id="scoreboard"></tbody>
+    </table>
+    <p class="verdict" id="verdict"></p>
+  </section>
+
+  <section class="notes">
+    <h2>What is actually being compared</h2>
+    <p>
+      The three profiles are identical apart from <code>core</code>:
+      the same SoC, interconnect, cache, memory, UART, and payload. So the
+      spread between them is attributable to the core rather than merely
+      correlated with it — which is the only way a number like this is worth
+      quoting.
+    </p>
+    <p>
+      The payload is <code>sw/baremetal/examples/cpu_perf.c</code>, the same
+      binary in every machine. It reads <code>mcycle</code> and
+      <code>minstret</code> around five workloads, so its figures are retired
+      instructions over elapsed cycles — a property of the machine, not of how
+      the workload was compiled. It also prints a checksum, and the checksums
+      must match: three cores that disagree about RV32IM would be a
+      correctness bug, not a performance result.
+    </p>
+    <p>
+      <code>make -C sim/web compare</code> runs this same set headlessly under
+      Node and fails if any machine misreports which selection it is, if the
+      checksums differ, or if two machines return the same cycle count — the
+      last being what a page showing one machine three times would look like.
+    </p>
+    <p class="provenance" id="provenance"></p>
+  </section>
+</main>
+<script src="terminal.js"></script>
+<script src="compare.js"></script>
+</body>
+</html>

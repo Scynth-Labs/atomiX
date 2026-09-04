@@ -210,7 +210,17 @@ the one thing it cannot install for you — see [docs/toolchain.md](docs/toolcha
 
 It is the machine, not a re-implementation: the page clocks the model through
 the same runner code `make sim` uses, so a cycle count read off it is the one a
-local run reports. Details in [sim/web/](sim/web/).
+local run reports.
+
+```bash
+make web-compare              # the same binary on three cores, side by side
+```
+
+That is the argument for a component system rather than a description of one:
+three machines differing in exactly one component — the core — run one
+`cpu_perf` binary in lock-step simulated cycles and report **70,650**,
+**42,978**, and **25,729** cycles, all agreeing on the same checksum. Details in
+[sim/web/](sim/web/).
 
 ## Build it your way
 

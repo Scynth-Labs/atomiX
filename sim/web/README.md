@@ -31,6 +31,72 @@ make -C sim/web serve PORT=8000      # then open http://localhost:8000/
 `serve` is a plain static file server; any other one works. The page fetches
 the WASM module, so `file://` will not do.
 
+## Several machines side by side
+
+One machine shows that a selection boots. It cannot show what the selection is
+*worth*, and that is the argument the component system exists to make, so there
+is a second page for it:
+
+```bash
+./tools/web.sh --compare                          # from the repository root
+make web-compare-check                            # the headless half only
+make -C sim/web machines COMPARE_MACHINES="sim-bram sim-ax2"
+```
+
+It stages one bundle per selection under `public/machines/<profile>/`, boots all
+of them in `compare.html` on one binary, and puts their cycle counts next to
+each other. The default set — `sim-minimal`, `sim-bram`, `sim-ax2` — differs in
+*exactly one* component, the core, so the spread between them is attributable
+rather than merely observed alongside. The payload is `cpu_perf`, which reads
+`mcycle` and `minstret` around five workloads and prints a checksum every core
+must agree on.
+
+Machines are advanced in lock-step **simulated** cycles rather than in equal
+wall-clock slices. That is the difference between racing the machines and racing
+the host: with an equal cycle budget per slice, the console that finishes first
+belongs to the machine that needed fewer cycles, which is the claim being made.
+
+The slices are scheduled on a timer rather than on `requestAnimationFrame`,
+which is where this page differs from the interactive console. That one is
+animating a machine you are typing into and should run exactly as fast as it
+paints; this one runs a race to completion, and rAF stops altogether in a hidden
+tab — a reader who switched tabs mid-run would come back to three machines
+frozen where they left them. The gap between slices is not zero for the same
+reason it is not large: without one the browser never gets to paint, and the
+panes would jump from empty to finished.
+
+| | workload cycles | |
+|---|---|---|
+| `core.minimal` (`sim-minimal`) | 70,650 | 1.00× |
+| `core.pipeline5` (`sim-bram`) | 42,978 | 1.64× |
+| `core.ax2` (`sim-ax2`) | 25,729 | 2.75× |
+
+Same checksum on all three (`0xe9266745`) and the same counts a native run of
+those profiles reports, because it is the same RTL. Nothing here is a new
+claim: `python3 tools/bench.py cpu` already sweeps this natively, across more
+`core.ax2` parameter settings than three panes can hold. This is the
+presentation of that measurement, not a second source for it.
+
+`make -C sim/web page-check` covers what neither `check` nor `compare` can see.
+Both of those drive the machines through the same C API the pages use, which is
+where the evidence is; the page around them — module loading by export name,
+asset paths, the scheduling loop, whether any number reaches the screen — has
+its own ways to be wrong and is invisible to a headless Node run. So it serves
+the directory, drives both pages in a headless Chromium, and reads the rendered
+DOM back. It skips rather than fails when no browser is installed (`AX_BROWSER`
+picks one), runs in a throwaway profile of its own, and never terminates a
+browser process it did not start.
+
+`make -C sim/web compare` is the self-check, and what it guards against is not a
+wrong number but a convincing one. Three bundles staged under three labels can
+silently be *one* bundle — `MODULARIZE` puts each module factory on a global, so
+three bundles sharing an export name would leave whichever loaded last answering
+for all of them, and the page would then run one machine three times while
+labelling it three ways. So every bundle gets its own export name, every machine
+is asked what it is (`ax_profile()`) and checked against the label it was staged
+under, and the check fails on identical cycle counts or disagreeing checksums as
+well.
+
 The bundle lives at one fixed path (`public/axsoc.js`) because the page loads it
 by name, so it is keyed on the profile and payload with a stamp file. Without
 that, switching profiles leaves a newer bundle built from the *other* selection,
@@ -109,16 +175,21 @@ per command.
 
 | | |
 |---|---|
-| `tb_soc_wasm.cpp` | the C API the page drives the machine through |
+| `tb_soc_wasm.cpp` | the C API both pages drive the machine through |
 | `boot.mjs` | headless boot, self-check, and same-host benchmark |
-| `public/index.html`, `app.js`, `style.css` | the page; tracked sources |
+| `compare.mjs` | headless side-by-side run, and its self-check |
+| `page_check.mjs` | both pages, driven in a headless browser |
+| `public/index.html`, `app.js` | the single-machine console; tracked |
+| `public/compare.html`, `compare.js` | the side-by-side page; tracked |
+| `public/terminal.js`, `style.css` | shared by both pages; tracked |
 | `public/axsoc.js`, `axsoc.wasm`, `payload.hex` | build products, not tracked |
+| `public/machines/` | one staged bundle per selection; not tracked |
 
 ## Known limits
 
-- Single machine per page. Booting several profiles side by side is the next
-  step in [the checklist](../../docs/design-checklist.md), not something this
-  page does yet.
+- The side-by-side page compares machines, not payloads: every pane runs the
+  same binary, which is the point. Comparing two *programs* on one machine is
+  the single-machine console's job.
 - The build tracks Verilator 4.038, the version the rest of the suite is green
   on. Verilator 5 currently fails the same way it fails for `sim/soc`.
 - At an idle prompt the machine is genuinely stopped, not throttled. `wfi`

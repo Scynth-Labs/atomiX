@@ -31,7 +31,7 @@
 
     <div class="console" id="console" tabindex="0" role="textbox"
          aria-multiline="true" aria-label="aXos console">
-      <pre id="screen"></pre>
+      <pre class="screen" id="screen"></pre>
     </div>
 
     <p class="hint" id="hint">
@@ -58,8 +58,14 @@
       and the count starts over.
     </p>
     <p class="provenance" id="provenance"></p>
+    <p>
+      One machine is one selection. To see what that selection is worth, the
+      <a href="compare.html">side-by-side page</a> boots the same binary on
+      three cores at once and puts their cycle counts next to each other.
+    </p>
   </section>
 </main>
+<script src="terminal.js"></script>
 <script src="axsoc.js"></script>
 <script src="app.js"></script>
 </body>

@@ -11,6 +11,7 @@
 #   tools/web.sh                                   # defaults
 #   tools/web.sh --config configs/sim-bram.json \
 #                --payload sw/baremetal/build/hello.hex
+#   tools/web.sh --compare                         # machines side by side
 #   tools/web.sh --port 9000 --no-check --no-open
 #
 # Everything it does is also available as ordinary targets; see sim/web/README.md.
@@ -24,6 +25,15 @@ payload="sw/kernel/build/axos_boot.hex"
 port=""
 run_check=1
 open_browser=1
+# Side-by-side mode: several selections at once rather than one. The set
+# deliberately differs in exactly one component, so the spread between the
+# machines is attributable to the core rather than merely observed alongside
+# it, and the payload is the one program that reports its own cycle counts and
+# a checksum that must match across all of them.
+compare=0
+machines="sim-minimal sim-bram sim-ax2"
+compare_payload="sw/baremetal/build/cpu_perf.hex"
+page=""
 
 die() { printf '\033[31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 say() { printf '\033[36m==>\033[0m %s\n' "$*"; }
@@ -33,10 +43,12 @@ while [ $# -gt 0 ]; do
     --config)  config=${2:?--config needs a profile}; shift 2;;
     --payload) payload=${2:?--payload needs a .hex}; shift 2;;
     --port)    port=${2:?--port needs a number}; shift 2;;
+    --compare) compare=1; shift;;
+    --machines) machines=${2:?--machines needs a space-separated list}; shift 2;;
     --no-check) run_check=0; shift;;
     --check-only) run_check=1; open_browser=0; port="none"; shift;;
     --no-open) open_browser=0; shift;;
-    -h|--help) sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help) sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0;;
     *) die "unknown argument: $1 (try --help)";;
   esac
 done
@@ -89,6 +101,36 @@ case "$verilator_version" in
      printf '         5.x currently fails to elaborate role.loopback. Override with VERILATOR=.\n';;
 esac
 say "verilator $verilator_version ($verilator)"
+
+# --- Side by side ---------------------------------------------------------
+# A different question from "does the machine boot", and the one the component
+# system exists to answer: what a selection is worth. One bundle is staged per
+# selection and the headless check runs the same binary on every one of them,
+# which is also what proves the bundles are not secretly the same machine.
+if [ "$compare" = 1 ]; then
+  compare_payload=$(absolute "$compare_payload")
+  if [ ! -f "$compare_payload" ]; then
+    say "building the baremetal images (first run)"
+    make -s -C sw/baremetal images
+  fi
+  [ -f "$compare_payload" ] || die "payload not found: $compare_payload"
+  say "machines $machines, payload ${compare_payload#"$root/"}"
+  if [ "$run_check" = 1 ]; then
+    say "verifying headlessly (one binary on every machine; checksums must match)"
+    make -s -C sim/web compare VERILATOR="$verilator" \
+      COMPARE_MACHINES="$machines" COMPARE_PAYLOAD="$compare_payload"
+  else
+    make -s -C sim/web machines VERILATOR="$verilator" \
+      COMPARE_MACHINES="$machines" COMPARE_PAYLOAD="$compare_payload"
+  fi
+  if [ "$port" = "none" ]; then exit 0; fi
+  # The two pages link to each other out of one served directory, so the
+  # single-machine bundle is built as well rather than leaving a reader one
+  # click away from a page that cannot start. Its headless check has already
+  # been superseded by the one above.
+  run_check=0
+  page="compare.html"
+fi
 
 # --- Payload --------------------------------------------------------------
 # A missing default payload means the kernel simply has not been built yet,
@@ -145,9 +187,11 @@ PY
 ) || die "could not find a free port"
 fi
 
-url="http://localhost:$port/"
+url="http://localhost:$port/$page"
 say "serving $url  (Ctrl-C to stop)"
-if [ "$payload" = "$default_payload" ]; then
+if [ "$compare" = 1 ]; then
+  printf '    the single machine is at \033[1m%s\033[0m\n' "http://localhost:$port/"
+elif [ "$payload" = "$default_payload" ]; then
   printf '    try: \033[1mhelp\033[0m, then \033[1mrole\033[0m twice -- irq=1 then irq=2 is one continuous machine\n'
 fi
 

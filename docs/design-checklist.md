@@ -1259,9 +1259,35 @@ Staged so each step has its own evidence rather than landing as one large jump:
   throttles hard while the shell polls at an idle prompt rather than pinning a
   core in a background tab.  Evidence: `make web-check`, and the same `role`
   twice → `irq=1`, `irq=2` continuity proof holding in the page.
-- [ ] **Machines side by side.** The same program on several component
+- [x] **Machines side by side.** The same program on several component
   selections at once, each with its own cycle count — the demonstration the
-  component system exists for.
+  component system exists for.  `make web-compare` stages one WASM bundle per
+  selection and boots all of them in one page on one binary; `make
+  web-compare-check` is the headless half.  The default set is `sim-minimal`,
+  `sim-bram`, and `sim-ax2`, which differ in *exactly one* component, so the
+  spread is attributable to the core rather than merely observed beside it, and
+  the payload is `cpu_perf`, which reports retired instructions and cycles per
+  workload and prints a checksum every core must agree on.  Machines are
+  advanced in lock-step *simulated* cycles on a timer rather than in equal
+  wall-clock slices:
+  that is the difference between racing the machines and racing the host, and
+  it makes the console that finishes first the machine that needed fewer
+  cycles.  Measured, one `cpu_perf` binary, checksum `0xe9266745` on all three:
+  **`core.minimal` 70,650 cycles, `core.pipeline5` 42,978 (1.64×),
+  `core.ax2` 25,729 (2.75×)** — identical to the native run of the same
+  profiles, because it is the same RTL.  No new claim: `python3
+  tools/bench.py cpu` already sweeps this natively, and this milestone is the
+  presentation of it.  The failure worth guarding is not a wrong number but a
+  convincing one — three bundles that are secretly one machine under three
+  labels, which is why each bundle gets its own module export name, is asked
+  what it is (`ax_profile()`) and checked against the label it was staged
+  under, and why equal cycle counts and disagreeing checksums both fail the
+  check.  Evidence: `make web-compare-check` for the machines and
+  `make web-page-check` for the pages — the latter drives both of them in a
+  headless browser and reads the rendered scoreboard back, which is the only
+  way to check the page rather than the machine.  Both guards were confirmed to
+  fire by staging the ax2 bundle under the `sim-bram` label: the headless run
+  refuses it, and so does the page.
 - [ ] **Live documentation.** Code blocks that boot the machine they describe,
   so an example cannot drift from what it claims, and a bug report can be a URL
   that boots the machine that failed.

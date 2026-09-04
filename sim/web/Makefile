@@ -64,26 +64,37 @@ PAYLOAD ?= $(abspath ../../sw/kernel/build/axos_boot.hex)
 RAM_INIT_PATH := /payload.hex
 
 OUT_DIR := public
-MODULE := $(OUT_DIR)/axsoc.js
 MDIR := obj_dir_$(COMPONENT_CONFIG_NAME)
 
-# The bundle lives at one fixed path because the page loads it by name, but the
-# machine inside it is profile-specific -- so file timestamps alone cannot say
+# Where this invocation's bundle lands, and what its module factory is called.
+# The single-machine page keeps the historical layout (public/axsoc.js, the
+# global `createAxSoc`); the side-by-side page overrides both per selection,
+# because a page loading three bundles by <script> would otherwise keep only
+# the last factory to define the global -- and would then run one machine three
+# times under three different labels, which is the exact failure this tier must
+# not have.
+MACHINE_DIR ?= $(OUT_DIR)
+PAYLOAD_DIR ?= $(OUT_DIR)
+EXPORT_NAME ?= createAxSoc
+MODULE := $(MACHINE_DIR)/axsoc.js
+
+# Within a directory the bundle lives at one fixed name because the page loads
+# it by that name, but the machine inside it is profile-specific -- so file timestamps alone cannot say
 # whether it is current. Switching profiles leaves a *newer* bundle built from
 # the *other* selection, and make would call that up to date and serve the
 # wrong machine while the page confidently labels it the right one. Key the
 # staged files on the selection instead: the stamp is only rewritten when the
 # selection changes, so an unchanged one rebuilds nothing.
-BUNDLE_TAG := $(COMPONENT_CONFIG_NAME)|$(PAYLOAD)|$(RAM_INIT_PATH)
-STAMP := $(OUT_DIR)/.bundle-tag
+BUNDLE_TAG := $(COMPONENT_CONFIG_NAME)|$(PAYLOAD)|$(RAM_INIT_PATH)|$(EXPORT_NAME)
+STAMP := $(MACHINE_DIR)/.bundle-tag
 
 $(STAMP): FORCE
-	@mkdir -p $(OUT_DIR)
+	@mkdir -p $(@D)
 	@[ "$$(cat $@ 2>/dev/null)" = '$(BUNDLE_TAG)' ] || printf '%s' '$(BUNDLE_TAG)' > $@
 FORCE:
 
 EMFLAGS := -O3 --no-entry \
-  -sMODULARIZE=1 -sEXPORT_NAME=createAxSoc \
+  -sMODULARIZE=1 -sEXPORT_NAME=$(EXPORT_NAME) \
   -sENVIRONMENT=web,worker,node \
   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 \
   -sEXPORTED_RUNTIME_METHODS=['FS','ccall','cwrap','UTF8ToString','HEAPU8'] \
@@ -117,7 +128,7 @@ MODEL_SRCS = $(wildcard $(MDIR)/*.cpp) $(VERILATOR_ROOT_DIR)/include/verilated.c
 $(MODULE): $(MDIR)/V$(SIM_TOP).mk $(DRIVER) $(HARNESS_HDRS) $(STAMP)
 	@command -v $(EMCC) >/dev/null 2>&1 || { \
 	  echo "$(EMCC) not found - source ~/emsdk/emsdk_env.sh (docs/toolchain.md)"; exit 2; }
-	mkdir -p $(OUT_DIR)
+	mkdir -p $(@D)
 	$(EMCC) $(EMFLAGS) \
 	  -DAX_RAM_INIT_PATH='"$(RAM_INIT_PATH)"' \
 	  -DAX_PROFILE_NAME='"$(COMPONENT_CONFIG_NAME)"' \
@@ -127,14 +138,79 @@ $(MODULE): $(MDIR)/V$(SIM_TOP).mk $(DRIVER) $(HARNESS_HDRS) $(STAMP)
 
 # The payload is a build product of the software component, not of this one;
 # it is staged here so the page can fetch it and load it into the machine.
-$(OUT_DIR)/payload.hex: $(PAYLOAD) $(STAMP)
+$(PAYLOAD_DIR)/payload.hex: $(PAYLOAD) $(STAMP)
 	@test -f "$(PAYLOAD)" || { \
 	  echo "payload not found: $(PAYLOAD) (build it, e.g. make -C sw/kernel images)"; exit 2; }
-	mkdir -p $(OUT_DIR)
+	mkdir -p $(@D)
 	cp $(PAYLOAD) $@
 
-build: $(MODULE) $(OUT_DIR)/payload.hex
-	@echo "browser bundle: $(abspath $(OUT_DIR))"
+build: $(MODULE) $(PAYLOAD_DIR)/payload.hex
+	@echo "browser bundle: $(abspath $(MACHINE_DIR))"
+
+# --- Machines side by side -------------------------------------------------
+# The demonstration the component system exists for: one binary, several
+# component selections, and each machine's own cycle count beside the others.
+# The three profiles differ in exactly one component -- the core -- so the
+# spread between them is attributable rather than merely interesting, and the
+# payload is `cpu_perf`, which already reports retired instructions and cycles
+# per workload and prints a checksum that must match across every core.
+COMPARE_MACHINES ?= sim-minimal sim-bram sim-ax2
+COMPARE_PAYLOAD ?= $(abspath ../../sw/baremetal/build/cpu_perf.hex)
+MACHINES_DIR := $(OUT_DIR)/machines
+MACHINES_MANIFEST := $(MACHINES_DIR)/machines.json
+
+# One bundle per selection, each in its own directory with its own module
+# factory, plus the entry the page reads to find it. The payload is staged once
+# beside them: "the same program" is the claim, so there is one copy of it.
+machines:
+	@for name in $(COMPARE_MACHINES); do \
+	  $(MAKE) --no-print-directory machine \
+	    COMPONENT_CONFIG=../../configs/$$name.json \
+	    PAYLOAD="$(COMPARE_PAYLOAD)" \
+	    MACHINE_DIR=$(MACHINES_DIR)/$$name PAYLOAD_DIR=$(MACHINES_DIR) \
+	    EXPORT_NAME=createAxSoc_$$(printf '%s' "$$name" | tr -c 'A-Za-z0-9' '_') \
+	    || exit 1; \
+	done
+	@{ echo '{"payload": "payload.hex", "machines": ['; \
+	   first=1; \
+	   for name in $(COMPARE_MACHINES); do \
+	     [ $$first = 1 ] || echo ','; first=0; \
+	     cat $(MACHINES_DIR)/$$name/machine.json; \
+	   done; \
+	   echo ''; echo ']}'; } > $(MACHINES_MANIFEST)
+	@echo "machines: $(abspath $(MACHINES_DIR))"
+
+# One selection's bundle and the two files that describe it. `core.json` is the
+# core component's own manifest, copied rather than paraphrased: the page shows
+# each machine's title and capability list from the same file the build
+# resolved, so a page cannot claim a capability the component does not.
+machine: build
+	@$(PYTHON) ../../tools/configure.py describe $(COMPONENT_CORE_ID) \
+	  > $(MACHINE_DIR)/core.json
+	@printf '{"name": "%s", "module": "%s/axsoc.js", "export": "%s", "core": "%s", "describe": "%s/core.json", "cache": "%s", "memory": "%s"}' \
+	  '$(COMPONENT_CONFIG_NAME)' '$(COMPONENT_CONFIG_NAME)' '$(EXPORT_NAME)' \
+	  '$(COMPONENT_CORE_ID)' '$(COMPONENT_CONFIG_NAME)' \
+	  '$(COMPONENT_CACHE_ID)' '$(COMPONENT_MEMORY_ID)' \
+	  > $(MACHINE_DIR)/machine.json
+
+# The headless counterpart of the side-by-side page, and its self-check: every
+# machine runs the same binary to completion, each reports its own cycle count,
+# and all of them must agree on the checksum. Cycle counts that came out equal,
+# or a module whose own ax_profile() disagrees with the label it was staged
+# under, mean the page would be showing one machine three times.
+compare: machines
+	@command -v $(NODE) >/dev/null 2>&1 || { \
+	  echo "$(NODE) not found - emsdk ships one (docs/toolchain.md)"; exit 2; }; \
+	  $(NODE) compare.mjs
+
+# The pages themselves, in a real browser. `check` and `compare` drive the
+# machines through the same C API the pages use, which is where the evidence
+# is; what neither can see is the page around them -- module loading by export
+# name, asset paths, the scheduling loop, and whether any number reaches the
+# screen. Skips rather than fails without a browser: this tier is optional, and
+# a check that could not run must not report as one that passed.
+page-check: build machines
+	@$(NODE) page_check.mjs
 
 # Headless boot under Node: the WASM counterpart of a batch `make sim` run, and
 # the measurement that says whether a boot in a tab is imperceptible.
@@ -174,6 +250,6 @@ ANNOUNCE ?= 1
 
 clean:
 	rm -rf obj_dir_* build $(OUT_DIR)/axsoc.js $(OUT_DIR)/axsoc.wasm \
-	  $(OUT_DIR)/payload.hex $(STAMP)
+	  $(OUT_DIR)/payload.hex $(OUT_DIR)/.bundle-tag $(MACHINES_DIR)
 
-.PHONY: config build check bench serve clean FORCE
+.PHONY: config build machine machines compare page-check check bench serve clean FORCE

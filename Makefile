@@ -63,6 +63,8 @@ help:
 	@echo "  make component-test"
 	@echo "  make web                 # boot the machine in a browser (needs emcc)"
 	@echo "  make web-check           # headless WASM boot, timed against native"
+	@echo "  make web-compare         # one binary on three cores, side by side"
+	@echo "  make web-page-check      # both browser pages, in a headless browser"
 	@echo "  make doctor              # what this host can build, and what it cannot"
 
 # Report the host's toolchain the way a build will actually see it: which
@@ -414,6 +416,28 @@ web-check:
 web-bench:
 	$(MAKE) -C sim/web bench COMPONENT_CONFIG="$(abspath $(WEB_CONFIG))" PAYLOAD="$(abspath $(WEB_PAYLOAD))"
 
+# The same binary on several component selections at once, each with its own
+# cycle count.  WEB_MACHINES selects them; they deliberately differ in one
+# component, so the spread between them is attributable rather than merely
+# observed.  web-compare-check is the headless half and is the evidence; web-
+# compare also serves the page.
+WEB_MACHINES ?= sim-minimal sim-bram sim-ax2
+
+web-compare:
+	./tools/web.sh --compare --machines "$(WEB_MACHINES)"
+
+web-compare-check:
+	./tools/web.sh --compare --machines "$(WEB_MACHINES)" --check-only
+
+# The pages themselves, driven in a headless browser.  `web-check` and
+# `web-compare-check` drive the machines through the same C API the pages use,
+# which is where the evidence is; this covers the page around them -- module
+# loading, asset paths, the scheduling loop, and whether any number reaches the
+# screen.  Skips rather than fails when no browser is installed; AX_BROWSER
+# picks one.  It never terminates a browser process it did not start.
+web-page-check:
+	$(MAKE) -C sim/web page-check COMPARE_MACHINES="$(WEB_MACHINES)"
+
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
 component-test: config-check-all personality-check comparison-check
@@ -423,4 +447,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench
+.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check

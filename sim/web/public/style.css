@@ -116,7 +116,7 @@ button:disabled { opacity: 0.45; cursor: default; }
 }
 .console:focus { outline: 1px solid var(--accent-dim); outline-offset: -1px; }
 
-#screen {
+.screen {
   margin: 0;
   font-family: var(--mono);
   font-size: 13.5px;
@@ -154,3 +154,114 @@ button:disabled { opacity: 0.45; cursor: default; }
   .console:focus .cursor { animation: blink 1.1s steps(1, end) infinite; }
   @keyframes blink { 50% { background: none; color: inherit; } }
 }
+
+/* --- Machines side by side -------------------------------------------------
+   Three consoles at once need width the single-machine page does not, and a
+   console short enough that all three fit on one screen -- the whole point is
+   seeing them next to each other rather than scrolling between them. */
+.shell.wide { max-width: 84rem; }
+
+.race-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+.race-note {
+  margin: 0;
+  flex: 1 1 24rem;
+  font-size: 0.82rem;
+  color: var(--dim);
+}
+.badge[data-state="done"] { color: var(--accent); border-color: var(--accent-dim); }
+
+.machines {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+  gap: 1rem;
+}
+/* The consoles are the thing being scanned across, so they are what has to
+   line up: identical height, at an identical offset, in every pane. The cores
+   do not have the same number of capabilities, so that list goes *below* the
+   console and is pushed to the bottom of the card, where a card-to-card
+   difference in its height costs the comparison nothing. */
+.machine-card { display: flex; flex-direction: column; }
+.machine-card .console { height: 14rem; cursor: default; flex: 0 0 auto; }
+.machine-card .screen { font-size: 12.5px; }
+.machine-card .capabilities { margin-top: auto; padding-top: 0.6rem; }
+/* No cursor: these panes take no input, and a blinking one would invite it. */
+.machine-card .console:not(:focus) .cursor,
+.machine-card .cursor { background: none; outline: none; color: inherit; }
+
+.core-title {
+  margin: 0;
+  min-height: 3.2rem;
+  padding: 0.5rem 0.9rem 0.25rem;
+  font-size: 0.82rem;
+  color: var(--dim);
+}
+.capabilities {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0 0.9rem 0.6rem;
+  list-style: none;
+}
+/* Two rows' worth, always. The cores do not have the same number of
+   capabilities, and a comparison whose panes start at different heights is one
+   the reader cannot scan across -- which is the only thing this layout is
+   for. */
+.capabilities { align-content: start; }
+.capabilities li {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--dim);
+  border: 1px solid var(--edge);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+}
+
+.results { margin-top: 2rem; }
+.results h2 { font-size: 1rem; margin: 0 0 0.6rem; }
+
+.scoreboard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.scoreboard th {
+  text-align: left;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--dim);
+  font-weight: 500;
+  padding: 0.35rem 0.6rem;
+  border-bottom: 1px solid var(--edge);
+}
+.scoreboard td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid var(--edge);
+  font-family: var(--mono);
+  vertical-align: middle;
+}
+.scoreboard .numeric {
+  position: relative;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* The bar is drawn behind the number rather than beside it, so the figure
+   stays the thing being read and the length is only a second way to see it. */
+.scoreboard .bar {
+  position: absolute;
+  left: 0; top: 0.35rem; bottom: 0.35rem;
+  background: var(--accent-dim);
+  opacity: 0.22;
+  border-radius: 3px;
+}
+.scoreboard .numeric span:last-child { position: relative; }
+
+.verdict { margin: 0.9rem 0 0; color: var(--dim); font-size: 0.9rem; max-width: 52rem; }
+.verdict.bad { color: #f85149; }

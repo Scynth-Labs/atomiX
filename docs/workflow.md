@@ -177,6 +177,42 @@ interactive session use too, so a cycle count read off the page is the one a
 local run reports. Details and measurements are in
 [sim/web/README.md](../sim/web/README.md).
 
+### Several machines side by side
+
+One machine shows that a selection boots; it cannot show what the selection is
+*worth*. This boots the same binary on several selections at once, each with
+its own cycle count:
+
+```bash
+make web-compare                                   # build, verify, serve, open
+make web-compare-check                             # verify only, do not serve
+make web-compare WEB_MACHINES="sim-bram sim-ax2"   # a different set
+```
+
+The default set is `sim-minimal sim-bram sim-ax2`, which differ in exactly one
+component — the core — so the spread between them is attributable rather than
+merely observed. The payload is `sw/baremetal/build/cpu_perf.hex`, which reports
+retired instructions and cycles per workload and prints a checksum every core
+must agree on.
+
+```bash
+make web-page-check                                # both pages, in a browser
+AX_BROWSER=/path/to/chrome make web-page-check     # pick the browser
+```
+
+That drives the served pages in a headless Chromium and reads the rendered DOM
+back, which is the only way to see the page rather than the machine: module
+loading, asset paths, the scheduling loop, and whether any number reaches the
+screen. It skips rather than fails when no browser is installed, and it never
+terminates a browser process it did not start.
+
+`make -C sim/web machines` stages one bundle per selection and `compare` runs
+them headlessly, which is the evidence half: it fails if any machine misreports
+which selection it is (`ax_profile()` against the label it was staged under), if
+the checksums differ, or if two machines return the same cycle count — the last
+being exactly what a page showing one machine three times would look like. The
+native sweep behind the same numbers is `python3 tools/bench.py cpu`.
+
 ---
 
 ## 3. Test
