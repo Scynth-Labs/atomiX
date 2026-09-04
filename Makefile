@@ -56,7 +56,7 @@ help:
 	@echo "  make brand-check        # derived brand assets match the master lockup"
 	@echo "  make static-analysis    # RTL lint, C path analysis, Python, shell"
 	@echo "  make toolchain-llvm     # build and run the kernel with clang/lld"
-	@echo "  make fuzz-loader        # libFuzzer + ASan/LSan/UBSan over the ELF loader"
+	@echo "  make fuzz-loader        # binary-format parser regression with libFuzzer/sanitizers"
 	@echo "  make fuzz-coverage      # what that corpus reaches inside the loader"
 	@echo "  make verify-smoke       # fast integrated verification ladder"
 	@echo "  make nightly-integrated # broad software/RTL suite with stage logs"
@@ -239,7 +239,7 @@ toolchain-llvm:
 	$(MAKE) -C sim/axsim test TOOLCHAIN=llvm
 	$(MAKE) -C sw/kernel check-shell TOOLCHAIN=llvm RAM_BYTES=$(LLVM_RAM_BYTES)
 
-# Coverage-guided fuzzing of the kernel's largest untrusted-input surface.
+# Coverage-guided regression testing of kernel binary-format parsers.
 # FUZZ_TIMEOUT bounds the CI run; `make -C sim/fuzz explore` is the unbounded
 # one to use when the parser itself has changed.
 FUZZ_TIMEOUT ?= 120

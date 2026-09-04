@@ -101,7 +101,14 @@ static int mount_disk(void) {
     entries[i].block = read_u32(disk + 16);
     entries[i].length = read_u32(disk + 20);
     entries[i].builtin = 0;
-    if (entries[i].block <= AXFS_BLOCK) return -1;
+    /* fs_size() uses a signed result so -1 remains its invalid-id sentinel.
+     * A larger on-disk extent would otherwise mount successfully and become
+     * indistinguishable from that error to every caller. */
+    if (entries[i].block <= AXFS_BLOCK || entries[i].length > 0x7fffffffu)
+      return -1;
+    const uint32_t blocks = (entries[i].length + 511u) / 512u;
+    if (blocks != 0u && entries[i].block > 0xffffffffu - (blocks - 1u))
+      return -1;
   }
   return 0;
 }

@@ -549,11 +549,16 @@ thought of".  These three answer the other question.
   kernel passes at 256 KiB.  That is a size difference and not a
   miscompilation, which is why GCC stays the default rather than clang being
   called broken.
-- [ ] Extend the fuzzing to the other parsers that take untrusted bytes: the
-  AXFS on-disk structures, the AXK1 kernel-upload envelope, and the host-link
-  request decoder.  The loader was first because it is in the kernel's trusted
-  computing base and its input is the most attacker-shaped; the others are the
-  same technique against a smaller blast radius.
+- [~] Extend binary-format parser regression testing to the remaining inputs.
+  AXFS on-disk metadata is now covered by the production filesystem component
+  under
+  libFuzzer, ASan, LSan, and UBSan; every input runs both raw framing rejection
+  and a reachable-directory pass, then exercises each parsed extent through
+  `fs_read`.  Evidence: `make fuzz-loader`; use `make -C sim/fuzz
+  explore-axfs` for an unbounded run.  The AXK1 kernel-upload envelope and
+  host-link request decoder remain open.  The loader was first because it is in
+  the kernel's boot path and its input has the most complex framing; the others
+  use the same technique against a smaller code path.
 
 ## Change-ready checklist
 

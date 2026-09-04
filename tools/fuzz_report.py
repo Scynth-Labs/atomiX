@@ -31,8 +31,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 ARTIFACT_GLOBS = ("crash-*", "leak-*", "timeout-*", "oom-*")
 
 TARGETS = [
-    {"name": "loader", "dir": "sim/fuzz",
+    {"name": "loader", "dir": "sim/fuzz", "target": "run-loader",
      "what": "loader.elf32 against malformed ELF images"},
+    {"name": "axfs", "dir": "sim/fuzz", "target": "run-axfs",
+     "what": "filesystem.axfs against malformed on-disk metadata"},
 ]
 
 # ==12345==ERROR: AddressSanitizer: heap-buffer-overflow on address 0x...
@@ -150,7 +152,7 @@ def main(argv=None):
     for target in TARGETS:
         directory = ROOT / target["dir"]
         result = subprocess.run(
-            ["make", "-C", target["dir"], "run",
+            ["make", "-C", target["dir"], target["target"],
              f"TIMEOUT={args.timeout}", f"RUNS={args.runs}"],
             cwd=ROOT, capture_output=True, text=True)
         output = result.stdout + result.stderr

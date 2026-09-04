@@ -175,11 +175,11 @@ simply cannot allocate; that is a size difference, not a miscompilation.
 
 ### Sanitizers, and where their reports go
 
-`make fuzz-loader` builds the harness with AddressSanitizer, LeakSanitizer and
-UndefinedBehaviorSanitizer.  They answer different questions: ASan finds heap
-corruption and gives a stack trace for a fault, LSan finds a page the loader
-mapped and lost, UBSan finds a misaligned load or a signed overflow in a parser
-reading attacker-controlled offsets.
+`make fuzz-loader` builds the binary-format parser regression harnesses with
+AddressSanitizer, LeakSanitizer and UndefinedBehaviorSanitizer.  They answer
+different questions: ASan finds heap corruption and gives a stack trace for a
+fault, LSan finds a page the loader mapped and lost, UBSan finds a misaligned
+load or a signed overflow while processing externally supplied offsets.
 
 A sanitizer report is the most actionable thing this repository produces and the
 easiest to lose, so it does not stay in the log.  `tools/fuzz_report.py` parses

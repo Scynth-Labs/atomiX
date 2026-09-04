@@ -271,11 +271,12 @@ make l3-check                    # all-mode L3 shadow, canary, mutation, and rol
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
 make static-analysis             # RTL lint, C path analysis, C++, Python, shell
 #   The RTL pass uses the selected simulator's exact source ordering.
-make fuzz-loader                 # libFuzzer + ASan/LSan/UBSan over the ELF loader
+make fuzz-loader                 # binary-format parser regression (ELF and AXFS)
 #   Findings land in build/static-analysis/fuzz.json in the same schema the
 #   static analysis writes, so the nightly workflow puts both in one issue.
 make fuzz-coverage               # line/branch reach of that corpus in the loader
-make -C sim/fuzz explore         # unbounded fuzzing, for when a parser changed
+make -C sim/fuzz explore         # unbounded ELF-loader fuzzing, for when it changed
+make -C sim/fuzz explore-axfs    # unbounded AXFS-metadata fuzzing
 make toolchain-llvm              # build and run the kernel with clang/lld
 
 # TOOLCHAIN selects the target compiler; gcc is the default and every recorded
