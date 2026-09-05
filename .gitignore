@@ -32,6 +32,9 @@ __pycache__/
 # new profiles are visible to Git by default.
 !components/**/component.json
 !configs/*.json
+# The tool-version requirement: source of truth for make doctor,
+# make requirements-check, and the generated tables in docs/dependencies.md.
+!tools/requirements.json
 # Everything under research/ is a checked contract, record or measurement --
 # never synthesis output. Naming subdirectories individually meant that
 # research/personalities, research/comparisons and research/partial-reconfig

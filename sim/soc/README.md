@@ -31,13 +31,46 @@ caller that wants to spawn it once and keep it open:
 
 ```bash
 MODEL=$(make -s -C sim/soc model-path \
-  RAM_INIT_FILE="$PWD/sw/kernel/build/axos_boot.hex" RESET_PC=0x80000000 \
+  RESET_PC=0x80000000 \
   COMPONENT_CONFIG=../../configs/sim-role-loopback.json)
-"$MODEL" --uart-interactive     # type at the aXos prompt; Ctrl-D ends it
+"$MODEL" --ram-image "$PWD/sw/kernel/build/axos_boot.hex" --uart-interactive
+                              # type at the aXos prompt; Ctrl-D ends it
 ```
 
 State genuinely persists across commands — running the shell's `role` twice
 reports `irq=1` then `irq=2`, because it is one machine rather than two boots.
+
+## Runtime payloads
+
+Build the payloads separately, then launch the same executable with another
+`--ram-image` to select a program without recompiling the machine:
+
+```bash
+make -C sw/baremetal build/hello.hex build/timer.hex
+"$MODEL" --ram-image "$PWD/sw/baremetal/build/hello.hex"
+"$MODEL" --ram-image "$PWD/sw/baremetal/build/timer.hex"
+make -C sim/soc check-runtime-payload
+```
+
+The argument accepts a word-per-line `$readmemh` image, with paths resolved from
+the launch directory. It applies before the first reset evaluation, through a
+simulation-only plusarg consumed by the selected BRAM or delayed-memory model.
+Both asynchronous and registered BRAM reads use it. Capacity and reset PC stay
+properties of the compiled machine, so payloads must fit and be linked for it.
+The physical SDRAM pin model uses the ROM loader and rejects `--ram-image`.
+There is no change to FPGA memory initialization or UART upload protocols.
+
+`RAM_INIT_FILE` remains an optional baked default for existing callers. A
+runtime image overrides that default for one launch; without either, RAM starts
+with the simulator's default contents. Omitting `RAM_INIT_FILE` from
+`model-path` keeps payload filenames out of the model's build identity.
+
+The regression boots hello → timer → hello on one executable, compares output
+and cycles against baked initialization, replaces bytes at the same path, checks
+invalid arguments, and runs two role commands in one interactive aXos session.
+It covers both BRAM timings and cached delayed memory. Compact simulation
+evidence, including executable and payload hashes, is written to
+`sim/soc/build/runtime-payload-evidence.json`.
 
 For a direct invocation, provide a RAM image and an entry point:
 
@@ -71,13 +104,18 @@ make -C sw/kernel run-rtl UART_INPUT_FILE="$PWD/sw/kernel/shell_input.txt"
 ```
 
 `run` normally uses BRAM or the delayed-memory model selected by its
-parameters. `run-sdram` instead instantiates the physical x16 SDRAM pins of
-`axsdram` against the CAS-2 behavioral SDRAM device:
+parameters. For the physical x16 SDRAM pin model, select
+`COMPONENT_CONFIG=../../configs/sim-sdram.json` with `run-sdram`; the profile
+chooses `axsdram` and the CAS-2 behavioral SDRAM device.
+
+The legacy boot regression remains available:
 
 ```bash
 make -C sw/kernel check-sdboot
 ```
 
-That complete ROM → SD → SDRAM boot regression is the simulation gate for the
-ULX3S target; it is not a substitute for board-level timing and electrical
-validation.
+It currently omits that profile selection, so its printed physical-SDRAM label
+describes a BRAM run. Explicit pin-model testing boots the shell but does not
+complete exec even at 120M cycles, with PC samples pointing to timer-service
+starvation. The [follow-up evidence](../../research/benchmarks/sdram-exec-followup.json)
+records this open simulation issue; no board result is implied.

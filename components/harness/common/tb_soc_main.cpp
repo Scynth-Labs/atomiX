@@ -6,6 +6,7 @@
 #include <fstream>
 #include <iterator>
 #include <string>
+#include <vector>
 
 // Interactive mode only: a non-blocking read of the console byte pipe. POSIX
 // rather than portable C++ because there is no standard way to ask whether a
@@ -16,7 +17,10 @@
 #include "soc_machine.h"
 
 int main(int argc, char** argv) {
-  Verilated::commandArgs(argc, argv);
+  // Keep the image argument alive until after the model has consumed its
+  // initial blocks. No hierarchy-specific access to a generated RAM array.
+  std::vector<const char*> model_args(argv, argv + argc);
+  std::string ram_image_arg;
   std::string input;
   std::string sd_image;
   unsigned max_cycles = 100000;
@@ -29,6 +33,25 @@ int main(int argc, char** argv) {
   // so there is no such thing as an interactive prompt.
   bool interactive = false;
   for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--ram-image") {
+#ifdef AX_SOC_SDRAM
+      std::fprintf(stderr, "[soc] --ram-image is unavailable for pin-level SDRAM; use the ROM loader\n");
+      return 2;
+#else
+      if (i + 1 >= argc || !ram_image_arg.empty()) {
+        std::fprintf(stderr, "[soc] --ram-image requires one image path, exactly once\n");
+        return 2;
+      }
+      const std::string path = argv[++i];
+      std::ifstream stream(path);
+      if (!stream || stream.peek() == std::ifstream::traits_type::eof()) {
+        std::fprintf(stderr, "[soc] cannot read RAM image: %s\n", path.c_str());
+        return 2;
+      }
+      ram_image_arg = "+atomix_ram_image=" + path;
+      continue;
+#endif
+    }
     if (std::string(argv[i]) == "--uart-input" && i + 1 < argc) input = argv[++i];
     if (std::string(argv[i]) == "--uart-input-file" && i + 1 < argc) {
       std::ifstream stream(argv[++i], std::ios::binary);
@@ -40,6 +63,8 @@ int main(int argc, char** argv) {
     if (std::string(argv[i]) == "--sd-image" && i + 1 < argc)
       sd_image = argv[++i];
   }
+  if (!ram_image_arg.empty()) model_args.push_back(ram_image_arg.c_str());
+  Verilated::commandArgs(int(model_args.size()), model_args.data());
   if (interactive && fcntl(STDIN_FILENO, F_SETFL, O_NONBLOCK) < 0) {
     std::fprintf(stderr, "[soc] cannot make stdin non-blocking\n");
     return 1;

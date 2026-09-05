@@ -43,7 +43,17 @@ module axram #(
   wire [INDEX_BITS-1:0] d_index = d_offset[INDEX_BITS+1:2];
 
   // verilator lint_off WIDTH
+`ifdef AX_RUNTIME_RAM_IMAGE
+  // Simulator startup only. Synthesis keeps the original initialization path.
+  string runtime_image;
+  initial begin
+    if ($value$plusargs("atomix_ram_image=%s", runtime_image))
+      $readmemh(runtime_image, mem);
+    else if (INIT_FILE) $readmemh(INIT_FILE, mem);
+  end
+`else
   initial if (INIT_FILE) $readmemh(INIT_FILE, mem);
+`endif
   // verilator lint_on WIDTH
 
   generate

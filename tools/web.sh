@@ -12,6 +12,7 @@
 #   tools/web.sh --config configs/sim-bram.json \
 #                --payload sw/baremetal/build/hello.hex
 #   tools/web.sh --compare                         # machines side by side
+#   tools/web.sh --page-check                      # drive both pages headless
 #   tools/web.sh --port 9000 --no-check --no-open
 #
 # Everything it does is also available as ordinary targets; see sim/web/README.md.
@@ -31,6 +32,9 @@ open_browser=1
 # it, and the payload is the one program that reports its own cycle counts and
 # a checksum that must match across all of them.
 compare=0
+# The page check needs both pages served, so it needs both payloads and both
+# kinds of bundle -- the single machine as well as the compared set.
+page_check=0
 machines="sim-minimal sim-bram sim-ax2"
 compare_payload="sw/baremetal/build/cpu_perf.hex"
 page=""
@@ -44,11 +48,12 @@ while [ $# -gt 0 ]; do
     --payload) payload=${2:?--payload needs a .hex}; shift 2;;
     --port)    port=${2:?--port needs a number}; shift 2;;
     --compare) compare=1; shift;;
+    --page-check) compare=1; page_check=1; shift;;
     --machines) machines=${2:?--machines needs a space-separated list}; shift 2;;
     --no-check) run_check=0; shift;;
     --check-only) run_check=1; open_browser=0; port="none"; shift;;
     --no-open) open_browser=0; shift;;
-    -h|--help) sed -n '2,17p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help) sed -n '2,18p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0;;
     *) die "unknown argument: $1 (try --help)";;
   esac
 done
@@ -78,9 +83,11 @@ command -v emcc >/dev/null 2>&1 || die \
        nothing else in the build, test, formal, or FPGA flow needs it."
 
 # --- Verilator ------------------------------------------------------------
-# The suite is green on 4.038 and Verilator 5 currently fails to elaborate the
-# role component, so prefer a 4.x if one is installed rather than whatever
-# happens to be first on PATH. An explicit VERILATOR= always wins.
+# Both 4.038 and 5.050 are tested (tools/requirements.json records the evidence
+# for each), so this is not a compatibility workaround: it is reproducibility.
+# 4.038 is the release every recorded cycle count and wall-clock ratio was
+# measured on, and a host with both installed should reproduce those numbers
+# rather than quietly produce its own. An explicit VERILATOR= always wins.
 pick_verilator() {
   if [ -n "${VERILATOR:-}" ]; then echo "$VERILATOR"; return; fi
   local candidate major
@@ -95,10 +102,11 @@ verilator=$(pick_verilator)
 [ -n "$verilator" ] || die "verilator not found (docs/dependencies.md)"
 verilator_version=$("$verilator" --version 2>/dev/null | awk '{print $2}')
 case "$verilator_version" in
-  4.*) ;;
-  *) printf '\033[33mwarning:\033[0m using Verilator %s; the suite is green on 4.x and\n' \
+  4.038|5.050) ;;
+  *) printf '\033[33mnote:\033[0m Verilator %s is accepted but not among the tested\n' \
        "$verilator_version"
-     printf '         5.x currently fails to elaborate role.loopback. Override with VERILATOR=.\n';;
+     printf '      versions in tools/requirements.json. It should work; the numbers\n'
+     printf '      recorded in sim/web/README.md were measured on 4.038.\n';;
 esac
 say "verilator $verilator_version ($verilator)"
 
@@ -123,7 +131,7 @@ if [ "$compare" = 1 ]; then
     make -s -C sim/web machines VERILATOR="$verilator" \
       COMPARE_MACHINES="$machines" COMPARE_PAYLOAD="$compare_payload"
   fi
-  if [ "$port" = "none" ]; then exit 0; fi
+  if [ "$page_check" = 0 ] && [ "$port" = "none" ]; then exit 0; fi
   # The two pages link to each other out of one served directory, so the
   # single-machine bundle is built as well rather than leaving a reader one
   # click away from a page that cannot start. Its headless check has already
@@ -164,6 +172,16 @@ fi
 if [ "$run_check" = 1 ]; then
   say "verifying headlessly (boot, then role twice for irq=1, irq=2)"
   web check
+fi
+
+# --- The pages themselves -------------------------------------------------
+# Everything above staged what the pages load; this drives them in a browser.
+# It comes last because it needs both bundles and both payloads present, which
+# is exactly what the ordinary path has just finished doing.
+if [ "$page_check" = 1 ]; then
+  say "driving both pages in a headless browser"
+  web page-check COMPARE_MACHINES="$machines"
+  exit 0
 fi
 [ "$port" = "none" ] && exit 0
 

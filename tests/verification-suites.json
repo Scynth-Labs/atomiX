@@ -1,6 +1,12 @@
 {
   "schema": "org.atomix.verification-suites.v1",
   "stages": {
+    "runtime-payload": {
+      "label": "Native runtime payload reuse, baked parity, and interactive continuity",
+      "command": ["make", "-C", "sim/soc", "check-runtime-payload"],
+      "timeout_seconds": 1800,
+      "requires": ["make", "python3", "verilator"]
+    },
     "axsim-directed": {
       "label": "Golden ISS smoke and trap tests",
       "command": [
@@ -475,10 +481,23 @@
         "ld.lld",
         "riscv64-unknown-elf-gcc"
       ]
+    },
+    "requirements": {
+      "label": "Host and docs against tools/requirements.json",
+      "command": [
+        "make",
+        "requirements-check"
+      ],
+      "timeout_seconds": 120,
+      "requires": [
+        "make",
+        "python3"
+      ]
     }
   },
   "suites": {
     "smoke": [
+      "requirements",
       "system-profiles",
       "kernel-profiles",
       "research-contracts",
@@ -489,6 +508,7 @@
       "live-closed-loop"
     ],
     "ci-quick": [
+      "requirements",
       "axsim-directed",
       "system-profiles",
       "kernel-profiles",
@@ -506,6 +526,7 @@
       "rtl-units"
     ],
     "ci-integration": [
+      "runtime-payload",
       "component-composition",
       "baremetal-peripherals",
       "baremetal-role",
@@ -515,6 +536,8 @@
       "kernel-storage-ci"
     ],
     "nightly-integrated": [
+      "runtime-payload",
+      "requirements",
       "system-profiles",
       "kernel-profiles",
       "research-contracts",

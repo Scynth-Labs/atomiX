@@ -120,10 +120,28 @@ commands and nothing carries over.
 
 ```bash
 MODEL=$(make -s -C sim/soc model-path \
-  RAM_INIT_FILE="$PWD/sw/kernel/build/axos_boot.hex" RESET_PC=0x80000000 \
+  RESET_PC=0x80000000 \
   COMPONENT_CONFIG=../../configs/sim-role-loopback.json)
-"$MODEL" --uart-interactive        # aXos prompt; Ctrl-D closes the session
+"$MODEL" --ram-image "$PWD/sw/kernel/build/axos_boot.hex" --uart-interactive
+                                   # aXos prompt; Ctrl-D closes the session
 ```
+
+Build the payload separately (`make -C sw/kernel images`). The model above has
+no baked RAM image: reuse that same executable with `--ram-image` pointing at
+another word-per-line hex file to boot a different program. Paths are relative
+to the launch directory. For example, after `make -C sw/baremetal build/hello.hex`:
+
+```bash
+"$MODEL" --ram-image "$PWD/sw/baremetal/build/hello.hex"
+make -C sim/soc check-runtime-payload   # reuse, baked parity, and session state
+```
+
+This works with BRAM (both read timings) and the delayed-memory model. The
+pin-level SDRAM harness uses its ROM loader instead. Existing `RAM_INIT_FILE`
+builds retain their baked default; `--ram-image` overrides it for one launch.
+Selection happens before reset and does not change the model's RAM capacity or
+entry address. The check writes simulation evidence to
+`sim/soc/build/runtime-payload-evidence.json`.
 
 State persists across commands: running the shell's `role` twice reports
 `irq=1` then `irq=2`, because it is one machine rather than two boots. An
@@ -136,6 +154,26 @@ waits for you. `console` in the shell reports which path input actually took —
 `irq 21 polled 0 stalls 0` means every byte arrived as an interrupt. A platform
 whose PLIC numbers its devices differently (QEMU's `virt`) falls back to polling
 and says so there, rather than parking on an interrupt that will never arrive.
+
+### What this host needs, and what it has been run on
+
+```bash
+make doctor                 # this host, against tools/requirements.json
+make requirements-check     # fail if the host or the docs are outside it
+make requirements           # regenerate the tables in docs/dependencies.md
+```
+
+[`tools/requirements.json`](../tools/requirements.json) is the single source of
+truth for tool versions. It separates *supported* — the range accepted without
+comment — from *tested*, which is what was actually run, with the evidence named
+beside each version, and lists known-bad ranges with the reason each is known
+bad. `make doctor` never fails and reports every tier; `requirements-check`
+fails a host that is outside the requirement and fails the docs when they drift
+from the file. It runs as the `requirements` stage of `smoke`, `ci-quick`, and
+`nightly-integrated`.
+
+Widening the tested set is deliberate work, not a note: run the evidence named
+beside the tool, record the version in the JSON, and regenerate the docs.
 
 ### Open the same session in a browser
 
@@ -165,8 +203,8 @@ check, picks a free port, and opens the browser.
 `make -C sim/web build|check|bench|serve` — and `make web-bench` times the WASM
 machine against the native one on the same host.
 
-Changing the payload does not rebuild the machine: unlike the native model, the
-image is loaded into it at run time. Changing the *profile* does rebuild it, and
+Changing the payload does not rebuild the machine: the image is loaded into it
+at run time, as with native `--ram-image`. Changing the *profile* does rebuild it, and
 the bundle is keyed on the selection so a stale one is never served under a new
 name.
 
@@ -475,9 +513,15 @@ make -C sw/kernel kernel-component-test QEMU=/path/to/...        # default + coo
 make -C sw/kernel check-memory          # 32 MiB cached external-memory RTL
 make -C sw/kernel check-storage         # AXFS mount over SPI-SD (RTL)
 make -C sw/kernel check-storage-write   # AXFS write/readback (RTL)
-make -C sw/kernel check-sdboot          # boot ROM + SD boot through physical-SDRAM RTL
+make -C sw/kernel check-sdboot          # legacy SD boot check; profile caveat below
 make -C sw/kernel check-uartboot        # immutable ROM + blank RAM + runtime kernel upload
 ```
+
+`check-sdboot` currently omits the SDRAM profile and runs with default BRAM,
+so its printed physical-SDRAM label is incorrect. Explicit `sim-sdram` testing
+boots the shell but exposes an exec/timer failure. Reproduction and negative
+evidence are tracked in the [SDRAM follow-up](../research/benchmarks/sdram-exec-followup.json)
+and [design checklist](design-checklist.md).
 
 ### 3.6 Shell control plane + host-link (RTL-only)
 ```bash

@@ -210,7 +210,9 @@ compare: machines
 # screen. Skips rather than fails without a browser: this tier is optional, and
 # a check that could not run must not report as one that passed.
 page-check: build machines
-	@$(NODE) page_check.mjs
+	@command -v $(NODE) >/dev/null 2>&1 || { \
+	  echo "$(NODE) not found - emsdk ships one (docs/toolchain.md)"; exit 2; }; \
+	  $(NODE) page_check.mjs
 
 # Headless boot under Node: the WASM counterpart of a batch `make sim` run, and
 # the measurement that says whether a boot in a tab is imperceptible.

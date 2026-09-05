@@ -1,0 +1,341 @@
+{
+  "schema": "org.atomix.requirements.v1",
+  "_comment": [
+    "The single source of truth for what this project needs and what it has",
+    "actually been run on. `make doctor` reports against it, `make",
+    "requirements-check` enforces it, and the tables in docs/dependencies.md are",
+    "generated from it -- so a version claim cannot drift between the build, the",
+    "report and the documentation.",
+    "",
+    "Three fields carry the honesty, and they are deliberately separate:",
+    "  tested      versions actually run here, with the evidence that was run.",
+    "  supported   the range accepted without comment. Wider than `tested`,",
+    "              because refusing every version nobody has gotten round to",
+    "              trying would be a worse lie than admitting the gap.",
+    "  unsupported known-bad ranges, each with the reason it is known bad.",
+    "A version inside `supported` but outside `tested` is reported as accepted",
+    "but untested, which is what it is. Do not widen `tested` without running",
+    "the evidence named beside it and recording the version here."
+  ],
+  "tiers": {
+    "core": {
+      "label": "Core: build, simulation, and component tests",
+      "doc": "Everything the ISS, Verilator simulation and target images need."
+    },
+    "kernel": {
+      "label": "Kernel: aXos S/U-mode boot checks",
+      "doc": "The three-platform and aXos checks; needs a current QEMU."
+    },
+    "formal": {
+      "label": "Formal verification",
+      "doc": "Bounded RVFI proofs against riscv-formal."
+    },
+    "browser": {
+      "label": "Browser tier (optional)",
+      "doc": "Compiles the Verilated model to WebAssembly. Load-bearing for nothing: no evidence claim rests on it."
+    },
+    "analysis": {
+      "label": "Analysis and second toolchain (optional)",
+      "doc": "Static analysis, sanitizers, fuzzing, and the LLVM build."
+    }
+  },
+  "tools": {
+    "riscv-gcc": {
+      "name": "RISC-V GCC",
+      "tier": "core",
+      "required": true,
+      "use": "RV32 bare-metal and kernel images",
+      "probe": {
+        "command": "{RISCV_PREFIX}gcc",
+        "args": [
+          "--version"
+        ]
+      },
+      "override": "RISCV_PREFIX=<tuple>-",
+      "supported": ">=10",
+      "tested": [
+        {
+          "version": "10.2.0",
+          "evidence": "make verify-smoke, make component-test"
+        }
+      ],
+      "note": "The ISA spelling is probed rather than assumed: GCC before 12 rejects the explicit _zicsr spelling and GCC 12+ requires it, so mk/toolchain.mk compiles a CSR instruction and keeps what survives."
+    },
+    "verilator": {
+      "name": "Verilator",
+      "tier": "core",
+      "required": true,
+      "use": "RTL simulation",
+      "probe": {
+        "command": "{VERILATOR}",
+        "args": [
+          "--version"
+        ]
+      },
+      "override": "VERILATOR=<path>",
+      "supported": ">=4.0",
+      "tested": [
+        {
+          "version": "4.038",
+          "evidence": "the full suite; the recorded baseline for every timing number"
+        },
+        {
+          "version": "5.050",
+          "evidence": "make verify-smoke, make component-test, and sim-role-loopback/sim-bram cycle-identical to 4.038 on cpu_perf (42,978 cycles, checksum 0xe9266745)"
+        }
+      ],
+      "note": "Releases 5 and later report component-API package constants as UNUSEDPARAM and make warnings fatal under -Wall; sim/soc and sim/web pass -Wno-UNUSEDPARAM on 5+ for that reason. Those constants are intentional component API, not dead elaborated hardware."
+    },
+    "python": {
+      "name": "Python",
+      "tier": "core",
+      "required": true,
+      "use": "Configuration resolution, test generation, and runners",
+      "probe": {
+        "command": "{PYTHON}",
+        "args": [
+          "--version"
+        ]
+      },
+      "override": "PYTHON=<path>",
+      "supported": ">=3.10",
+      "tested": [
+        {
+          "version": "3.10.12",
+          "evidence": "make verify-smoke, make static-analysis"
+        }
+      ],
+      "note": "3.10 is the floor because the tools use match statements and 3.10-era typing; no third-party packages are required by the build itself."
+    },
+    "make": {
+      "name": "GNU Make",
+      "tier": "core",
+      "required": true,
+      "use": "Build orchestration",
+      "probe": {
+        "command": "make",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": ">=4.0",
+      "tested": [
+        {
+          "version": "4.3",
+          "evidence": "every target in docs/workflow.md"
+        }
+      ]
+    },
+    "qemu": {
+      "name": "QEMU (qemu-system-riscv32)",
+      "tier": "kernel",
+      "required": false,
+      "use": "Three-platform and aXos S/U-mode checks",
+      "probe": {
+        "command": "qemu-system-riscv32",
+        "args": [
+          "--version"
+        ]
+      },
+      "override": "QEMU=<path>",
+      "supported": ">=7.0",
+      "unsupported": [
+        {
+          "range": "<7.0",
+          "reason": "the packaged 6.2 cannot run the PMP-less S/U-mode aXos checks"
+        }
+      ],
+      "tested": [
+        {
+          "version": "8.2.10",
+          "evidence": "make -C sw/kernel check-boot"
+        }
+      ],
+      "missing_hint": "the three-platform and aXos checks are skipped without it"
+    },
+    "yosys": {
+      "name": "Yosys",
+      "tier": "formal",
+      "required": false,
+      "use": "Formal flow, and FPGA synthesis",
+      "probe": {
+        "command": "yosys",
+        "args": [
+          "-V"
+        ]
+      },
+      "supported": ">=0.67",
+      "unsupported": [
+        {
+          "range": "<0.10",
+          "reason": "Ubuntu 22.04's 0.9 rejects axcore_pkg.sv with a TOK_TYPEDEF parser error"
+        }
+      ],
+      "tested": [
+        {
+          "version": "0.67",
+          "evidence": "make -C formal check"
+        }
+      ],
+      "missing_hint": "skip make -C formal check"
+    },
+    "sby": {
+      "name": "SymbiYosys",
+      "tier": "formal",
+      "required": false,
+      "use": "Bounded proof driver",
+      "probe": {
+        "command": "sby",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": "*",
+      "tested": [],
+      "note": "`sby --version` prints no parseable version, so presence is all this reports.",
+      "missing_hint": "skip make -C formal check"
+    },
+    "emscripten": {
+      "name": "Emscripten",
+      "tier": "browser",
+      "required": false,
+      "use": "Compiles the Verilated model to WebAssembly",
+      "probe": {
+        "command": "emcc",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": ">=3.1",
+      "tested": [
+        {
+          "version": "6.0.5",
+          "evidence": "make web-check, make web-compare-check"
+        }
+      ],
+      "note": "Installed through emsdk rather than apt, and sourced per shell. tools/web.sh sources ~/emsdk/emsdk_env.sh itself when emcc is not already on PATH.",
+      "missing_hint": "not on PATH; if emsdk is installed, source ~/emsdk/emsdk_env.sh (docs/toolchain.md). tools/web.sh does this itself."
+    },
+    "node": {
+      "name": "Node",
+      "tier": "browser",
+      "required": false,
+      "use": "Headless WASM boot, the side-by-side comparison, and the page check",
+      "probe": {
+        "command": "{NODE}",
+        "args": [
+          "--version"
+        ]
+      },
+      "override": "NODE=<path>",
+      "supported": ">=18",
+      "tested": [
+        {
+          "version": "24.18.0",
+          "evidence": "make web-check, make web-compare-check, make web-page-check"
+        },
+        {
+          "version": "22.16.0",
+          "evidence": "the Node emsdk ships; make web-check"
+        }
+      ],
+      "note": "18 is the floor because the runners use top-level await in ES modules and String.matchAll.",
+      "missing_hint": "emsdk ships one; the browser checks are skipped without it"
+    },
+    "browser": {
+      "name": "Chromium or Edge",
+      "tier": "browser",
+      "required": false,
+      "use": "Renders both browser pages for make web-page-check",
+      "probe": {
+        "mode": "presence",
+        "_comment": "Probed by presence, never by running it: a Windows browser invoked with --version from WSL attaches to the user's running session instead of printing a version. page_check.mjs reads this list, so there is one copy of it.",
+        "candidates": [
+          "$AX_BROWSER",
+          "chromium",
+          "chromium-browser",
+          "google-chrome",
+          "google-chrome-stable",
+          "/mnt/c/Program Files/Google/Chrome/Application/chrome.exe",
+          "/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe",
+          "/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+          "/mnt/c/Program Files/Microsoft/Edge/Application/msedge.exe"
+        ]
+      },
+      "override": "AX_BROWSER=<path>",
+      "supported": "*",
+      "tested": [
+        {
+          "version": "Microsoft Edge (Chromium) on WSL",
+          "evidence": "make web-page-check"
+        }
+      ],
+      "note": "Any Chromium-family browser with --headless=new and --dump-dom. The check skips rather than fails when none is found, and never terminates a browser process it did not start.",
+      "missing_hint": "make web-page-check skips rather than fails; AX_BROWSER picks one"
+    },
+    "ruff": {
+      "name": "ruff",
+      "tier": "analysis",
+      "required": false,
+      "use": "Python lint stage of make static-analysis",
+      "probe": {
+        "command": "ruff",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": "*",
+      "tested": [],
+      "missing_hint": "that stage of make static-analysis is skipped"
+    },
+    "clang": {
+      "name": "clang",
+      "tier": "analysis",
+      "required": false,
+      "use": "Second toolchain (TOOLCHAIN=llvm) and the riscv32 analyzer",
+      "probe": {
+        "command": "clang",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": ">=14",
+      "tested": [
+        {
+          "version": "14.0.0",
+          "evidence": "make toolchain-llvm, make static-analysis"
+        }
+      ]
+    },
+    "cppcheck": {
+      "name": "cppcheck",
+      "tier": "analysis",
+      "required": false,
+      "use": "Host C++ stage of make static-analysis",
+      "probe": {
+        "command": "cppcheck",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": "*",
+      "tested": [],
+      "missing_hint": "that stage of make static-analysis is skipped"
+    },
+    "shellcheck": {
+      "name": "shellcheck",
+      "tier": "analysis",
+      "required": false,
+      "use": "Shell stage of make static-analysis",
+      "probe": {
+        "command": "shellcheck",
+        "args": [
+          "--version"
+        ]
+      },
+      "supported": "*",
+      "tested": [],
+      "missing_hint": "that stage of make static-analysis is skipped"
+    }
+  }
+}

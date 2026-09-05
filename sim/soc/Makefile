@@ -6,14 +6,16 @@ VERILATOR ?= verilator
 # releases do not recognize the warning name, so apply it only on 5+.
 VERILATOR_VERSION := $(word 2,$(shell $(VERILATOR) --version 2>/dev/null))
 VERILATOR_MAJOR := $(firstword $(subst ., ,$(VERILATOR_VERSION)))
-VFLAGS := -Wall --cc -O2
+# Only the native console runner supplies runtime image arguments. Browser and
+# unit harnesses retain their original initialization path and need no argv.
+VFLAGS := -Wall --cc -O2 +define+AX_RUNTIME_RAM_IMAGE
 ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
 VFLAGS += -Wno-UNUSEDPARAM
 endif
 # Keep lint in this Makefile rather than reconstructing the selected source
 # list elsewhere.  SystemVerilog packages must precede users in older
 # Verilator releases, and SOC_SVS is the ordering the simulator actually uses.
-VLINTFLAGS := -Wall --lint-only
+VLINTFLAGS := -Wall --lint-only +define+AX_RUNTIME_RAM_IMAGE
 ifneq ($(filter 5 6 7 8 9,$(VERILATOR_MAJOR)),)
 VLINTFLAGS += -Wno-UNUSEDPARAM
 endif
@@ -54,7 +56,8 @@ HARNESS_CPP := $(filter %.cpp,$(COMPONENT_HARNESS_SOURCES))
 HARNESS_HDRS := $(wildcard ../../components/harness/common/*.h)
 SIM_TOP ?= $(COMPONENT_SIM_TOP)
 
-# Caller supplies a word-per-line $readmemh image and may choose its entry.
+# Optional baked default. Omit it to build once, then launch the model with
+# --ram-image <word-per-line $readmemh image> for each payload.
 RAM_INIT_FILE ?=
 ROM_INIT_FILE ?=
 RESET_PC ?= $(COMPONENT_RESET_PC)
@@ -102,7 +105,6 @@ run-config: $(COMPONENT_MK)
 	$(MAKE) $(COMPONENT_SIM_RUNNER)
 
 build-model: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
-	@test -n "$(RAM_INIT_FILE)" || (echo "RAM_INIT_FILE is required"; exit 2)
 	@test -n "$(SIM_TOP)" || (echo "simulation profile must select a harness"; exit 2)
 	$(VERILATOR) $(VFLAGS) --top-module $(SIM_TOP) --Mdir $(MDIR) --exe --build \
 	  -GRESET_PC=$(RESET_PC) -GRAM_BYTES=$(RAM_BYTES) -GUSE_DRAM_MODEL=$(EXTERNAL_MEMORY) -GUSE_CACHES=$(CACHES) \
@@ -134,6 +136,9 @@ run: build-model
 model-path: build-model
 	@echo $(abspath $(MDIR)/axsoc)
 
+check-runtime-payload:
+	VERILATOR="$(VERILATOR)" python3 check_runtime_payload.py
+
 # Full Phase-6 controller integration: the SoC uses axsdram rather than the
 # delayed array model, and a CAS-2 x16 SDRAM model sits at the physical pins.
 run-sdram: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
@@ -147,4 +152,4 @@ run-sdram: $(SOC_SVS) $(HARNESS_SVS) $(HARNESS_CPP) $(HARNESS_HDRS)
 clean:
 	rm -rf obj_dir build
 
-.PHONY: config run run-sdram run-config build-model lint model-path clean
+.PHONY: config run run-sdram run-config build-model lint model-path check-runtime-payload clean

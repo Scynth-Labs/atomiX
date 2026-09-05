@@ -53,7 +53,17 @@ module axdram_model #(
   // The untyped path parameter is a packed vector; the synthesis frontend
   // accepts this form while it rejects `parameter string`.
   // verilator lint_off WIDTH
+`ifdef AX_RUNTIME_RAM_IMAGE
+  // Match BRAM startup so payload selection does not depend on memory timing.
+  string runtime_image;
+  initial begin
+    if ($value$plusargs("atomix_ram_image=%s", runtime_image))
+      $readmemh(runtime_image, mem);
+    else if (INIT_FILE) $readmemh(INIT_FILE, mem);
+  end
+`else
   initial if (INIT_FILE) $readmemh(INIT_FILE, mem);
+`endif
   // verilator lint_on WIDTH
 
   always_comb begin

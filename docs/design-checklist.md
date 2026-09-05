@@ -1207,18 +1207,41 @@ Staged so each step has its own evidence rather than landing as one large jump:
   batch mode each exchange is its own process, so the machine reboots between
   commands and nothing carries over.  Evidence: a live session runs the shell's
   `role` twice and reports `irq=1` then `irq=2`, which is only possible on one
-  continuous machine; `make -C sw/kernel check-role-driver` and `check-sdboot`
-  confirm the batch and physical-SDRAM paths still pass.
-- [ ] **Runtime payload selection.** `RAM_INIT_FILE` is compiled into the model
-  at elaboration, so changing the program today means rebuilding it.  A session
-  that boots different payloads needs the image loaded at run time instead.
-  Solved for the browser target only, and without touching the RTL: the path
-  compiled in there is virtual (`/payload.hex`), and the model's `$readmemh`
-  reads it out of Emscripten's in-memory filesystem when the machine is
-  constructed, so the caller stages an image first and one compiled machine
-  boots any of them.  The native model still rebuilds per payload, so this stays
-  open — but the browser console, which is what needed it, no longer blocks on
-  it.
+  continuous machine; `make -C sw/kernel check-role-driver` confirms the batch
+  path still passes. The older `check-sdboot` physical-SDRAM interpretation
+  needs correction; see the follow-up below.
+- [x] **Runtime payload selection.** Both front ends can boot different
+  programs on one compiled machine. The browser stages `/payload.hex` in its
+  virtual filesystem; the native runner accepts `--ram-image <path>` before
+  the first reset evaluation. Build with `model-path` and omit `RAM_INIT_FILE`
+  to keep payload identity out of the model. Existing baked defaults still
+  work, and a runtime image overrides them for one launch. The simulator-only
+  initialization branch covers BRAM at both read timings and delayed memory;
+  with the native runner's define omitted, the preprocessed memory text is
+  unchanged from the previous implementation. Pin-level SDRAM retains the ROM
+  loader and rejects this argument. Evidence:
+  `make -C sim/soc check-runtime-payload` boots hello →
+  timer → hello on the same executable, replaces an image at the same path,
+  requires exact UART and cycle parity with baked initialization, rejects
+  invalid paths, and runs two role commands in one interactive aXos session
+  (`irq=1` then `irq=2`). Executable and payload hashes accompany the compact
+  JSON in `sim/soc/build/runtime-payload-evidence.json`. This is simulation
+  evidence; it makes no new synthesis or physical-board claim.
+- [ ] **Correct SDRAM boot evidence and scheduler timing.** Discovered while
+  checking runtime payload isolation: `check-sdboot` calls `run-sdram` without
+  selecting `sim-sdram`, so its default BRAM run cannot support its printed
+  physical-SDRAM claim. Explicitly selecting the SDRAM pin-model profile boots
+  the shell in 7,543,477 cycles (exceeding the old 3M bound) and passes fork,
+  but `exec hello.elf one two` fails to complete at 15M, 27M, and 120M cycles.
+  A diagnostic run sampled the PC every million cycles through 40M; after
+  entering exec, the samples stay in `supervisor_trap_entry` and the timer arm
+  of `supervisor_trap`. This points to timer-service starvation at SDRAM
+  timing, with the M-mode shim rearming every 2,000 cycles. Correct the test's
+  profile selection together with the timer behavior, express any interval
+  choice through its owning profile/component, and rerun shell/fork/exec on
+  the actual pin model. The commands and identities for this negative result
+  are in `research/benchmarks/sdram-exec-followup.json`; this is simulation
+  evidence, not a board result.
 - [x] **WASM spike.** Build one profile with Emscripten, boot aXos headless
   under Node, and compare against the 29,634-cycle / 25 ms native baseline
   recorded above.  The bet is that a 1.5–4× slowdown still leaves boot
@@ -1239,13 +1262,29 @@ Staged so each step has its own evidence rather than landing as one large jump:
   payload, 18 KB page.  Evidence:
   `make web-check` boots headless, waits for the prompt, then runs the shell's
   `role` twice and requires `irq=1` then `irq=2`.
-- [ ] **Toolchain currency.** The measured baseline used Verilator 4.038 (2020),
-  and newer releases are materially faster.  Sequenced after the spike rather
-  than before it: Verilator 5 is stricter, `sim/soc/Makefile` already carries a
-  `-Wno-UNUSEDPARAM` guard for it that has never been exercised here, and an
-  upgrade risks the whole suite before answering the question that matters.
-  Install beside the packaged one (`VERILATOR=` overrides per invocation) so a
-  regression is one flag to undo.
+- [x] **Toolchain currency.** The measured baseline used Verilator 4.038 (2020),
+  and the fear was that Verilator 5 is stricter — `sim/soc/Makefile` carried a
+  `-Wno-UNUSEDPARAM` guard for it that had never been exercised.  Installed
+  beside the packaged one (`VERILATOR=` overrides per invocation, so a
+  regression is one flag to undo) and measured rather than argued about:
+  **5.050 is green.**  `make verify-smoke` and `make component-test` both pass
+  on it, the guard turned out to be exactly what was needed and nothing else
+  was, and `sim-role-loopback` and `sim-bram` run `cpu_perf` **cycle-identical
+  to 4.038** — 42,978 cycles, checksum `0xe9266745`.  The claim this replaces
+  was worse than out of date: `tools/web.sh` said 5.x "fails to elaborate
+  role.loopback", which nothing had rechecked since it was written, and a
+  requirement nobody re-runs is how a workaround outlives its bug.  So the
+  versions are now explicit and single-sourced in
+  [`tools/requirements.json`](../tools/requirements.json), separating *supported*
+  (accepted without comment) from *tested* (actually run, with the evidence
+  named beside each version).  4.038 stays the default where both are installed
+  — not for compatibility, but because every recorded cycle count and
+  wall-clock ratio was measured on it and a host with both should reproduce
+  those rather than quietly produce its own.  Evidence: `make
+  requirements-check`, as the `requirements` stage of `smoke`, `ci-quick` and
+  `nightly-integrated`; `make doctor` reports this host against the same file.
+  Not yet answered: whether 5.x is *faster* here, which is the other half of
+  "currency" and needs a like-for-like build-and-run timing.
 - [x] **Browser console.** A terminal over the same byte pipe the interactive
   session already exposes, so a reader boots aXos in a tab with no toolchain,
   no FPGA, and no install.  `make web` serves it.  What makes the byte pipe

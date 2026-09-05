@@ -193,23 +193,87 @@ instead of it: ASan does not poison an `mmap`'d region, so the guard is what
 makes a read past the image deterministic, and ASan is what turns the resulting
 fault into a report that names a line.
 
-## Recorded working baseline
+## Version requirements
 
-The following is a compatibility record from the verified Ubuntu 22.04.5 WSL2
-host on 2026-07-18, not a set of strict pins — the build probes for capability
-rather than matching these versions.  `make doctor` prints the same record for
-your own host, which is the useful thing to quote in a bug report:
+These are explicit rather than implied, and they live in one machine-readable
+place — [`tools/requirements.json`](../tools/requirements.json). `make doctor`
+reports this host against it, `make requirements-check` fails a host that is
+outside it, and the tables below are *generated* from it by
+`make requirements`, so a version claim cannot drift between the build, the
+report, and this page.
 
-| Tool | Recorded version | Use |
-|---|---:|---|
-| RISC-V GCC | 10.2.0 | RV32 bare-metal and kernel images |
-| Verilator | 4.038 | RTL simulation |
-| QEMU | 8.2.10 (local) | Three-platform and aXos checks |
-| Yosys | 0.67+ (upstream) | Formal flow |
-| Python | 3.10.12 | Test generation and runners |
-| GNU Make | 4.3 | Build orchestration |
-| Emscripten | 6.0.5 | Browser-hosted simulation (optional) |
-| Node | 24.18.0 host / 22.16.0 via emsdk | Headless WASM boot and timing (optional) |
+Two columns say different things, deliberately:
 
-Newer compatible releases are welcome.  Record the version and the evidence
-you ran when changing a toolchain assumption.
+- **Supported** is the range accepted without comment. It is wider than what
+  has been run, because refusing every version nobody has got round to trying
+  would be a worse lie than admitting the gap. A version inside it that is not
+  in the next column is reported as *accepted but untested*.
+- **Tested here** is what was actually run, and
+  [`requirements.json`](../tools/requirements.json) records the evidence beside
+  each one. Do not widen it without running that evidence and recording the
+  version.
+
+A **not** entry is known-bad, with the reason it is known bad. Those are the
+only versions the check refuses outright.
+
+<!-- BEGIN GENERATED: tools/requirements.py docs -->
+
+<!-- Generated from tools/requirements.json by
+     `make requirements`. Do not edit this block by hand;
+     `make requirements-check` fails when it drifts. -->
+
+### Core: build, simulation, and component tests
+
+Everything the ISS, Verilator simulation and target images need.
+
+| Tool | Required | Supported | Tested here | Use |
+|---|---|---|---|---|
+| RISC-V GCC | yes | `>=10` | 10.2.0 | RV32 bare-metal and kernel images |
+| Verilator | yes | `>=4.0` | 4.038<br>5.050 | RTL simulation |
+| Python | yes | `>=3.10` | 3.10.12 | Configuration resolution, test generation, and runners |
+| GNU Make | yes | `>=4.0` | 4.3 | Build orchestration |
+
+### Kernel: aXos S/U-mode boot checks
+
+The three-platform and aXos checks; needs a current QEMU.
+
+| Tool | Required | Supported | Tested here | Use |
+|---|---|---|---|---|
+| QEMU (qemu-system-riscv32) | optional | `>=7.0`<br>**not** `<7.0` — the packaged 6.2 cannot run the PMP-less S/U-mode aXos checks | 8.2.10 | Three-platform and aXos S/U-mode checks |
+
+### Formal verification
+
+Bounded RVFI proofs against riscv-formal.
+
+| Tool | Required | Supported | Tested here | Use |
+|---|---|---|---|---|
+| Yosys | optional | `>=0.67`<br>**not** `<0.10` — Ubuntu 22.04's 0.9 rejects axcore_pkg.sv with a TOK_TYPEDEF parser error | 0.67 | Formal flow, and FPGA synthesis |
+| SymbiYosys | optional | any | — | Bounded proof driver |
+
+### Browser tier (optional)
+
+Compiles the Verilated model to WebAssembly. Load-bearing for nothing: no evidence claim rests on it.
+
+| Tool | Required | Supported | Tested here | Use |
+|---|---|---|---|---|
+| Emscripten | optional | `>=3.1` | 6.0.5 | Compiles the Verilated model to WebAssembly |
+| Node | optional | `>=18` | 24.18.0<br>22.16.0 | Headless WASM boot, the side-by-side comparison, and the page check |
+| Chromium or Edge | optional | any | Microsoft Edge (Chromium) on WSL | Renders both browser pages for make web-page-check |
+
+### Analysis and second toolchain (optional)
+
+Static analysis, sanitizers, fuzzing, and the LLVM build.
+
+| Tool | Required | Supported | Tested here | Use |
+|---|---|---|---|---|
+| ruff | optional | any | — | Python lint stage of make static-analysis |
+| clang | optional | `>=14` | 14.0.0 | Second toolchain (TOOLCHAIN=llvm) and the riscv32 analyzer |
+| cppcheck | optional | any | — | Host C++ stage of make static-analysis |
+| shellcheck | optional | any | — | Shell stage of make static-analysis |
+
+<!-- END GENERATED -->
+
+Newer compatible releases are welcome. Run the evidence named beside the tool
+in `requirements.json`, add the version there, and regenerate this page with
+`make requirements` — a version recorded without the run behind it is exactly
+the kind of claim this file exists to prevent.

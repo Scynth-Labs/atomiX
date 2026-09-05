@@ -123,8 +123,8 @@ key handling) lives in JavaScript and touches nothing but that API.
 
 ## Runtime payload selection
 
-`RAM_INIT_FILE` is compiled into the model at elaboration, which normally means
-changing the program means rebuilding it. Here the compiled-in path is a
+`RAM_INIT_FILE` supplies a compiled default; the native runner can override it
+with `--ram-image` (see [sim/soc](../soc/README.md)). Here the compiled-in path is a
 *virtual* one (`/payload.hex`) and the model's `$readmemh` reads it out of the
 in-memory filesystem when `ax_boot()` constructs the machine. The caller writes
 the image there first, so one compiled machine boots whichever payload is
@@ -190,8 +190,11 @@ per command.
 - The side-by-side page compares machines, not payloads: every pane runs the
   same binary, which is the point. Comparing two *programs* on one machine is
   the single-machine console's job.
-- The build tracks Verilator 4.038, the version the rest of the suite is green
-  on. Verilator 5 currently fails the same way it fails for `sim/soc`.
+- The build defaults to Verilator 4.038 because that is the release the recorded
+  cycle counts and wall-clock ratios were measured on, not because newer ones
+  fail: 5.050 builds and runs these profiles cycle-identically (`make
+  verify-smoke` and `make component-test` are green on it too). Both are
+  recorded as tested in [tools/requirements.json](../../tools/requirements.json).
 - At an idle prompt the machine is genuinely stopped, not throttled. `wfi`
   parks the hart and the console is interrupt-driven, so `ax_run` returns as
   soon as the CPU parks and the cycle counter holds still until you type. The

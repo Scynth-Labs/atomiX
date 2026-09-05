@@ -66,62 +66,38 @@ help:
 	@echo "  make web-compare         # one binary on three cores, side by side"
 	@echo "  make web-page-check      # both browser pages, in a headless browser"
 	@echo "  make doctor              # what this host can build, and what it cannot"
+	@echo "  make requirements-check  # host and docs against tools/requirements.json"
 
 # Report the host's toolchain the way a build will actually see it: which
 # programs were found, what the probes selected, and which dependency tier each
 # missing tool would unlock.  Never fails -- a report that exits non-zero stops
 # being readable at the first problem, which is the opposite of the point.
+# Requirements are explicit and single-sourced: tools/requirements.json says
+# what each tier needs, which versions have actually been run here and with what
+# evidence, and which are known-bad and why.  `requirements` regenerates the
+# tables in docs/dependencies.md from it; `requirements-check` fails a host that
+# is outside the requirement, and fails the docs when they drift from the JSON.
+# The docs half needs no toolchain and no network, which is what lets it run in
+# CI on every change.
+requirements:
+	$(PYTHON) tools/requirements.py docs
+
+requirements-check:
+	$(PYTHON) tools/requirements.py docs-check
+	$(PYTHON) tools/requirements.py check --tier core
+
 doctor:
 	@echo "atomiX toolchain report"
 	@echo ""
-	@echo "Core tier (build + simulation + component tests)"
-	@printf '  %-22s %s\n' "RISC-V prefix" "$(RISCV_PREFIX)"
+	@echo "Requirements: tools/requirements.json (generated into docs/dependencies.md)"
+	@$(PYTHON) tools/requirements.py report
+	@echo ""
+	@echo "RISC-V prefix probed: $(RISCV_PREFIX)"
 	@if command -v $(RISCV_PREFIX)gcc >/dev/null 2>&1; then \
-	  printf '  %-22s %s\n' "RISC-V GCC" \
-	    "$$($(RISCV_PREFIX)gcc --version | awk 'NR==1')"; \
-	  printf '  %-22s %s\n' "ISA (probed)" "$(RISCV_ARCH), base $(RISCV_ARCH_I)"; \
+	  echo "ISA probed:           $(RISCV_ARCH), base $(RISCV_ARCH_I)"; \
 	else \
-	  printf '  %-22s %s\n' "RISC-V GCC" "MISSING - target code cannot be built"; \
-	  echo "                         tried: $(RISCV_PREFIX_CANDIDATES)"; \
-	  echo "                         set RISCV_PREFIX=<tuple>- if yours differs"; \
-	fi
-	@if command -v $(VERILATOR) >/dev/null 2>&1; then \
-	  printf '  %-22s %s\n' "Verilator" "$(VERILATOR_VERSION)"; \
-	else \
-	  printf '  %-22s %s\n' "Verilator" "MISSING - no RTL simulation"; \
-	fi
-	@printf '  %-22s %s\n' "Python" "$$($(PYTHON) --version 2>&1)"
-	@echo ""
-	@echo "Kernel tier (aXos S/U-mode boot checks; needs QEMU >= 7)"
-	@if command -v qemu-system-riscv32 >/dev/null 2>&1; then \
-	  printf '  %-22s %s\n' "QEMU" \
-	    "$$(qemu-system-riscv32 --version | awk 'NR==1')"; \
-	else \
-	  printf '  %-22s %s\n' "QEMU" "not found - skip the three-platform checks"; \
-	fi
-	@echo ""
-	@echo "Formal tier"
-	@for tool in yosys sby; do \
-	  if command -v $$tool >/dev/null 2>&1; then \
-	    printf '  %-22s %s\n' "$$tool" "found"; \
-	  else \
-	    printf '  %-22s %s\n' "$$tool" "not found - skip make -C formal check"; \
-	  fi; \
-	done
-	@if [ -d /opt/riscv-formal ]; then \
-	  printf '  %-22s %s\n' "/opt/riscv-formal" "present"; \
-	else \
-	  printf '  %-22s %s\n' "/opt/riscv-formal" "absent - see docs/toolchain.md"; \
-	fi
-	@echo ""
-	@echo "Browser tier (optional; WASM build of the Verilated model)"
-	@if command -v emcc >/dev/null 2>&1; then \
-	  printf '  %-22s %s\n' "Emscripten" \
-	    "$$(emcc --version | awk 'NR==1{print $$(NF-1)}')"; \
-	elif [ -f "$$HOME/emsdk/emsdk_env.sh" ]; then \
-	  printf '  %-22s %s\n' "Emscripten" "installed, not sourced - source ~/emsdk/emsdk_env.sh"; \
-	else \
-	  printf '  %-22s %s\n' "Emscripten" "not found - skip the browser targets"; \
+	  echo "                      tried: $(RISCV_PREFIX_CANDIDATES)"; \
+	  echo "                      set RISCV_PREFIX=<tuple>- if yours differs"; \
 	fi
 	@echo ""
 	@echo "FPGA tier: make -C rtl/fpga check-tools CONFIG=<board profile>"
@@ -436,7 +412,7 @@ web-compare-check:
 # screen.  Skips rather than fails when no browser is installed; AX_BROWSER
 # picks one.  It never terminates a browser process it did not start.
 web-page-check:
-	$(MAKE) -C sim/web page-check COMPARE_MACHINES="$(WEB_MACHINES)"
+	./tools/web.sh --page-check --machines "$(WEB_MACHINES)"
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
@@ -447,4 +423,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check

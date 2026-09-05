@@ -1,0 +1,106 @@
+{
+  "schema": "org.atomix.sdram-exec-followup.v1",
+  "date": "2026-09-06",
+  "evidence_kind": "simulation",
+  "result": "failed-exec",
+  "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b",
+  "input_sha256": {
+    "configs/sim-sdram.json": "4c3e87a57fb6e30de6b3f007bc3790b34063c5130dce505302ea4e86a46a00ad",
+    "sw/kernel/kernel.c": "af8ef53b9c7b9b6cec2085fb4e15feda9922a7868e1797a596353039e021887b",
+    "sw/kernel/trap.S": "40e773b10e54c9ceee6f81f2f3704b23dbd9b42d9d0db4460dc20e047529f90d",
+    "components/harness/verilator-sdram/soc_sdram_test_top.sv": "d6c1115a16db42d598b86eabd7ae86e0dee31afc1f72796537b07455154d87e7",
+    "components/harness/verilator-sdram/ax_sdram_sim.sv": "bfd722d0ef93c4f34ba7bbd22df985ef544ee81086d05c000a6ddf6f4ee5fa07",
+    "sw/kernel/build/axos_boot.bin": "054bd20a66298f262846f20d2701acd062b179f0c45a720a9490c1583e14e460",
+    "sw/kernel/build/axos_boot.img": "d1e00cf28ac51ead709c3a8a859876acb36a046e46f1425b8dc282994ca81d16",
+    "sw/kernel/build/userprog_home_shubhgau_dev_atomiX_configs_kernel-default/hello.elf": "3dcf7666a1fd3c2b18ac907f3cde32a0cea1866925977a62b9ac4874a72a563f",
+    "sw/bootrom/build/bootrom.hex": "0de96759889acaab416f72a40404626001dcab38d4a21565a244572a5cd20b80",
+    "sw/kernel/shell_input.txt": "57bf2a178f2470bfd318bbe05bb6a3f2eeb6a60e8dd14f7041e52f153fae76ea",
+    "sw/kernel/exec_input.txt": "282904b655ce9574a06343462b1b974c891a1faed2ec5187fd387bf5953069ac"
+  },
+  "reproduce": {
+    "root": "Replace {root} with the absolute repository root.",
+    "build": [
+      "make",
+      "-C",
+      "sw/kernel",
+      "boot-disk"
+    ],
+    "run": [
+      "make",
+      "-s",
+      "--no-print-directory",
+      "-C",
+      "sim/soc",
+      "run-sdram",
+      "COMPONENT_CONFIG={root}/configs/sim-sdram.json",
+      "ROM_INIT_FILE={root}/sw/bootrom/build/bootrom.hex",
+      "SD_IMAGE={root}/sw/kernel/build/axos_boot.img",
+      "UART_INPUT_FILE={root}/sw/kernel/exec_input.txt",
+      "MAX_CYCLES=120000000",
+      "BUILD_ID=sdboot-physical"
+    ]
+  },
+  "observations": {
+    "shell": {
+      "result": "pass",
+      "cycles": 7543477,
+      "max_cycles": 12000000
+    },
+    "fork": {
+      "result": "pass",
+      "max_cycles": 12000000
+    },
+    "exec": {
+      "result": "cycle-limit",
+      "limits_tried": [
+        15000000,
+        27000000,
+        120000000
+      ],
+      "finished": false,
+      "exit_code": 0,
+      "uart": "aXboot\naXos: shell online\naXos> exec hello.elf one two\nexec: "
+    },
+    "diagnostic": {
+      "method": "Separate native harness sampled core pc_q every 1000000 cycles; representative samples below.",
+      "samples": [
+        {
+          "cycle": 10000000,
+          "pc": "0x80000170"
+        },
+        {
+          "cycle": 14000000,
+          "pc": "0x8000136c"
+        },
+        {
+          "cycle": 15000000,
+          "pc": "0x80000144"
+        },
+        {
+          "cycle": 16000000,
+          "pc": "0x8000151c"
+        },
+        {
+          "cycle": 20000000,
+          "pc": "0x800000d4"
+        },
+        {
+          "cycle": 30000000,
+          "pc": "0x800000c0"
+        },
+        {
+          "cycle": 39000000,
+          "pc": "0x80000144"
+        }
+      ],
+      "symbols": {
+        "0x8000136c": "supervisor_trap (kernel.c:264)",
+        "0x8000151c": "supervisor_trap timer branch (kernel.c:285)",
+        "0x80000144": "supervisor_trap_entry (trap.S:63)"
+      }
+    }
+  },
+  "inference": "Timer-service starvation is suspected: post-exec PC samples remain in supervisor trap entry/handling while the machine timer rearms every 2000 cycles. Root-cause correction remains open.",
+  "test_gap": "check-sdboot currently calls run-sdram without selecting sim-sdram and therefore defaults to a BRAM model. Its pass is not physical-SDRAM evidence.",
+  "scope": "No FPGA synthesis, programming, or physical-board result."
+}

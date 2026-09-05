@@ -24,14 +24,17 @@ const publicDir = join(here, 'public');
 // Chromium under WSL is usually the Windows one: the browser is on the other
 // side of the filesystem boundary, but WSL forwards a listening socket to the
 // Windows loopback, so a page served from here is reachable there.
-const CANDIDATES = [
-  process.env.AX_BROWSER,
-  'chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable',
-  '/mnt/c/Program Files/Google/Chrome/Application/chrome.exe',
-  '/mnt/c/Program Files (x86)/Google/Chrome/Application/chrome.exe',
-  '/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
-  '/mnt/c/Program Files/Microsoft/Edge/Application/msedge.exe',
-].filter(Boolean);
+//
+// The candidates come from tools/requirements.json, which `make doctor` and
+// `make requirements-check` read too. A second copy of the list here would be a
+// second thing to update, and the failure would be quiet: doctor reporting a
+// browser this check cannot find, or the reverse.
+const CANDIDATES = JSON.parse(
+  readFileSync(join(here, '..', '..', 'tools', 'requirements.json'), 'utf8'))
+  .tools.browser.probe.candidates
+  .map((candidate) => (candidate.startsWith('$')
+    ? process.env[candidate.slice(1)] : candidate))
+  .filter(Boolean);
 
 function findBrowser() {
   for (const candidate of CANDIDATES) {

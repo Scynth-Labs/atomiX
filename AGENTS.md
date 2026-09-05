@@ -43,6 +43,17 @@
   `.git/multi-agent-coordination/` here, not in the submodule. Do not use it for
   ordinary single-agent work.
 
+- Tool version requirements are explicit and single-sourced in
+  `tools/requirements.json`: which versions are *supported* (accepted without
+  comment), which are *tested* (actually run, with the evidence named beside
+  each), and which are known-bad and why. Never state a version requirement in
+  prose, a `?=`, or a shell script instead -- those are what let "Verilator 5
+  fails to elaborate role.loopback" survive years past the release it was true
+  for. Widen `tested` only by running the evidence named beside the tool and
+  recording the version; then `make requirements` regenerates the tables in
+  `docs/dependencies.md`, and `make requirements-check` fails when host or docs
+  drift from the file.
+
 ## Verification and evidence
 
 - Run the narrowest relevant test first, then `make verify-smoke` before a
