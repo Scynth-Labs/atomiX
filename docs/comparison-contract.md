@@ -9,12 +9,14 @@ It answers one narrow question: what did this implementation cost and deliver
 for this exact workload and evidence level?  It does not assign a universal
 score to an architecture.
 
-This document describes the current R2 contract and its required FPGA metric
-matrix. The [execution-target design](execution-targets.md) plans broader
-native/software/ASIC comparisons in AX-01 and AX-10. Those gates must add
-explicit target and metric-applicability semantics while retaining validation
-of these records; the existing schema has not acquired new backend support
-through this planning update.
+This document describes the R2 contract and its required FPGA metric matrix,
+which still owns every document in `research/comparisons/`. Comparisons that
+span host CPUs, simulators, and devices use the sibling
+[experiment contract](../research/experiments/README.md), which declares metric
+applicability per target class instead of demanding a LUT count from a host
+process. Neither schema has acquired the other's semantics: the experiment
+validator refuses an R2 plan, and `tools/comparison_contract.py` still accepts
+one, which `make experiment-check` asserts in both directions.
 
 ## Comparison rules
 

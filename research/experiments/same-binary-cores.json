@@ -1,0 +1,177 @@
+{
+  "schema": {"id": "org.atomix.experiment-plan", "major": 1, "minor": 0},
+  "kind": "experiment-plan",
+  "id": "org.atomix.experiment.same-binary-cores",
+  "revision": 1,
+  "summary": "One RISC-V image on three core selections: what the core choice is worth when nothing else changes",
+  "claim": "org.atomix.same-artifact",
+  "workload": {
+    "id": "org.atomix.workload.cpu-perf-mix",
+    "revision": 1,
+    "parameters": {"array_words": 256},
+    "cases": ["resident-integer-mix"]
+  },
+  "implementations": [
+    {
+      "id": "org.atomix.implementation.cpu-perf-rv32",
+      "class": "org.atomix.riscv-baremetal-image",
+      "summary": "One cpu_perf image, loaded unchanged into every candidate machine",
+      "requires": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.runtime-ram-image"
+      ],
+      "build": {
+        "kind": "org.atomix.riscv-baremetal-make",
+        "value": {
+          "directory": "sw/baremetal",
+          "target": "build/cpu_perf.hex",
+          "artifact": "sw/baremetal/build/cpu_perf.hex"
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "id": "org.atomix.target.sim-minimal",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-soc-simulator",
+      "summary": "core.minimal multi-cycle machine, Verilator model of the reference SoC",
+      "capabilities": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.runtime-ram-image",
+        "org.atomix.capability.m-mode",
+        "org.atomix.capability.multi-cycle"
+      ],
+      "measurement_domain": "org.atomix.domain.model-cycles",
+      "profile": {
+        "kind": "org.atomix.component-profile",
+        "value": {"config": "configs/sim-minimal.json", "reset_pc": "0x80000000", "max_cycles": 2000000}
+      }
+    },
+    {
+      "id": "org.atomix.target.sim-bram",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-soc-simulator",
+      "summary": "core.pipeline5 reference machine, Verilator model of the reference SoC",
+      "capabilities": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.runtime-ram-image",
+        "org.atomix.capability.m-s-u",
+        "org.atomix.capability.sv32",
+        "org.atomix.capability.rvfi"
+      ],
+      "measurement_domain": "org.atomix.domain.model-cycles",
+      "profile": {
+        "kind": "org.atomix.component-profile",
+        "value": {"config": "configs/sim-bram.json", "reset_pc": "0x80000000", "max_cycles": 2000000}
+      }
+    },
+    {
+      "id": "org.atomix.target.sim-ax2",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-soc-simulator",
+      "summary": "core.ax2 dual-issue machine at its default parameters",
+      "capabilities": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.runtime-ram-image",
+        "org.atomix.capability.m-mode",
+        "org.atomix.capability.instruction-cache",
+        "org.atomix.capability.branch-prediction",
+        "org.atomix.capability.dual-issue-capable"
+      ],
+      "measurement_domain": "org.atomix.domain.model-cycles",
+      "profile": {
+        "kind": "org.atomix.component-profile",
+        "value": {"config": "configs/sim-ax2.json", "reset_pc": "0x80000000", "max_cycles": 2000000}
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "id": "org.atomix.candidate.cpu-perf-on-minimal",
+      "implementation": "org.atomix.implementation.cpu-perf-rv32",
+      "target": "org.atomix.target.sim-minimal",
+      "parameters": {},
+      "work": {"unit": "org.atomix.array-word", "count": 256}
+    },
+    {
+      "id": "org.atomix.candidate.cpu-perf-on-pipeline5",
+      "implementation": "org.atomix.implementation.cpu-perf-rv32",
+      "target": "org.atomix.target.sim-bram",
+      "parameters": {},
+      "work": {"unit": "org.atomix.array-word", "count": 256}
+    },
+    {
+      "id": "org.atomix.candidate.cpu-perf-on-ax2",
+      "implementation": "org.atomix.implementation.cpu-perf-rv32",
+      "target": "org.atomix.target.sim-ax2",
+      "parameters": {},
+      "work": {"unit": "org.atomix.array-word", "count": 256}
+    }
+  ],
+  "metrics": [
+    {
+      "id": "org.atomix.metric.work-items",
+      "unit": "org.atomix.unit.item",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {"org.atomix.rtl-simulator": "org.atomix.required"}
+    },
+    {
+      "id": "org.atomix.metric.repetitions",
+      "unit": "org.atomix.unit.count",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {"org.atomix.rtl-simulator": "org.atomix.required"}
+    },
+    {
+      "id": "org.atomix.metric.artifact-bytes",
+      "unit": "org.atomix.unit.byte",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {"org.atomix.rtl-simulator": "org.atomix.required"}
+    },
+    {
+      "id": "org.atomix.metric.execute-cycles",
+      "unit": "org.atomix.unit.cycle",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.model-cycles",
+      "applicability": {"org.atomix.rtl-simulator": "org.atomix.required"}
+    },
+    {
+      "id": "org.atomix.metric.total-cycles",
+      "unit": "org.atomix.unit.cycle",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.model-cycles",
+      "applicability": {"org.atomix.rtl-simulator": "org.atomix.required"}
+    },
+    {
+      "id": "org.atomix.metric.simulator-host-elapsed-median",
+      "unit": "org.atomix.unit.nanosecond",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.simulator-host-elapsed",
+      "applicability": {"org.atomix.rtl-simulator": "org.atomix.optional"}
+    }
+  ],
+  "budget": {"max_candidates": 3, "per_candidate_seconds": 900, "repetitions": 1},
+  "policy": {
+    "correctness": "org.atomix.hard-gate",
+    "missing_measurement": "org.atomix.unavailable-not-zero",
+    "ranking": "org.atomix.pareto-no-composite",
+    "cross_domain_ranking": "org.atomix.forbidden",
+    "resource_claims": "org.atomix.require-matched-evidence"
+  },
+  "extensions": {}
+}

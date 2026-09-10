@@ -100,10 +100,11 @@
       ]
     },
     "research-contracts": {
-      "label": "Personality, comparison, ECP5 frame, and partial-image delta research contracts",
+      "label": "Personality, comparison, experiment, ECP5 frame, and partial-image delta research contracts",
       "command": [
         "make",
         "comparison-check",
+        "experiment-check",
         "ecp5-frame-check",
         "pr-gate-check"
       ],
@@ -111,6 +112,21 @@
       "requires": [
         "make",
         "python3"
+      ]
+    },
+    "experiment-adapters": {
+      "label": "Execution adapters: their refusals, and one plan run end to end",
+      "command": [
+        "make",
+        "adapter-check",
+        "experiment-run"
+      ],
+      "timeout_seconds": 900,
+      "requires": [
+        "make",
+        "python3",
+        "cc",
+        "verilator"
       ]
     },
     "l3-search": {
@@ -637,6 +653,7 @@
       "rtl-units"
     ],
     "ci-integration": [
+      "experiment-adapters",
       "runtime-payload",
       "doc-examples",
       "component-composition",
@@ -648,6 +665,7 @@
       "kernel-storage-ci"
     ],
     "nightly-integrated": [
+      "experiment-adapters",
       "runtime-payload",
       "doc-examples",
       "requirements",

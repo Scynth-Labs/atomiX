@@ -43,6 +43,9 @@ help:
 	@echo "  python3 tools/bench.py cpu|gpu|tpu|tang"
 	@echo "  make personality-check  # validate open compute-personality contracts"
 	@echo "  make comparison-check   # validate research comparison/evidence contracts"
+	@echo "  make experiment-check   # validate experiment plans and run records"
+	@echo "  make experiment-run     # run an experiment plan through its adapters"
+	@echo "  make adapter-check      # prove the execution adapters' refusals"
 	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL, unit and SoC"
 	@echo "  make evolution-check    # bounded kernel-evolve tiers in Primer RAM"
 	@echo "  make fitness-check      # deterministic Live FPGA fitness contract"
@@ -126,6 +129,41 @@ personality-check:
 comparison-check: personality-check
 	$(PYTHON) tools/comparison_contract.py check research/comparisons
 	$(PYTHON) tools/comparison_contract.py self-test
+
+# An experiment plan is the input a user brings to the platform: one workload
+# and oracle, the implementations that claim to satisfy it, the targets that
+# can host them, and what each target class is able to measure. It depends on
+# comparison-check because the R2 FPGA documents keep their own schema and
+# validator -- this gate proves the split held rather than that one format
+# quietly replaced the other.
+experiment-check: comparison-check
+	$(PYTHON) tools/experiment_contract.py check research/experiments
+	$(PYTHON) tools/experiment_contract.py self-test
+
+# The adapters' refusals, which a passing experiment never exercises: the
+# native leg building with every RISC-V and FPGA tool shadowed, a missing
+# prerequisite reported as blocked rather than substituted, semantics refused
+# before execution, and a limit that actually reaches the process group.
+adapter-check:
+	$(PYTHON) tools/adapter_conformance.py
+
+# Run one plan through its adapters. Records land outside tracked source
+# unless RECORDS points into the evidence tree, because a scratch run is not
+# evidence. ONLY selects candidates; LIMIT_SECONDS overrides the plan budget.
+EXPERIMENT_PLAN ?= research/experiments/saxpy-native-vs-rtl.json
+EXPERIMENT_RECORDS ?= build/experiments/records
+experiment-run:
+	$(PYTHON) tools/experiment_run.py $(EXPERIMENT_PLAN) \
+	  --records $(EXPERIMENT_RECORDS) \
+	  $(foreach candidate,$(ONLY),--only $(candidate)) \
+	  $(if $(LIMIT_SECONDS),--limit-seconds $(LIMIT_SECONDS)) \
+	  $(if $(REPETITIONS),--repetitions $(REPETITIONS))
+
+# Re-run a recorded candidate and compare identities, oracle outputs, and the
+# cycle counts that are supposed to be deterministic.
+experiment-replay:
+	@test -n "$(RECORD)" || { echo "RECORD is required"; exit 2; }
+	$(PYTHON) tools/experiment_run.py $(EXPERIMENT_PLAN) --replay $(RECORD)
 
 # The unit benches prove the monitor and the fence; check-livecount proves the
 # wiring between them in an assembled SoC.  That last one is not optional
@@ -464,11 +502,11 @@ web-page-check:
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
-component-test: config-check-all personality-check comparison-check
+component-test: config-check-all personality-check comparison-check experiment-check adapter-check
 	$(MAKE) software CONFIG=configs/sim-hello.json
 	$(MAKE) sim CONFIG=configs/sim-delayed.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-delayed
 	$(MAKE) sim CONFIG=configs/sim-delayed-passthrough-cache.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-passthrough-cache
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-run experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check

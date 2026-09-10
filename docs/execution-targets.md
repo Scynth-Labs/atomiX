@@ -2,8 +2,11 @@
 
 This is the architectural direction for the [platform roadmap](roadmap.md).
 It defines the boundary to implement through [AX-10–AX-13](boards/targets.md).
-The adapter API and new evidence forms are planned; this document does not
-declare them implemented or change the current executable schemas.
+AX-01 and AX-10 are now implemented: the adapter boundary lives in
+[`tools/execution/`](../tools/execution/) and the experiment contract in
+[`tools/experiment_contract.py`](../tools/experiment_contract.py). Everything
+this document says about AX-11 to AX-13 and about ASIC work remains a design
+direction rather than a claim about existing code.
 
 ## What belongs to the platform
 
@@ -47,7 +50,9 @@ the native software implementation required by AX-10.
 
 ## An adapter's minimum responsibilities
 
-AX-10 must turn these requirements into a versioned, tested contract:
+AX-10 turned these requirements into a versioned, tested contract; each
+numbered responsibility below maps to a method on `tools/execution.Adapter`
+and to a gate in `make adapter-check`:
 
 1. Describe capabilities, supported workload/implementation formats, prerequisites,
    limits, and available measurements. Compatibility includes arithmetic and
@@ -93,8 +98,10 @@ or cycles converted using an unmeasured clock. Model counters keep their own
 definitions; equal counter names are insufficient evidence of equal meaning.
 
 The current [comparison contract](comparison-contract.md) requires the R2 FPGA
-metric matrix. AX-01/AX-10 must version or extend this deliberately for other
-targets, retaining validation of existing records. New applicability rules must
+metric matrix. AX-01 did not stretch it to cover host processes: the
+[experiment contract](../research/experiments/README.md) is a sibling schema
+with per-target-class metric applicability, and the R2 documents keep their own
+validator unchanged. New applicability rules must
 distinguish measured zero, unavailable measurement, and an inapplicable metric.
 A host CPU must not acquire fictitious LUT counts, FPGA clocks, or configuration
 switches just to satisfy a schema. No new status token is accepted merely

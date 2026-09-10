@@ -1,0 +1,140 @@
+{
+  "schema": {
+    "id": "org.atomix.experiment-record",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "experiment-record",
+  "id": "org.atomix.experiment-record.cpu-perf-on-ax2",
+  "revision": 1,
+  "summary": "cpu-perf-on-ax2: 1 oracle cases passed on org.atomix.target.sim-ax2",
+  "claim": "org.atomix.observation",
+  "plan": {
+    "id": "org.atomix.experiment.same-binary-cores",
+    "revision": 1
+  },
+  "candidate": "org.atomix.candidate.cpu-perf-on-ax2",
+  "status": "org.atomix.pass",
+  "identity": {
+    "implementation": {
+      "id": "org.atomix.implementation.cpu-perf-rv32",
+      "artifact_sha256": "48428e79c7fe6530cbd468cd9ca6b79b9e1433d525766f011b35552589c8168f",
+      "build_sha256": "efa723a00678f9853d8b6e6f019fdf9d101739bca29712fc507f9874ad0e3dbf",
+      "tools": {
+        "riscv64-unknown-elf-gcc": "riscv64-unknown-elf-gcc () 10.2.0"
+      }
+    },
+    "target": {
+      "id": "org.atomix.target.sim-ax2",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-soc-simulator",
+      "build_sha256": "fa467043facf1419addb0368726c1cbfb43280796c32c95a9bcac698dc736f27",
+      "profile_sha256": "5a4dadd82be86c9975394ba3bffd18297821e44be92df70ce767ada0424fb4a1"
+    }
+  },
+  "execution": {
+    "repetitions": 1,
+    "limit_seconds": 900,
+    "elapsed_seconds": 0.045341,
+    "termination": "org.atomix.completed"
+  },
+  "source": {
+    "commit": "8c8f566ebc4494d0ecffb20934c337561b321c0d",
+    "dirty": true,
+    "diff_sha256": "4ec5bedd1d817d11c32fc11652c3f3ab49437619eb3d96b3623f0e12d0d960ff"
+  },
+  "environment": {
+    "evidence_level": "org.atomix.simulation",
+    "timestamp_utc": "2026-09-10T08:50:48Z",
+    "board": null,
+    "device": null,
+    "tools": {
+      "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b",
+      "riscv64-unknown-elf-gcc": "riscv64-unknown-elf-gcc () 10.2.0"
+    }
+  },
+  "correctness": {
+    "status": "org.atomix.pass",
+    "oracle_cases": 1,
+    "output_sha256": "2e49c3c21daa6c85aac4a8ffc1603ecec131fbe5b945bf538cb74926db7d2491",
+    "method": "recorded exact value pinned by the workload document; it proves agreement between implementations, not independent derivation"
+  },
+  "measurements": {
+    "org.atomix.metric.work-items": {
+      "value": 256,
+      "unit": "org.atomix.unit.item",
+      "status": "org.atomix.measured",
+      "method": "logical work of the executed cases, from the workload definition"
+    },
+    "org.atomix.metric.repetitions": {
+      "value": 1,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "timed executions of each case"
+    },
+    "org.atomix.metric.artifact-bytes": {
+      "value": 2224,
+      "unit": "org.atomix.unit.byte",
+      "status": "org.atomix.measured",
+      "method": "RISC-V baremetal image, hashed as 48428e79c7fe"
+    },
+    "org.atomix.metric.execute-cycles": {
+      "value": 25729,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.measured",
+      "method": "model cycles from job start to observed completion, summed over cases"
+    },
+    "org.atomix.metric.total-cycles": {
+      "value": 47943,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.measured",
+      "method": "model cycles including staging and checked readback, summed over cases"
+    },
+    "org.atomix.metric.simulator-host-elapsed-median": {
+      "value": 45341285,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "wall time of the simulator process per case; a cost of the tool, not of the design"
+    }
+  },
+  "extensions": {
+    "org.atomix.target-limits": {
+      "max_cycles": 2000000,
+      "components": {
+        "core": "core.ax2",
+        "soc": "soc.reference",
+        "memory": "memory.bram",
+        "uart": "uart.mmio16550",
+        "clint": "clint.qemu-virt",
+        "spi": "spi.polling-mode0",
+        "board": "board.sim",
+        "interconnect": "interconnect.axbus-reference",
+        "cache": "cache.direct-mapped",
+        "rom": "rom.axrom",
+        "finisher": "finisher.sifive-test",
+        "harness": "harness.verilator-soc",
+        "alu": "alu.single-cycle",
+        "muldiv": "muldiv.iterative32",
+        "role": "role.none",
+        "plic": "plic.qemu-virt"
+      }
+    },
+    "org.atomix.case-outcomes": {
+      "resident-integer-mix": {
+        "outputs": {
+          "checksum": [
+            3911608133
+          ]
+        },
+        "cycles": {
+          "execute": 25729,
+          "total": 47943
+        },
+        "detail": {
+          "self_check": "cpu_perf: PASS",
+          "simulator_elapsed_ns": 45341285
+        }
+      }
+    }
+  }
+}

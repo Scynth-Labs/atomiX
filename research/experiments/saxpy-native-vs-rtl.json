@@ -1,0 +1,248 @@
+{
+  "schema": {"id": "org.atomix.experiment-plan", "major": 1, "minor": 0},
+  "kind": "experiment-plan",
+  "id": "org.atomix.experiment.saxpy-native-vs-rtl",
+  "revision": 1,
+  "summary": "One integer workload, two unrelated implementations: a host C executable and a SIMT kernel on the RTL role, judged by the same oracle",
+  "claim": "org.atomix.same-workload",
+  "workload": {
+    "id": "org.atomix.workload.saxpy-i32",
+    "revision": 2,
+    "parameters": {"items": 50, "a": 3},
+    "cases": ["signed-and-tail", "int32-wrap", "single-element", "simt-lane-tail"]
+  },
+  "implementations": [
+    {
+      "id": "org.atomix.implementation.saxpy-native-c",
+      "class": "org.atomix.native-executable",
+      "summary": "Host C11 executable computing the wrapped result through unsigned arithmetic",
+      "requires": [
+        "org.atomix.capability.exact-int32-wrap",
+        "org.atomix.capability.host-c11-toolchain",
+        "org.atomix.capability.monotonic-clock"
+      ],
+      "build": {
+        "kind": "org.atomix.host-cc",
+        "value": {
+          "source": "sw/native/saxpy_i32.c",
+          "standard": "c11",
+          "flags": ["-O2", "-Wall", "-Wextra", "-Werror"]
+        }
+      }
+    },
+    {
+      "id": "org.atomix.implementation.saxpy-simt-kernel",
+      "class": "org.atomix.simt-kernel-program",
+      "summary": "Nine-instruction SIMT kernel for the role.gpu-compute engine, one thread per output element",
+      "requires": [
+        "org.atomix.capability.exact-int32-wrap",
+        "org.atomix.capability.role-window",
+        "org.atomix.capability.doorbell",
+        "org.atomix.capability.status-poll",
+        "org.atomix.capability.simt",
+        "org.atomix.capability.programmable-kernel",
+        "org.atomix.capability.flat-global-memory",
+        "org.atomix.capability.tail-predication"
+      ],
+      "build": {
+        "kind": "org.atomix.gpu-compute-program",
+        "value": {
+          "encoder": "sw/host/gpu_programs.py",
+          "immediate_bits": 17,
+          "layout": {"x": 0, "y": "items", "out": "2*items"}
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "id": "org.atomix.target.host-cpu",
+      "class": "org.atomix.native-host",
+      "adapter": "org.atomix.adapter.native-cpu",
+      "summary": "The development host's own CPU, running an ordinary process with no SoC, board, or loader",
+      "capabilities": [
+        "org.atomix.capability.exact-int32-wrap",
+        "org.atomix.capability.host-c11-toolchain",
+        "org.atomix.capability.monotonic-clock",
+        "org.atomix.capability.process-timeout"
+      ],
+      "measurement_domain": "org.atomix.domain.host-elapsed",
+      "profile": null
+    },
+    {
+      "id": "org.atomix.target.role-gpu-compute-sim",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-role-simulator",
+      "summary": "Verilator model of role.gpu-compute at its default eight lanes, driven through the role window",
+      "capabilities": [
+        "org.atomix.capability.exact-int32-wrap",
+        "org.atomix.capability.role-window",
+        "org.atomix.capability.doorbell",
+        "org.atomix.capability.status-poll",
+        "org.atomix.capability.simt",
+        "org.atomix.capability.programmable-kernel",
+        "org.atomix.capability.flat-global-memory",
+        "org.atomix.capability.tail-predication",
+        "org.atomix.capability.deterministic-model-cycles",
+        "org.atomix.capability.process-timeout"
+      ],
+      "measurement_domain": "org.atomix.domain.model-cycles",
+      "profile": {
+        "kind": "org.atomix.component-selection",
+        "value": {
+          "component": "components/role/gpu-compute/component.json",
+          "top": "axrole",
+          "parameters": {"lanes": 8, "data_words": 4096}
+        }
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "id": "org.atomix.candidate.saxpy-native",
+      "implementation": "org.atomix.implementation.saxpy-native-c",
+      "target": "org.atomix.target.host-cpu",
+      "parameters": {},
+      "work": {"unit": "org.atomix.output-element", "count": 17}
+    },
+    {
+      "id": "org.atomix.candidate.saxpy-simt-rtl",
+      "implementation": "org.atomix.implementation.saxpy-simt-kernel",
+      "target": "org.atomix.target.role-gpu-compute-sim",
+      "parameters": {},
+      "work": {"unit": "org.atomix.output-element", "count": 17}
+    }
+  ],
+  "metrics": [
+    {
+      "id": "org.atomix.metric.work-items",
+      "unit": "org.atomix.unit.item",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.required",
+        "org.atomix.rtl-simulator": "org.atomix.required",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.repetitions",
+      "unit": "org.atomix.unit.count",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.required",
+        "org.atomix.rtl-simulator": "org.atomix.required",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.artifact-bytes",
+      "unit": "org.atomix.unit.byte",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.required",
+        "org.atomix.rtl-simulator": "org.atomix.required",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.execute-cycles",
+      "unit": "org.atomix.unit.cycle",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.model-cycles",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.inapplicable",
+        "org.atomix.rtl-simulator": "org.atomix.required",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.total-cycles",
+      "unit": "org.atomix.unit.cycle",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.model-cycles",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.inapplicable",
+        "org.atomix.rtl-simulator": "org.atomix.required",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.host-elapsed-median",
+      "unit": "org.atomix.unit.nanosecond",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.host-elapsed",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.required",
+        "org.atomix.rtl-simulator": "org.atomix.inapplicable",
+        "org.atomix.fpga-device": "org.atomix.inapplicable"
+      }
+    },
+    {
+      "id": "org.atomix.metric.host-elapsed-minimum",
+      "unit": "org.atomix.unit.nanosecond",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.host-elapsed",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.required",
+        "org.atomix.rtl-simulator": "org.atomix.inapplicable",
+        "org.atomix.fpga-device": "org.atomix.inapplicable"
+      }
+    },
+    {
+      "id": "org.atomix.metric.host-elapsed-maximum",
+      "unit": "org.atomix.unit.nanosecond",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.host-elapsed",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.required",
+        "org.atomix.rtl-simulator": "org.atomix.inapplicable",
+        "org.atomix.fpga-device": "org.atomix.inapplicable"
+      }
+    },
+    {
+      "id": "org.atomix.metric.simulator-host-elapsed-median",
+      "unit": "org.atomix.unit.nanosecond",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.simulator-host-elapsed",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.inapplicable",
+        "org.atomix.rtl-simulator": "org.atomix.optional",
+        "org.atomix.fpga-device": "org.atomix.inapplicable"
+      }
+    },
+    {
+      "id": "org.atomix.metric.lut-used",
+      "unit": "org.atomix.unit.count",
+      "direction": "org.atomix.lower-is-better",
+      "domain": "org.atomix.domain.device-resources",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.inapplicable",
+        "org.atomix.rtl-simulator": "org.atomix.inapplicable",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.lut-available",
+      "unit": "org.atomix.unit.count",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.device-resources",
+      "applicability": {
+        "org.atomix.native-host": "org.atomix.inapplicable",
+        "org.atomix.rtl-simulator": "org.atomix.inapplicable",
+        "org.atomix.fpga-device": "org.atomix.required"
+      }
+    }
+  ],
+  "budget": {"max_candidates": 2, "per_candidate_seconds": 900, "repetitions": 5},
+  "policy": {
+    "correctness": "org.atomix.hard-gate",
+    "missing_measurement": "org.atomix.unavailable-not-zero",
+    "ranking": "org.atomix.pareto-no-composite",
+    "cross_domain_ranking": "org.atomix.forbidden",
+    "resource_claims": "org.atomix.require-matched-evidence"
+  },
+  "extensions": {}
+}

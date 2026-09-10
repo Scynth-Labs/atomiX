@@ -44,7 +44,7 @@ path, not another hardware target.
 
 | Milestone | Exit outcome | Required board cards | Scope boundary |
 |---|---|---|---|
-| M0: experiment alpha | A new user runs native software and RTL implementations of a shared workload, compares eligible results, and replays a run | AX-01 → AX-10 → AX-02 → AX-03 → AX-04 | Native CPU + RTL adapters; same-binary core comparison retained; no board required |
+| M0: experiment alpha | A new user runs native software and RTL implementations of a shared workload, compares eligible results, and replays a run | AX-01 ✓ → AX-10 ✓ → AX-02 → AX-03 → AX-04 | Native CPU + RTL adapters; same-binary core comparison retained; no board required |
 | M1: reusable preview release | A contributor installs an external component; a clean host reproduces the supported examples and release identities | AX-05, AX-06, AX-07 after M0 | Explicit supported subset; other profiles retain their own evidence status |
 | M2: accessible evaluation | A reader opens the same experiment in a browser and can take its record back to native tools | AX-08 after M0 | WASM and browser checks required for this feature; native use stays independent |
 | M3: measured adaptive value | A fixed or adaptive policy earns a workload-specific recommendation including transition and recovery costs | RX-02, RX-03; RX-04/RX-05 and HW-03 for a physical L3 claim | A negative result can settle the research question; it cannot establish adaptive benefit |

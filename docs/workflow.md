@@ -340,6 +340,8 @@ oracles independently of any FPGA toolchain:
 ```bash
 make personality-check
 make comparison-check
+make experiment-check            # experiment plans, their records, and the contract's gates
+make adapter-check               # the execution adapters' refusals: blocked, unsupported, bounded
 make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
@@ -496,6 +498,53 @@ time projections for 27 MHz Tang Nano and 25 MHz Tang Primer. GPU/TPU payloads
 separate upload, doorbell-to-done compute, and readback-plus-verification from
 the complete offload total. Those projected microseconds are pre-P&R; use the
 achieved hardware clock as the final frequency.
+
+### 3.4c Experiments: one workload, several implementations and targets
+
+A benchmark answers a question this repository already chose.  An experiment
+plan is a question a *user* brings: one workload and its oracle, the
+implementations that claim to satisfy it, the targets that can host them, and
+what may be spent finding out.  Plans and records live in
+[`research/experiments/`](../research/experiments/).
+
+```bash
+make experiment-run                                   # the native/RTL saxpy plan
+make experiment-run EXPERIMENT_PLAN=research/experiments/same-binary-cores.json
+make experiment-run ONLY=saxpy-native LIMIT_SECONDS=60 REPETITIONS=9
+make experiment-replay RECORD=research/experiments/records/saxpy-simt-rtl.json
+```
+
+Two plans ship, and they make different claims on purpose:
+
+- `same-binary-cores.json` loads one unchanged `cpu_perf` image into
+  `sim-minimal`, `sim-bram`, and `sim-ax2`.  The records carry one payload
+  hash and three model hashes, so the difference is attributable to the core.
+- `saxpy-native-vs-rtl.json` runs a host C executable and a SIMT kernel on
+  `role.gpu-compute` against the same oracle, including the int32 wrap,
+  single-element, and SIMT-tail cases.  Their artifacts share nothing; their
+  results must agree exactly.
+
+Records go to `build/experiments/records` unless `EXPERIMENT_RECORDS` points
+into the evidence tree, because a scratch run is not evidence.  Every candidate
+produces one, including the blocked and timed-out ones.
+
+The summary prints each number with the domain it was measured in — `model`
+cycles, `host` nanoseconds, `sim-tool` nanoseconds — and no command in this
+repository converts between them.  Ranking across domains is refused by the
+contract, not by convention.
+
+`make experiment-replay` re-runs one record and compares the artifact, build,
+model, and profile hashes before it compares any number; then oracle outputs
+and the cycle counts that are supposed to be deterministic.  Elapsed times are
+printed side by side and not asserted.  A rebuilt artifact that still passes is
+reported as a different candidate rather than as the same one.
+
+`make adapter-check` proves what a passing run never shows: the native leg
+builds and runs with every RISC-V, Verilator, and FPGA tool shadowed by a
+failing stub, an absent tool blocks instead of silently selecting another
+target, a scalar too wide for the engine's 17-bit immediate is refused before
+execution, a limit and a cancellation both reach the process group, and a
+replay rejects a changed artifact hash.
 
 ### 3.5 Kernel (aXos) — needs `qemu-system-riscv32` ≥ 7
 

@@ -8,8 +8,8 @@ P0 cards here plus AX-10 on the [targets board](targets.md) deliver M0.
 
 | Card / outcome | Priority | State | Depends on | First reviewable slice |
 |---|---|---|---|---|
-| [AX-01: describe a workload-driven experiment](../design-checklist.md#ax-01) | P0 | Ready | Existing workload and comparison contracts | Specify workload semantics, distinct implementation/target identities, and metric applicability for native/RTL and same-binary fixtures |
-| [AX-02: execute and resume a bounded design-space sweep](../design-checklist.md#ax-02) | P0 | Next | AX-01, AX-10 | Execute a fixed plan through the native CPU and RTL adapters and retain every attempted outcome |
+| [AX-01: describe a workload-driven experiment](../design-checklist.md#ax-01) | P0 | Done | Existing workload and comparison contracts | Specify workload semantics, distinct implementation/target identities, and metric applicability for native/RTL and same-binary fixtures |
+| [AX-02: execute and resume a bounded design-space sweep](../design-checklist.md#ax-02) | P0 | Ready | AX-01, AX-10 | Execute a fixed plan through the native CPU and RTL adapters and retain every attempted outcome |
 | [AX-03: compare and replay a design decision](../design-checklist.md#ax-03) | P0 | Next | AX-02 | Render a local comparison from the run records, including a rejected candidate and a replay reference |
 | [AX-04: prove a new user can use the experiment alpha](../design-checklist.md#ax-04) | P0 | Next | AX-03; independent participants for the pilot gate | Write separate native-only and native/RTL walkthroughs; test locally before arranging reproduction |
 | [AX-05: ship an external-component SDK example](../design-checklist.md#ax-05) | P1 | Next | AX-01; start after M0 unless pilot needs it sooner | Package one small replacement outside the source tree with its manifest and runnable conformance checks |
@@ -18,7 +18,21 @@ P0 cards here plus AX-10 on the [targets board](targets.md) deliver M0.
 | [AX-08: open and share an experiment in the browser](../design-checklist.md#ax-08) | P1 | Next | AX-03; WASM build environment and browser for validation | Import one native experiment record into the existing web machine and confirm identity and result parity |
 | [AX-09: asynchronous host jobs](../design-checklist.md#platform-expansion) | P2 | Next | RX-02 identifies a useful workload or pilot demonstrates blocking cost | Specify submit/poll/fetch ownership and recovery using the existing open host-link gate before adding operations |
 
-## The first slice to take
+## What is done, and what is next
+
+AX-01 and AX-10 are closed. `research/experiments/` holds two plans -- one
+image across three cores, and one workload across a host CPU and the RTL role
+-- and the records of their runs. `tools/execution/` is the adapter boundary
+they run through, and `make adapter-check` proves its refusals.
+
+AX-02 is the next slice. The runner already bounds, cancels, and records every
+outcome for a fixed candidate list; what it does not yet do is enumerate a
+declared parameter space, reject invalid combinations before building, resume
+an interrupted run, or reject a stale reuse. Those are AX-02's acceptance
+cases, and the identity fields the records already carry are what will decide
+whether a cached result may be reused.
+
+## The first slice, as it was taken
 
 AX-01 starts from [the existing benchmark driver](../../tools/bench.py),
 [comparison rules](../comparison-contract.md), and
@@ -67,3 +81,6 @@ when implemented. A missing browser that causes a skip cannot close AX-08.
   sharing remains useful, but native replay is the first portable handoff.
 - 2026-09-10: added native software execution to M0 through AX-10. The product
   boundary now spans software and hardware implementations; FPGA is one target.
+- 2026-09-10: closed AX-01 and AX-10 together. The contract needed a real
+  adapter to be worth trusting, and the adapters needed the contract to have
+  somewhere honest to put a host process's missing LUT count.

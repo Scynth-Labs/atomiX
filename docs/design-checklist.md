@@ -31,9 +31,12 @@ explores software and hardware implementations, and shares a reproducible design
 decision. Native software, model execution, FPGA, and eventual silicon use their
 own [execution-target contracts](execution-targets.md).
 The [priority boards](boards/README.md) own execution order, dependencies,
-state, and ownership. Start with AX-01 on the [delivery board](boards/delivery.md)
-and follow AX-10 on the [targets board](boards/targets.md) before AX-02–AX-04.
-Complete the experiment alpha before widening its architecture catalog.
+state, and ownership. AX-01 and AX-10 are closed: an experiment plan is a
+versioned input, and one workload runs on a host CPU and on RTL through a
+single adapter boundary. AX-02 (bounded, resumable sweeps) and AX-03
+(explainable comparison and replay) are next on the
+[delivery board](boards/delivery.md). Complete the experiment alpha before
+widening its architecture catalog.
 
 The platform gates below are new work, initially unchecked. Existing components,
 benchmarks, browser machines, and evidence tools are their starting points;
@@ -54,7 +57,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-01"></a>
 
-- [ ] **AX-01 — Workload-driven experiment contract.** A versioned plan names
+- [x] **AX-01 — Workload-driven experiment contract.** A versioned plan names
   the workload and oracle, input cases, implementation/build identity, execution
   targets and their profiles, required capabilities, measurement boundaries,
   and evaluation budget. Extend or adapt the existing personality/comparison
@@ -68,6 +71,14 @@ implemented; the targets for the underlying tools do not prove a future feature.
   still validate through a deliberate schema version/extension. Record modeled
   cycles separately from native execution and simulator host duration, and
   require matched evidence for any resource claim.
+  Evidence: `make experiment-check`, which validates
+  [`research/experiments/`](../research/experiments/) and runs the contract's
+  own gates -- an out-of-tree backend accepted, a capability the target does
+  not provide refused, a pinned workload revision that does not exist refused,
+  a LUT count on a native candidate refused, a plan requiring model cycles from
+  a host-elapsed target refused, measured zero kept distinct from measured
+  null, and an R2 comparison plan refused by this validator while
+  `tools/comparison_contract.py` still accepts it.
 
 <a id="ax-02"></a>
 
@@ -177,7 +188,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-10"></a>
 
-- [ ] **AX-10 — Native CPU and RTL execution adapters.** Implement the
+- [x] **AX-10 — Native CPU and RTL execution adapters.** Implement the
   [execution-target boundary](execution-targets.md): capability/limit discovery,
   implementation preparation, bounded execution/cancellation, result collection,
   and identity-aware replay. Select adapters through their owning manifests or
@@ -191,6 +202,17 @@ implemented; the targets for the underlying tools do not prove a future feature.
   identities and metric applicability. Keep FPGA activation and recovery under
   their existing shell authority. Neither a native Verilator binary nor WASM
   simulation counts as the native software implementation.
+  Evidence: `make experiment-run` over both shipped plans, with records in
+  [`research/experiments/records/`](../research/experiments/records/);
+  `make experiment-replay RECORD=...`; and `make adapter-check`, which proves
+  the native leg builds and runs with every RISC-V, Verilator, and FPGA tool
+  shadowed by a stub that fails on sight, an absent tool blocks rather than
+  selecting another target, a scalar beyond the engine's 17-bit immediate is
+  refused before execution, a limit and a cancellation both reach the process
+  group, a non-default limit reaches the record, and a replay rejects a changed
+  artifact hash. That native-tool claim is proved by shadowing rather than by a
+  container: the tools stay installed on the machine, and the check fails if
+  the native path invokes one.
 
 <a id="ax-11"></a>
 

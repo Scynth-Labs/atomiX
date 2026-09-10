@@ -1,0 +1,37 @@
+{
+  "schema": {"id": "org.atomix.workload", "major": 1, "minor": 0},
+  "kind": "workload",
+  "id": "org.atomix.workload.cpu-perf-mix",
+  "revision": 1,
+  "summary": "Five integer kernels with a self-checking FNV-1a checksum every conforming machine must reproduce",
+  "operation": "org.atomix.workload.cpu-perf-mix",
+  "parameters": {"array_words": 256},
+  "buffers": [
+    {
+      "name": "checksum",
+      "direction": "org.atomix.output",
+      "element": {"format": "org.atomix.integer", "properties": {"bits": 32, "signed": false, "overflow": "org.atomix.twos-complement-wrap"}},
+      "shape": [1],
+      "layout": "org.atomix.row-major"
+    }
+  ],
+  "oracle": {
+    "kind": "org.atomix.recorded-exact",
+    "operation": "org.atomix.workload.cpu-perf-mix",
+    "properties": {
+      "derivation": "org.atomix.program-defined",
+      "note": "The value is defined by the program's own arithmetic, not re-derived by an independent model. It gates agreement between machines running the same artifact; it is not an implementation-independent oracle."
+    },
+    "reference": "sw/baremetal/examples/cpu_perf.c"
+  },
+  "cases": [
+    {
+      "name": "resident-integer-mix",
+      "parameters": {"array_words": 256},
+      "inputs": {},
+      "expected": {"checksum": [3911608133]}
+    }
+  ],
+  "metrics": ["org.atomix.metric.execute-cycles", "org.atomix.metric.simulator-host-elapsed-median"],
+  "extensions": {}
+}
