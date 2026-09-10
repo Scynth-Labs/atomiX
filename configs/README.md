@@ -38,6 +38,15 @@ available as
 `COMPONENT_SETTING_*` Make variables. They are deliberately not rejected, so a
 custom component may define its own knobs without changing the common resolver.
 
+The three `sim-progress-*` profiles differ from the machines they are named
+after in exactly one way: they set the `soc.reference` parameter
+`progress_monitor` to 1, which compiles in an observation module that counts
+retirements by privilege mode, handler entries and exits, timer arrivals, and
+cycles spent waiting on each bus port. It drives nothing, so the instruction
+stream is identical; `tools/sdram_progress_probe.py` is what reads it. Every
+other profile declines it and builds the RTL text it built before the monitor
+existed.
+
 | Profile | Purpose |
 |---|---|
 | `sim-bram.json` | reference CPU and SoC with 128 KiB BRAM |
@@ -54,6 +63,9 @@ custom component may define its own knobs without changing the common resolver.
 | `sim-delayed.json` | 32 MiB delayed backing store plus I/D caches |
 | `sim-delayed-passthrough-cache.json` | delayed memory with the transparent cache implementation |
 | `sim-sdram.json` | x16 SDRAM controller against the behavioral SDRAM model |
+| `sim-progress-bram.json` | `sim-bram` with the SoC progress monitor compiled in |
+| `sim-progress-delayed.json` | `sim-delayed` with the SoC progress monitor compiled in |
+| `sim-progress-sdram.json` | `sim-sdram` with the SoC progress monitor compiled in |
 | `sim-finisher.json` | alternate minimal CPU composition smoke test; not RISC-V |
 | `sim-hello.json` | reference BRAM machine plus selectable bare-metal payload |
 | `sim-axos.json` | reference SDRAM machine plus selectable aXos SD-boot payload |
@@ -91,6 +103,7 @@ separate axis and never reach synthesis:
 | `kernel-default.json` | aXos round-robin scheduling with the reference Sv32 VM |
 | `kernel-cooperative.json` | aXos cooperative-until-blocked scheduling with the reference Sv32 VM |
 | `kernel-primer-monitor.json` | aXos sized for the Primer's 32 KiB RAM, with the compact `shell.monitor` console |
+| `kernel-slow-memory.json` | aXos with a 64,000-cycle scheduling quantum, for machines whose memory makes a tick expensive to service |
 
 Validate before building:
 

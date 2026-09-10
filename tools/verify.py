@@ -62,7 +62,8 @@ def load_manifest(path: Path) -> dict[str, Any]:
         prefix = f"{path}: stage {stage_id!r}"
         require(isinstance(stage_id, str) and stage_id, f"{prefix}: invalid ID")
         require(isinstance(stage, dict), f"{prefix}: must be an object")
-        allowed = {"label", "cwd", "command", "timeout_seconds", "requires", "env"}
+        allowed = {"label", "cwd", "command", "timeout_seconds", "requires",
+                   "env", "profiles"}
         require(set(stage) <= allowed, f"{prefix}: unknown keys {set(stage) - allowed}")
         require(set(stage) >= {"label", "command", "timeout_seconds"},
                 f"{prefix}: missing required keys")
@@ -89,6 +90,19 @@ def load_manifest(path: Path) -> dict[str, Any]:
                 all(isinstance(key, str) and isinstance(value, str)
                     for key, value in env.items()),
                 f"{prefix}: env must map strings to strings")
+        # Which machine this stage exercises.  A result that does not say what
+        # it ran on is a claim about nothing in particular, so a stage that
+        # boots a profile names it here and the runner records what that
+        # profile resolved to at the time.
+        profiles = stage.get("profiles", [])
+        require(isinstance(profiles, list) and
+                all(isinstance(item, str) and item for item in profiles),
+                f"{prefix}: profiles must be a string array")
+        for profile in profiles:
+            require(not Path(profile).is_absolute() and ".." not in profile,
+                    f"{prefix}: profile {profile!r} must be inside the repository")
+            require((ROOT / profile).is_file(),
+                    f"{prefix}: profile {profile!r} does not exist")
 
     for suite_id, stage_ids in suites.items():
         prefix = f"{path}: suite {suite_id!r}"
@@ -139,6 +153,106 @@ def stage_environment(stage: dict[str, Any]) -> dict[str, str]:
     return environment
 
 
+# What the result was produced by.  A verification record that does not name
+# its tools is not reproducible by anyone who has different ones, and the
+# project has already been bitten once by a result whose machine was not what
+# its label said -- see SDRAM gate 1 in docs/design-checklist.md.
+VERSION_PROBES = {
+    "verilator": ["verilator", "--version"],
+    "yosys": ["yosys", "-V"],
+    "riscv_gcc": ["riscv64-unknown-elf-gcc", "--version"],
+    "clang": ["clang", "--version"],
+    "qemu_riscv32": ["qemu-system-riscv32", "--version"],
+    "make": ["make", "--version"],
+    "node": ["node", "--version"],
+}
+
+
+def tool_version(command: list[str]) -> str | None:
+    if shutil.which(command[0]) is None:
+        return None
+    try:
+        result = subprocess.run(command, capture_output=True, text=True,
+                                timeout=30)
+    except (OSError, subprocess.SubprocessError):
+        return None
+    text = (result.stdout or result.stderr).strip().splitlines()
+    return text[0].strip() if text else None
+
+
+def environment_record() -> dict[str, Any]:
+    """Tools, source revision, and host, recorded once for the whole suite."""
+    def git(*args: str) -> str | None:
+        try:
+            result = subprocess.run(["git", *args], cwd=ROOT, capture_output=True,
+                                    text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return result.stdout.strip() if result.returncode == 0 else None
+
+    dirty = git("status", "--porcelain")
+    return {
+        "tools": {name: tool_version(command)
+                  for name, command in sorted(VERSION_PROBES.items())},
+        "python": sys.version.split()[0],
+        "platform": f"{os.uname().sysname} {os.uname().release} "
+                    f"{os.uname().machine}",
+        "git_revision": git("rev-parse", "HEAD"),
+        # Recorded rather than refused: running a suite against a working tree
+        # is the normal case. It is the reader who needs to know the result
+        # does not correspond to a commit.
+        "git_worktree_clean": (dirty == "") if dirty is not None else None,
+    }
+
+
+def resolve_profiles(stage: dict[str, Any]) -> list[dict[str, Any]]:
+    """What each profile this stage names actually resolves to, right now.
+
+    A profile is a list of component names; what gets built is what the
+    resolver makes of those names plus every manifest it reads. Recording the
+    resolved identities is what lets a later reader tell whether a result was
+    produced by the machine its label claims.
+    """
+    records = []
+    for profile in stage.get("profiles", []):
+        entry: dict[str, Any] = {"profile": profile}
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "tools/configure.py"), "resolve",
+             "--config", str(ROOT / profile)],
+            cwd=ROOT, capture_output=True, text=True, timeout=120)
+        if result.returncode != 0:
+            entry["status"] = "unresolvable"
+            entry["detail"] = (result.stderr.strip().splitlines() or
+                               ["profile does not resolve"])[-1]
+            records.append(entry)
+            continue
+        resolved = {}
+        for line in result.stdout.splitlines():
+            if ":=" in line:
+                key, _, value = line.partition(":=")
+                resolved[key.strip()] = value.strip()
+        entry["status"] = "resolved"
+        for key, field in (("COMPONENT_CONFIG_NAME", "name"),
+                           ("COMPONENT_CORE_ID", "core"),
+                           ("COMPONENT_MEMORY_ID", "memory"),
+                           ("COMPONENT_CACHE_ID", "cache"),
+                           ("COMPONENT_ROLE_ID", "role"),
+                           ("COMPONENT_HARNESS_ID", "harness"),
+                           ("COMPONENT_SIM_TOP", "sim_top"),
+                           ("COMPONENT_BOARD_ID", "board"),
+                           ("COMPONENT_SCHEDULER_ID", "scheduler"),
+                           ("COMPONENT_DEFINES", "defines")):
+            if key in resolved:
+                entry[field] = resolved[key]
+        settings = {key[len("COMPONENT_SETTING_"):].lower(): value
+                    for key, value in resolved.items()
+                    if key.startswith("COMPONENT_SETTING_")}
+        if settings:
+            entry["settings"] = settings
+        records.append(entry)
+    return records
+
+
 def missing_requirements(stage: dict[str, Any]) -> list[str]:
     return [name for name in stage.get("requires", []) if shutil.which(expand(name)) is None]
 
@@ -171,6 +285,30 @@ def run_stage(stage_id: str, stage: dict[str, Any], log_dir: Path) -> dict[str, 
     print(f"\n==> [{stage_id}] {label}", flush=True)
     print(f"    cwd={cwd.relative_to(ROOT) if cwd != ROOT else '.'}", flush=True)
     print(f"    command={' '.join(command)}", flush=True)
+    machines = resolve_profiles(stage)
+    unresolvable = [item["profile"] for item in machines
+                    if item["status"] != "resolved"]
+    for item in machines:
+        detail = (f" -- {item['detail']}" if item["status"] != "resolved"
+                  else f" ({item.get('name', '?')}: core={item.get('core', '-')} "
+                       f"memory={item.get('memory', '-')} "
+                       f"harness={item.get('harness', '-')})")
+        print(f"    machine={item['profile']} {item['status']}{detail}",
+              flush=True)
+    if unresolvable:
+        # A stage cannot pass for a configuration that does not exist. Running
+        # the command anyway would produce a result labelled with a machine
+        # nothing could have built.
+        message = ("profiles do not resolve: " + ", ".join(unresolvable))
+        log_path.write_text(message + "\n", encoding="utf-8")
+        print(f"<== [{stage_id}] FAILED: {message}", flush=True)
+        return {
+            "id": stage_id, "label": label, "status": "failed", "exit_code": None,
+            "duration_seconds": round(time.monotonic() - started, 3),
+            "started_at": started_at, "completed_at": utc_now(),
+            "log": display_path(log_path), "detail": message,
+            "machines": machines,
+        }
     if missing:
         message = f"missing required tools: {', '.join(missing)}"
         log_path.write_text(message + "\n", encoding="utf-8")
@@ -180,6 +318,7 @@ def run_stage(stage_id: str, stage: dict[str, Any], log_dir: Path) -> dict[str, 
             "duration_seconds": round(time.monotonic() - started, 3),
             "started_at": started_at, "completed_at": utc_now(),
             "log": display_path(log_path), "detail": message,
+            "machines": machines,
         }
 
     with log_path.open("w", encoding="utf-8") as log:
@@ -233,7 +372,7 @@ def run_stage(stage_id: str, stage: dict[str, Any], log_dir: Path) -> dict[str, 
         "id": stage_id, "label": label, "status": status,
         "exit_code": exit_code, "duration_seconds": duration,
         "started_at": started_at, "completed_at": utc_now(),
-        "log": display_path(log_path),
+        "log": display_path(log_path), "machines": machines,
     }
 
 
@@ -251,11 +390,13 @@ def run_suite(document: dict[str, Any], suite_id: str, keep_going: bool,
     log_dir.mkdir(parents=True, exist_ok=True)
     summary_path = log_dir / "summary.json"
     summary: dict[str, Any] = {
-        "schema": "org.atomix.verification-result.v1",
+        "schema": "org.atomix.verification-result.v2",
         "suite": suite_id,
         "started_at": utc_now(),
         "keep_going": keep_going,
         "status": "running",
+        "environment": environment_record(),
+        "requested_stages": list(suites[suite_id]),
         "stages": [],
     }
     write_summary(summary_path, summary)
@@ -265,16 +406,152 @@ def run_suite(document: dict[str, Any], suite_id: str, keep_going: bool,
         write_summary(summary_path, summary)
         if result["status"] != "passed" and not keep_going:
             break
+    # Stages the suite asked for and never reached.  Without these the summary
+    # is a shorter list that looks complete: a suite that stopped at stage 3 of
+    # 10 recorded three results and a failure, and nothing said the other seven
+    # were never attempted.  They are not passes, and they are not failures
+    # either -- they are unverified, and they say so.
+    attempted = {item["id"] for item in summary["stages"]}
+    for stage_id in suites[suite_id]:
+        if stage_id in attempted:
+            continue
+        summary["stages"].append({
+            "id": stage_id, "label": document["stages"][stage_id]["label"],
+            "status": "not-run", "exit_code": None, "duration_seconds": 0.0,
+            "started_at": None, "completed_at": None, "log": None,
+            "detail": "an earlier stage did not pass and --keep-going was not "
+                      "given, so this was never attempted",
+            "machines": [],
+        })
+    counts: dict[str, int] = {}
+    for item in summary["stages"]:
+        counts[item["status"]] = counts.get(item["status"], 0) + 1
     failed = [item for item in summary["stages"] if item["status"] != "passed"]
     summary["completed_at"] = utc_now()
+    summary["counts"] = counts
     summary["status"] = "failed" if failed else "passed"
     write_summary(summary_path, summary)
     print(f"\nVerification suite {suite_id}: {summary['status'].upper()}")
     for item in summary["stages"]:
-        print(f"  {item['status'].upper():7} {item['id']:<28} "
+        print(f"  {item['status'].upper():8} {item['id']:<28} "
               f"{item['duration_seconds']:>9.3f}s")
+    # Every outcome, named, so "passed" is never read off a count of passes
+    # against a list whose length changed.
+    print("  outcomes: " + ", ".join(f"{name}={count}"
+                                     for name, count in sorted(counts.items())))
     print(f"  summary: {display_path(summary_path)}")
     return 1 if failed else 0
+
+
+def self_test(log_root: Path) -> int:
+    """The two ways a suite could lie, checked against a synthetic manifest.
+
+    A run that cannot happen must not be recorded as one that happened and
+    passed.  There are two shapes of that here -- a stage whose tool is not
+    installed, and a stage naming a configuration that does not resolve -- and
+    a third that is subtler: the stages a suite asked for and never reached,
+    which used to vanish from the summary rather than be reported unverified.
+    """
+    scratch = log_root / "selftest"
+    if scratch.exists():
+        shutil.rmtree(scratch)
+    scratch.mkdir(parents=True)
+    rel = display_path(scratch)
+    marker = scratch / "the-command-ran"
+
+    broken = scratch / "broken-profile.json"
+    broken.write_text(json.dumps({
+        "schema": 1, "name": "selftest-broken",
+        "components": {"core": "core.does-not-exist"},
+    }) + "\n", encoding="utf-8")
+
+    manifest = {
+        "schema": SCHEMA,
+        "stages": {
+            "wrong-profile": {
+                "label": "names a configuration that does not resolve",
+                "command": ["touch", str(marker)],
+                "profiles": [f"{rel}/broken-profile.json"],
+                "timeout_seconds": 60,
+            },
+            "missing-tool": {
+                "label": "needs a tool that is not installed",
+                "command": ["true"],
+                "requires": ["atomix-tool-that-does-not-exist"],
+                "timeout_seconds": 60,
+            },
+            "real-machine": {
+                "label": "names a configuration that does resolve",
+                "command": ["true"],
+                "profiles": ["configs/sim-bram.json"],
+                "timeout_seconds": 60,
+            },
+            "never-reached": {
+                "label": "the suite asked for this and never got to it",
+                "command": ["true"],
+                "timeout_seconds": 60,
+            },
+        },
+        "suites": {"selftest": ["real-machine", "missing-tool", "wrong-profile",
+                                "never-reached"]},
+    }
+    manifest_path = scratch / "manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n",
+                             encoding="utf-8")
+    document = load_manifest(manifest_path)
+
+    print("[verify-selftest] running a suite designed to go wrong\n")
+    run_suite(document, "selftest", keep_going=True, log_root=scratch)
+    summary = json.loads((scratch / "selftest/summary.json").read_text())
+    by_id = {item["id"]: item for item in summary["stages"]}
+
+    problems = []
+    if summary["status"] != "failed":
+        problems.append(f"the suite reported {summary['status']!r}, not failed")
+    if by_id["missing-tool"]["status"] != "blocked":
+        problems.append("a missing tool did not block its stage: "
+                        f"{by_id['missing-tool']['status']}")
+    if by_id["wrong-profile"]["status"] != "failed":
+        problems.append("a configuration that does not resolve did not fail "
+                        f"its stage: {by_id['wrong-profile']['status']}")
+    if marker.exists():
+        problems.append("the stage naming an unresolvable configuration ran "
+                        "its command anyway, so its result would have been "
+                        "labelled with a machine nothing could build")
+    real = by_id["real-machine"]
+    if real["status"] != "passed":
+        problems.append(f"the resolvable stage did not pass: {real['status']}")
+    machines = {item["profile"]: item for item in real["machines"]}
+    recorded = machines.get("configs/sim-bram.json", {})
+    if recorded.get("memory") != "memory.bram" or recorded.get("core") != "core.pipeline5":
+        problems.append("the passing stage did not record the machine it ran "
+                        f"on: {recorded}")
+
+    # And the third shape, with keep-going off: what was never attempted has to
+    # survive into the summary as its own outcome.
+    run_suite(document, "selftest", keep_going=False, log_root=scratch)
+    stopped = json.loads((scratch / "selftest/summary.json").read_text())
+    stopped_by_id = {item["id"]: item for item in stopped["stages"]}
+    if set(stopped_by_id) != set(manifest["suites"]["selftest"]):
+        problems.append("stopping early dropped stages from the summary "
+                        "instead of recording them: "
+                        f"{sorted(set(manifest['suites']['selftest']) - set(stopped_by_id))}")
+    elif stopped_by_id["never-reached"]["status"] != "not-run":
+        problems.append("a stage that was never attempted is recorded as "
+                        f"{stopped_by_id['never-reached']['status']!r}")
+    if stopped.get("counts", {}).get("passed", 0) == len(stopped["stages"]):
+        problems.append("the outcome counts read as an all-pass run")
+
+    print()
+    for problem in problems:
+        print(f"[verify-selftest] FAIL {problem}")
+    if problems:
+        return 1
+    print("[verify-selftest] PASS: a missing tool blocks, an unresolvable "
+          "configuration fails before its command runs, a passing stage "
+          "records the machine it ran on, and stages never attempted are "
+          "reported as not-run rather than dropped")
+    return 0
 
 
 def main() -> int:
@@ -283,6 +560,9 @@ def main() -> int:
     subparsers = parser.add_subparsers(dest="action", required=True)
     subparsers.add_parser("validate")
     subparsers.add_parser("list")
+    selftest_parser = subparsers.add_parser("self-test")
+    selftest_parser.add_argument("--log-root", type=Path,
+                                 default=DEFAULT_LOG_ROOT)
     run_parser = subparsers.add_parser("run")
     run_parser.add_argument("suite")
     run_parser.add_argument("--keep-going", action="store_true")
@@ -295,6 +575,8 @@ def main() -> int:
             print(f"verification manifest: PASS ({len(document['stages'])} stages, "
                   f"{len(document['suites'])} suites)")
             return 0
+        if args.action == "self-test":
+            return self_test(args.log_root.resolve())
         if args.action == "list":
             for suite_id, stages in document["suites"].items():
                 print(f"{suite_id:<22} {len(stages):>2} stages  " + " ".join(stages))

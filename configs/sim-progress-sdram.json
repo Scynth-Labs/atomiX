@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "name": "sim-progress-sdram",
+  "components": {
+    "core": "core.pipeline5",
+    "soc": "soc.reference",
+    "memory": "memory.sdram",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.sim",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test",
+    "harness": "harness.verilator-sdram"
+  },
+  "settings": {
+    "ram_bytes": 33554432,
+    "caches": true,
+    "reset_pc": "0x00001000"
+  },
+  "parameters": {
+    "soc": {
+      "progress_monitor": 1
+    }
+  }
+}

@@ -255,7 +255,12 @@ make -C sw/kernel kernel-component-test QEMU=/path/to/qemu-system-riscv32
 `check-sdboot` builds `build/axos_boot.img`, a bootable SD-card image with the
 kernel at its ROM-loader location and AXFS (including `hello.elf`) at sector
 96. It then proves the ROM loader, the real `axsdram` pin-level controller
-model, the mounted shell, and filesystem-backed ELF execution in one RTL run.
+model, the mounted shell, fork/wait, and filesystem-backed ELF execution in one
+RTL run — selecting `configs/sim-sdram.json` explicitly and requiring the SDRAM
+pins to have carried the traffic, so the claim is measured rather than named.
+It builds with `configs/kernel-slow-memory.json`, whose scheduling quantum is
+matched to this machine; `make -C sw/kernel check-sdboot-exec` runs the same
+exec at the default quantum (see [docs/memory.md](../../docs/memory.md)).
 See [docs/ulx3s-bringup.md](../../docs/ulx3s-bringup.md) to use the same image
 on an ULX3S.
 

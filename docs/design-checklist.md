@@ -24,6 +24,29 @@ CPU/GPU/TPU-style compute fabric, and adaptive logic are tracked separately in
 the [research checklist](research-checklist.md).  Items move here only when
 their engineering scope and evidence gate are concrete.
 
+## Next work in order
+
+1. ~~Correct the SDRAM test's machine selection and establish why exec stops
+   making progress; close the timer and regression gates~~ — closed
+   2026-09-06 as SDRAM gates 1-4 under
+   [Interactive exploration](#interactive-exploration-next-milestone).
+2. ~~Close remaining build-identity and evidence-reporting gaps~~ — closed
+   2026-09-06 under
+   [Configurability](#configurability-the-build-actually-honours) and
+   [Documentation](#documentation-that-cannot-go-stale-silently).
+3. ~~Harden runtime payload failure handling, then deliver reproducible live
+   examples and verification views~~ — closed 2026-09-06 except the two
+   browser-dependent halves (a documentation block that boots in the reader's
+   browser, and a bug report as a URL), which need the WebAssembly bundle and
+   therefore emscripten. Their headless equivalents — the same records driving
+   the same machines — are done and checked.
+4. Add asynchronous host-link completion under
+   [Platform expansion](#platform-expansion), with the existing userspace ABI
+   and recovery behavior covered before exposing a new operation.
+5. In independent lab/research work, consolidate the Primer evidence bundle
+   and pursue the [research queue](research-checklist.md#immediate-queue-without-hardware).
+   Unavailable boards and measurement fixtures remain explicit dependencies.
+
 ## Reference computer
 
 - [x] RV32IM five-stage reference core with Zicsr, M/S/U privilege modes, and
@@ -54,7 +77,11 @@ their engineering scope and evidence gate are concrete.
   aXos service without copying the reference implementation.
 - [ ] Every non-reference component must provide its own compatibility claim
   and verification evidence; selection alone never grants reference-machine
-  verification status.
+  verification status. Inventory each supplied replacement's supported modes,
+  required companions, exercised parameter values, and missing evidence.
+  Close this item when every replacement links to its own runnable checks and
+  unsupported combinations are rejected or explicitly reported as unverified;
+  a reference-core result must not fill another core's formal or privilege gap.
 - [x] A non-reference functional unit demonstrates the swap-evidence path:
   `muldiv.fast-mul` passes the identical unit testbench, directed cosim, the
   rv32um ISA suite, and randomized fuzzing through the harness unit
@@ -221,7 +248,8 @@ Staged so each step has its own evidence rather than landing as one large jump:
   machine, and repeated runs prove task/descriptor cleanup. `wait4` reports
   encoded child status and descriptor tables are isolated by task slot.
   Evidence: `make -C sw/kernel check-shell`, `check-boot`,
-  `kernel-component-test`, `check-storage`, and `check-sdboot`.
+  `kernel-component-test`, `check-storage`, and `check-sdboot`, which covers
+  the same behaviour on the SDRAM pin model.
 
 - [x] **Segment permissions that are real rather than intended.**  The loader
   had always mapped each `PT_LOAD` with its own `p_flags`, and the linker script
@@ -416,6 +444,47 @@ until something changed the configuration.
   `make -C sw/kernel check-shell` and `make -C sw/kernel check-boot`
   (the latter on ISS, QEMU, and RTL).
 
+- [x] **Build identity across configuration switches.** The audit found the
+  defect it was looking for. The kernel's outputs live at one set of paths
+  under `build/` whatever profile and personality produced them, and the ELF's
+  only configuration prerequisite was a per-profile `.mk` that was already
+  older than it — so `make images KERNEL_CONFIG=A` followed by `=B` produced
+  **byte-identical images**. A profile switch was a no-op that reported
+  success: the same defect `check-sdboot` had at the hardware end, a selection
+  that never reached the build. Two smaller ones came with it: `boot-disk`
+  passed its own `KERNEL_CONFIG` to a sub-make that could not see it, and the
+  hand-maintained header prerequisite list had already drifted
+  (`include/console.h` was never in it, so editing it rebuilt nothing).
+
+  Fixed by a build-identity stamp — profile path, kernel mode, storage and
+  host-link personalities, block size, linked RAM envelope, compiler,
+  architecture, and every resolved define — rewritten only when its content
+  changes, so it forces a rebuild exactly when one is needed and never
+  otherwise. Headers are now `$(wildcard include/*.h)`; `boot-disk` forwards
+  the profile.
+
+  `make -C sw/kernel check-build-identity` is the regression, and it is an
+  A → B → A → C → A walk: six profiles and personalities, each built into a
+  scratch tree that has never held another *and* into the shared tree after it
+  held something different, with the two required to agree — a clean reference
+  is what stops two builds that are stale in the same way from agreeing with
+  each other and proving nothing. All six images must differ, and each must
+  boot as itself on the ISS with its own exit code: the shell transcript for
+  the three profile variants, silence and a failure exit for the storage
+  personality with no card, `AXRD` and the instruction bound for the host-link
+  personality, the monitor banner for the 32 KiB console. Tool selection is
+  checked through the stamp rather than by building, so it does not need LLVM
+  installed. The simulator half covers the case the kernel half cannot reach —
+  a profile *edited in place*, same path and name — and proves the resolved
+  parameter reaches the model by whether the progress counters appear. The
+  check was confirmed to fail, naming the defect, with the stamp dependency
+  removed. It runs in the `smoke`, `ci-quick`, and `nightly-integrated` suites
+  and takes 78 s.
+
+  Payload reuse is unchanged and still covered by
+  `make -C sim/soc check-runtime-payload`: a software-only payload change
+  reuses its model rather than rebuilding one.
+
 ## Documentation that cannot go stale silently
 
 Prose drifts quietly; a diagram drifts *loudly* and still ships, because a
@@ -451,6 +520,77 @@ kind of evidence the machine does.
   the physics the mark is sampled from are in
   [docs/assets/README.md](assets/README.md).
 
+- [x] **Evidence names the machine that ran.** A verification summary used to
+  record what was *asked for* — stage id, command, exit code, duration — and
+  nothing about what answered. `org.atomix.verification-result.v2` records the
+  machine: each stage may declare the profiles it exercises, and the runner
+  resolves them itself and stores the resolved name, core, memory, cache, role,
+  harness, simulation top, board, scheduler, every setting, and the full define
+  list. Alongside them the suite records its environment once — Verilator,
+  Yosys, RISC-V GCC, clang, QEMU, make, node and Python versions, the host, the
+  git revision, and whether the worktree was clean, which is recorded rather
+  than refused because running a suite against a working tree is the normal
+  case and it is the reader who needs to know.
+
+  Three ways such a record could lie are now checked by
+  `python3 tools/verify.py self-test`, wired into `make verification-check`,
+  which runs a synthetic suite built to go wrong. A stage whose tool is not
+  installed is `blocked`. A stage naming a configuration that does not resolve
+  is `failed` **before its command runs** — proven by a marker file the command
+  would have created — because a result labelled with a machine nothing could
+  build is worse than no result. And the stages a suite asked for but never
+  reached are now recorded as `not-run` instead of vanishing: a suite that
+  stopped at stage 3 of 10 used to write three results and a failure, with
+  nothing saying the other seven were never attempted. Every outcome is
+  counted and printed by name — `outcomes: blocked=1, not-run=2, passed=1` —
+  so a pass is never read off a list whose length changed.
+
+  Payload hashes stay where they are already exact: the per-experiment records
+  under `research/` and `sim/soc/build/runtime-payload-evidence.json` hash the
+  loaded image rather than the ELF, which is not byte-reproducible across
+  rebuilds of identical sources.
+- [x] **Coverage gaps remain visible.** A document that lists ninety-six
+  commands is making ninety-six claims, and until they are written down an
+  advertised command with no home looks exactly like one CI has been running
+  all along. `tests/coverage-map.json` is the inventory and
+  `make coverage-map REPORT=1` prints it; every `make` invocation in a shell
+  block of [workflow.md](workflow.md) must be accounted for as one of five
+  things, and the first three are checked rather than believed: `suite` (a
+  verification stage runs it — verified against the manifest), `via` (an
+  aggregate a stage runs lists it — verified by reading the rule), `workflow`
+  (a GitHub workflow runs it — verified by reading the workflow), `manual`
+  (nothing runs it: must say what it needs *and* where its failure would
+  surface), and `informational`. A newly advertised command with no entry
+  fails, which is what keeps the inventory true; both that and a `via` claim
+  whose aggregate stopped listing its target were confirmed to fail.
+
+  Writing it down found six advertised checks that nothing ran, all of them
+  cheap and all now in a suite: `check-memory`, `check-loader-wx`,
+  `check-abi-torture` and `check-abi-torture-small` as the new
+  `kernel-hardening` stage, `check-hostlink-stream` folded into `kernel-shell`,
+  and `check-gpu-tpu` into `baremetal-accelerators`. `pr-gate-check` joined
+  `research-contracts`. The count is now suite=53, via=7, workflow=3,
+  manual=22, informational=11.
+
+  **Bounded formal coverage** is recorded the same way, derived rather than
+  described: `tools/formal_coverage.py` reads the check lists in
+  `formal/Makefile`, the ISA, proof mode, retire channels and depths in each
+  core's `.cfg`, and the `ENABLE_M` each RVFI wrapper elaborates, and compares
+  the result against `research/formal-coverage.json`. All three cores prove
+  **4 of 37 RV32I instructions** — `add`, `beq`, `lw`, `sw` — at depth 12,
+  bounded-model-checking mode, on retire channel 0, and on ax2 also channel 1
+  of its two-wide bundle. What is excluded is recorded with it: RV32M is not in
+  the proved design at all (`ENABLE_M(1'b0)`), misaligned memory is excluded by
+  `RISCV_FORMAL_ALIGNED_MEM`, no check proves a CSR access, trap, or privilege
+  transition, and `bmc` means no counterexample *within the depth* rather than
+  none at all. `make -C formal check-all` is explicitly not treated as
+  evidence: it is the three targets the weekly workflow actually runs, and
+  narrowing or widening any of them fails the record until it is rewritten
+  deliberately — confirmed by removing one check and watching it fail.
+
+  Both run in `make verification-check`, which the `verification-contract`
+  stage runs in `smoke`, `ci-quick`, and `nightly-integrated`.
+
 ## Hardening: what is checked without running the machine
 
 The verification above answers "does it do the right thing on the inputs we
@@ -458,7 +598,7 @@ thought of".  These three answer the other question.
 
 - [x] **Static analysis over every language, with nothing silently skipped.**
   `make static-analysis` runs Verilator lint across *every* profile in
-  `configs/` (20 elaborated designs -- a component only some unbuilt profile
+  `configs/` (23 elaborated designs -- a component only some unbuilt profile
   selects is still linted), GCC's `-fanalyzer` over 42 freestanding translation
   units with each unit's own build flags, cppcheck over the host C++, ruff over
   ~9,000 lines of Python that nothing was checking at all, and shellcheck.  An
@@ -469,6 +609,19 @@ thought of".  These three answer the other question.
   a decision, not a cleanup.  Rule selection is in `ruff.toml` and is
   deliberately narrow: defects only, no style, because a linter that reports
   import order beside an undefined name teaches you to skim past both.
+
+  "Nothing silently skipped" needed one repair to be true, found while closing
+  SDRAM gate 4. `sim/soc`'s `lint` passed the BRAM/delayed top's elaboration
+  parameters to whatever top a profile selected, and the pin-level SDRAM top
+  declares none of them, so Verilator refused to elaborate every pin-level
+  profile. Its refusal carries no `file:line`, so the finding parser saw
+  nothing and the sweep counted those profiles as clean: the SDRAM harness top
+  and its device model had never been linted at all. The parameter list now
+  belongs to the selected top, and a lint that exits non-zero while producing
+  no parsed finding is itself reported as `lint-did-not-run` -- a lint that
+  could not run is not a lint that passed. Both pin-level profiles now lint
+  clean, and the guard was confirmed to fire by stubbing that refusal in for
+  all 23 profiles.
 - [x] **The findings live in an issue, not a log, and not on the critical path.**
   `.github/workflows/analysis.yml` runs **nightly**, not on push and not on a
   pull request.  A static-analysis finding is not the same kind of thing as a
@@ -572,10 +725,13 @@ thought of".  These three answer the other question.
 Use this for a substantive implementation or interface change:
 
 - [ ] Update the component manifest and profile validation if source selection
-  changes.
+  changes. For every new capacity, trace its owner, default/documentation,
+  build define, bounds, and a test at a non-default value.
 - [ ] Update the architecture/contract document at the affected boundary.
 - [ ] Run the narrow unit or simulator test, then the relevant composition
-  check; run formal after core/RVFI changes.
+  check and `make verify-smoke`; run formal after core/RVFI changes. When
+  kernel composition or state budgets change, recheck the exact 32 KiB Primer
+  fit gates for independently selected small, mid, and large evolution tiers.
 - [ ] Record any new tool, timing, capacity, or hardware assumption in
   [dependencies.md](dependencies.md) or the appropriate board guide.
 - [ ] Update [workflow.md](workflow.md) when a milestone adds or changes a
@@ -857,17 +1013,27 @@ Use this for a substantive implementation or interface change:
   `make registry-check` is what caught the attempt to edit it.  `make -C sw/kernel check-hostlink` and
   `make -C sw/kernel check-primer-runtime` are unchanged, and no synthesis is
   involved, so no board claim moves.
-- [ ] Remaining host-link enhancements, both gated on hardware this project
-  does not have: a dedicated second byte pipe so console and host-link coexist
-  — a second USB-serial channel is an RTL and pin change, so synthesis, P&R,
-  and every Primer claim re-opened — and cached prebuilt-bitstream selection
-  for physical datapath changes, which needs a bitstream artifact class in the
-  R3 registry and a load path onto a board the open Gowin flow cannot partially
-  reconfigure.  Asynchronous completion is the remaining software half: the
-  chunked ops above decouple transfer from execution, which is what a
-  non-blocking submit would build on, but `GPU_LAUNCH` still blocks and
-  splitting `role_execute` into submit/poll/fetch crosses the userspace
-  `role_submit` ABI that shares the same dispatcher.
+- [ ] **Asynchronous host-link completion — no hardware required.** Specify
+  submit/poll/fetch ownership, bounded outstanding work, completion tokens,
+  timeout/reconnect behavior, and compatibility with the shared userspace
+  `role_submit` dispatcher before changing blocking `GPU_LAUNCH`. Close with
+  RTL/host tests for successful completion, busy rejection, stale tokens,
+  duplicate fetch, timeout, and recovery, while existing blocking and chunked
+  transfers still pass. Any queue capacity must be wired to its owning profile
+  or component and exercised at a non-default value.
+- [ ] **Concurrent console and host-link — hardware-dependent.** Define the
+  transport contract in simulation first, then select a second byte pipe and
+  explicit board pins when the required hardware is available. Closure needs
+  simultaneous console traffic and host jobs without corruption or loss of
+  recovery access, plus fresh P&R and SRAM-board evidence for the changed
+  hardware profile. Preserve the existing single-pipe profile.
+- [ ] **Prebuilt hardware-image selection — staged research.** Define a
+  registry artifact class binding a bitstream to its device, immutable shell,
+  profile, toolchain, and verification evidence, separately from payload
+  identity. Offline tests must reject mismatched and stale images. Physical
+  activation depends on an available board and supported load mechanism;
+  full reload and partial loading must retain distinct recovery contracts.
+  This does not grant the Primer a partial-reconfiguration capability.
 - [x] PLIC/role interrupt integration.  The shell's PLIC (`plic.qemu-virt`:
   per-source priority, enable, threshold, claim/complete, level-sensitive
   gateway) arbitrates two sources — UART receive and role completion.  Every
@@ -1123,23 +1289,37 @@ side-by-side screenshot the section was written to justify.
   browser-paced build (`TERM_CPU_HZ` is already the override that would do it)
   and says so plainly, or it does not ship a real-time game at all.  Do not
   publish a side-by-side that quietly compares two different frame clocks.
+  Close the decision with a documented intended use, measured host rate, and
+  either a clearly labelled browser pacing profile or an explicit deferral.
 - [ ] Publish the side-by-side comparison: the same payload in the browser and
   on the board, with the frame-time panel visible in both, so the cost of real
   silicon at 25 MHz is shown rather than asserted.  Blocked on the decision
   above, and the finding has already turned the intended argument around: the
   interesting number is not what the FPGA costs against a laptop but that a
   laptop cannot keep up with a 25 MHz machine on this workload at all.
+  Closure requires payload and loader hashes, the same input replay and
+  simulated frame clock, exact final-state agreement, and both workload-cycle
+  and wall-clock measurements. A differently paced browser build must be a
+  separate result, not the comparison's baseline.
 - [x] Write the "run a game on atomiX" guide, aimed at someone who has never
   built the project: load the image, open the port, play.  Evidence:
   [games.md](games.md).
-- [ ] Only then, define `video`, `input`, and `audio` component kinds on role-
+- [ ] Only after the game/pacing decision, define `video`, `input`, and `audio` component kinds on role-
   window terms — identity register, geometry/mode registers, a framebuffer or
   tile aperture — so a board without sound selects `audio.none` rather than
   failing to build.  A game's source must not change when the board does.
+  Close with documented discovery, format, buffering, ownership, and timing
+  contracts, a headless/absent-device profile, and the same game exercised on
+  two simulated selections without board-specific source branches.
 - [ ] Add the physical pins to the manifests of boards that have the hardware,
-  starting with ULX3S HDMI and audio.
+  recording connector, voltage, and clock constraints from the board procedure.
+  ULX3S HDMI/audio remains a design target until that board is acquired; close
+  physical validation only on the exact connected board and peripheral.
 - [ ] Ship the first graphical game on the board with the most headroom, so the
-  contracts are shaped by the comfortable case before being squeezed.
+  contracts are shaped by the comfortable case before being squeezed. Select
+  that board from measured fit/timing and hardware availability. Closure needs
+  loader-based payload delivery, an exact RAM fit, deterministic replay,
+  input/frame timing, and reset/reload recovery on the selected board.
 - [~] Give every shipped game the same evidence treatment as a benchmark
   profile: a pinned baseline, and a deterministic timing measurement — frame
   time where there are frames, turn latency where there are not.
@@ -1208,8 +1388,8 @@ Staged so each step has its own evidence rather than landing as one large jump:
   commands and nothing carries over.  Evidence: a live session runs the shell's
   `role` twice and reports `irq=1` then `irq=2`, which is only possible on one
   continuous machine; `make -C sw/kernel check-role-driver` confirms the batch
-  path still passes. The older `check-sdboot` physical-SDRAM interpretation
-  needs correction; see the follow-up below.
+  path still passes. The `check-sdboot` physical-SDRAM interpretation that this
+  work exposed has since been corrected; see SDRAM gate 1 below.
 - [x] **Runtime payload selection.** Both front ends can boot different
   programs on one compiled machine. The browser stages `/payload.hex` in its
   virtual filesystem; the native runner accepts `--ram-image <path>` before
@@ -1227,21 +1407,107 @@ Staged so each step has its own evidence rather than landing as one large jump:
   (`irq=1` then `irq=2`). Executable and payload hashes accompany the compact
   JSON in `sim/soc/build/runtime-payload-evidence.json`. This is simulation
   evidence; it makes no new synthesis or physical-board claim.
-- [ ] **Correct SDRAM boot evidence and scheduler timing.** Discovered while
-  checking runtime payload isolation: `check-sdboot` calls `run-sdram` without
-  selecting `sim-sdram`, so its default BRAM run cannot support its printed
-  physical-SDRAM claim. Explicitly selecting the SDRAM pin-model profile boots
+- [x] **SDRAM gate 1 — prove the test selects SDRAM.** `check-sdboot` now
+  selects `configs/sim-sdram.json`, resolves it, and refuses to run unless the
+  resolved memory, harness, top, runner, and `USE_SDRAM` are the pin-level
+  machine — printing all of them. Selecting the *profile* and letting
+  `run-config` dispatch to the runner the memory component declares is what
+  removes the original defect: a target's name is no longer a selection.
+  Two independent refusals are exercised against a real BRAM profile before
+  each run, not asserted: `run-sdram` exits 2 rather than building a machine
+  with no SDRAM pins, and a transcript produced by that machine is rejected as
+  evidence. The pin path is demonstrated rather than named — the behavioural
+  model counts what the controller drove, every run prints
+  `[soc] sdram-pins:`, and the check requires a nonzero ACTIVATE. The shell run
+  reports activate=263,368 read=348,888 write=177,848 precharge=263,369
+  refresh=37,336; fork reports activate=354,544. `run-axsdram` gained the same
+  counters and now checks that its CAS-2 agreement came from real commands
+  (activate=6 read=6 write=6 precharge=7 refresh=5). Labels in
+  [workflow.md](workflow.md), [memory.md](memory.md),
+  [toolchain.md](toolchain.md), [ulx3s-bringup.md](ulx3s-bringup.md),
+  `sim/soc/README.md`, `sw/kernel/README.md`, and `sw/bootrom/README.md` were
+  corrected with the test. Exec was not in this target when gate 1 closed; it
+  joined in gate 4, once the progress failure was understood and fixed.
+- [x] **SDRAM gate 2 — establish the progress failure.** `soc.reference` gained
+  an optional progress monitor (`progress_monitor`, default 0, `omit_when_zero`
+  so a declining profile compiles the text it compiled before) that observes
+  the core's commit trace, the timer line, and both bus ports and drives
+  nothing. `tools/sdram_progress_probe.py` boots the same kernel, SD image, ROM
+  loader and input script on all three memories and records retirements by
+  privilege mode, handler entries and exits, timer arrivals, pending interrupt
+  bits, and fetch/data stall cycles.
+  The discriminator is **user instructions retired per handler entry**: 53.7 on
+  BRAM, 1.51 on delayed memory, 0.997 on the pin model at 120M cycles. A
+  uniform slowdown would leave that ratio alone. A stalled transaction is
+  refuted directly — between 40M and 120M the SDRAM run retired a further 3.78M
+  instructions and drove 11.06M row activations. Slow work alone is refuted
+  too: the machine is 3.5x slower per instruction than BRAM, which would put
+  exec near 22M cycles, and kernel code keeps retiring at 55.5 instructions per
+  thousand cycles while user code retires 0.007. Evidence:
+  `research/benchmarks/sdram-exec-progress.json`. Simulation only.
+  No board claim moves: with the parameter at its default, `axprogmon.sv`
+  contributes zero modules to a Yosys read, and the elaborated statistics for
+  the whole `tangprimer25k` design — every module's wires, cells, and ports —
+  are identical to HEAD's, line for line.
+- [x] **SDRAM gate 3 — fix timer behavior through its owning boundary.** The
+  defect was where the quantum was armed, not how long it was: the M-mode shim
+  armed the next deadline at trap *entry*, so the shim, the delegated S-mode
+  handler, the scheduler's page-table switch and its `sfence` were spent out of
+  the interval the resumed task was supposed to get. The S-mode handler now
+  arms it on the way out, after `schedule()` has chosen who runs next, so the
+  quantum measures the resumed task's own execution and forward progress does
+  not depend on how expensive service happens to be. The shim's arming still
+  stands for every path that does not reach the handler's exit, so a missed
+  rearm cannot stop the tick.
+  The interval is the `timer_quantum_cycles` profile setting (default 2,000),
+  bounded 256..16,777,216 in `tools/configure.py` and again by
+  `_Static_assert` in `sw/kernel/include/timer.h`, whose `#ifndef` default is
+  where the value lives — one define reaching both `kernel.c` and `trap.S`,
+  which must agree because both arm the same CLINT register. Exercised at the
+  default and at 64,000 (`configs/kernel-slow-memory.json`).
+  Demonstrated: exec completes on the pin model at 39.1M cycles at the default
+  quantum and 9.86M with the slow-memory profile, where the user task retires
+  159 instructions per handler entry rather than one; preemption still
+  interleaves parent and child in the fork demo (`PCW`/`CPW`) on all three
+  memories at both quanta; the shell transcript and console are unchanged; idle
+  cycles are still spent in WFI (126,869 on the pin model at 64,000). Trap
+  correctness is untouched — `check-boot` passes on ISS, QEMU and RTL, and
+  `check-shell`, `check-memory`, `check-storage`, `check-storage-write`
+  pass. The fix helps every memory: delayed exec went from 13.97M to 8.33M
+  cycles at the same quantum. Evidence:
+  `research/benchmarks/timer-quantum-fix.json`.
+- [x] **SDRAM gate 4 — close the composed regression.** `check-sdboot` now
+  passes shell, fork, exec and return-to-shell on the actual pin model, with
+  every budget derived from a measurement on this machine rather than a BRAM
+  assumption: 7.54M, 8.47M and 9.86M measured against 12M/12M/15M bounds, and a
+  1,800 s wall-clock timeout against a ~47 s observed cost. The retained
+  failure case is `check-sdboot-exec`: the same exec at the *default*
+  2,000-cycle quantum, measured 39,112,456 cycles against a 60M bound. That is
+  the condition under which user progress was lost entirely, so it fails if the
+  quantum is ever armed at trap entry again; it is in the
+  `kernel-storage-mutation` suite. Rechecked: `check-boot` (ISS/QEMU/RTL),
+  `check-shell`, `check-memory`, `check-storage`, `check-storage-write`,
+  `check-role-driver`, `check-role-irq`, `evolution-check` for the 32 KiB
+  Primer fit gates, `sim/soc check-runtime-payload`, `sim/unit run-axsdram`,
+  and `make verify-smoke`.
+
+  Starting evidence for these four gates: discovered while
+  checking runtime payload isolation: `check-sdboot` called `run-sdram` without
+  selecting `sim-sdram`, so its default BRAM run could not support its printed
+  physical-SDRAM claim (corrected in gate 1). Explicitly selecting the SDRAM
+  pin-model profile boots
   the shell in 7,543,477 cycles (exceeding the old 3M bound) and passes fork,
   but `exec hello.elf one two` fails to complete at 15M, 27M, and 120M cycles.
   A diagnostic run sampled the PC every million cycles through 40M; after
   entering exec, the samples stay in `supervisor_trap_entry` and the timer arm
   of `supervisor_trap`. This points to timer-service starvation at SDRAM
-  timing, with the M-mode shim rearming every 2,000 cycles. Correct the test's
-  profile selection together with the timer behavior, express any interval
-  choice through its owning profile/component, and rerun shell/fork/exec on
-  the actual pin model. The commands and identities for this negative result
-  are in `research/benchmarks/sdram-exec-followup.json`; this is simulation
-  evidence, not a board result.
+  timing, with the M-mode shim rearming every 2,000 cycles; starvation remained
+  a hypothesis until the progress measurements above distinguished its cause —
+  and they did, though not quite as guessed: the hart was not failing to leave
+  the handler, it was leaving and being preempted again after about one
+  instruction. The commands and identities for this negative result are in
+  `research/benchmarks/sdram-exec-followup.json`; this is simulation evidence,
+  not a board result.
 - [x] **WASM spike.** Build one profile with Emscripten, boot aXos headless
   under Node, and compare against the 29,634-cycle / 25 ms native baseline
   recorded above.  The bet is that a 1.5–4× slowdown still leaves boot
@@ -1327,13 +1593,131 @@ Staged so each step has its own evidence rather than landing as one large jump:
   way to check the page rather than the machine.  Both guards were confirmed to
   fire by staging the ax2 bundle under the `sim-bram` label: the headless run
   refuses it, and so does the page.
-- [ ] **Live documentation.** Code blocks that boot the machine they describe,
-  so an example cannot drift from what it claims, and a bug report can be a URL
-  that boots the machine that failed.
-- [ ] **Verification made visible.** Formal counterexample traces, lock-step
-  cosim divergence, and injected-fault results rendered rather than printed.
-  The rigor above is the credential for every number on screen and is currently
-  legible only in terminal output.
+- [x] **Runtime payload failure coverage.** The reuse gate proved the good
+  path; this is the other one. `$readmemh` is forgiving in exactly the wrong
+  way for a payload loader — a stray non-hex character ends the read where it
+  stands, an `@` record moves the words after it somewhere else in the array,
+  and words past the end of the array are dropped — so each of those boots
+  *something* and reports a cycle count for whatever that was. The runner now
+  validates an image before handing it over and refuses it by line and reason:
+  a token that is not a 32-bit hexadecimal word, one wider than 32 bits, an
+  address record, a block comment, and an image holding more words than the
+  machine's RAM (`AX_RAM_BYTES`, compiled from the same variable the RTL's
+  `RAM_BYTES` comes from, so the runner cannot disagree with the model about
+  the capacity). All five are exercised on all three memory configurations, and
+  after each refusal a valid launch must still be bit-for-bit the run it was
+  before — a rejected launch has to leave nothing behind.
+
+  The entry half of the same question is an invariant rather than a case: a
+  runtime image lands at word zero of the RAM array, so it is only under the
+  reset PC while that PC is the RAM base. Every profile that accepts the
+  argument is checked for that. The one profile whose reset PC is the ROM is
+  the pin-level SDRAM machine, and it refuses the argument outright — now
+  checked, not assumed, because a model that accepted it and booted its own
+  previous contents would look like a pass.
+
+  The initialization boundary is checked by preprocessing rather than by
+  reading the guard: `verilator -E` over the memory sources with and without
+  `AX_RUNTIME_RAM_IMAGE` must show the runtime branch **absent** from the text
+  a unit bench, the browser bundle, or a synthesis flow compiles, and the
+  original `$readmemh` path still present. Confirmed to fail when the guard is
+  widened. Payload-independent executable identity is unchanged and still
+  asserted. Evidence: `make -C sim/soc check-runtime-payload`, recorded as
+  `org.atomix.runtime-payload-check.v2` in
+  `sim/soc/build/runtime-payload-evidence.json`.
+- [~] **Live documentation — reproducible examples.** The record exists and
+  the headless half is closed. `tests/examples.json` names, for each example,
+  the document and section that shows it, the command as that document spells
+  it, the profile, the payload and the build that produces it, the entry the
+  payload is loaded under, the console script, the exact transcript, and a
+  cycle bound. `make example-replay` boots all four on the machine each names
+  and compares every byte, writing payload hashes and resolved identities to
+  `build/examples/replay.json`.
+
+  Two checks beyond the transcript, because they are how such a record goes
+  stale without the transcript changing: the command must still appear in the
+  document that shows it, so an example cannot outlive the text around it; and
+  the entry the record names must be the reset PC the profile resolves to,
+  since a payload loaded where the machine does not start could still print
+  the right thing for the wrong reason. Confirmed to fail on a drifted
+  transcript, a moved entry, and a payload that cannot be built. A missing tool
+  is refused in the open rather than skipped — an example nobody can replay is
+  not one that passed. Software stays separate from the machine: the model is
+  built with no baked image and the payload arrives as `--ram-image`, so the
+  four examples share two models. `make -C sw/kernel run-rtl` and the other
+  commands in [workflow.md](workflow.md) stay authoritative; the records quote
+  them rather than replacing them. Runs as the `doc-examples` stage in
+  `ci-integration` and `nightly-integrated`.
+
+  What remains is the *live* half: a documentation code block that boots the
+  machine in the reader's browser. That needs the WebAssembly bundle, and
+  therefore emscripten, which this environment does not have — the replay above
+  is the same record driving the same machine headlessly, and is what the
+  browser view would have to agree with.
+- [~] **Live documentation — replayable bug reports.** The exported-record
+  half is closed; the URL half waits on the browser bundle. `make bug-report
+  EXAMPLE=<name>` runs a session and writes a record that carries everything a
+  replayer would otherwise supply silently: the profile *and* its resolved
+  identity, the payload with its SHA-256 and the command that built it, the
+  entry, the keystrokes inline rather than by reference, the cycle budget, what
+  the machine printed, and whether it finished — alongside the Verilator
+  version, the git revision, and whether the worktree was clean.
+  `make bug-report RECORD=<path>` rebuilds the machine from that and compares.
+
+  The payload hash is the part that matters. A report naming a path and
+  replaying whatever is at that path today would reproduce the *current*
+  program's behaviour and present it as the reported one, which is worse than
+  not reproducing at all because it looks like an answer. So a payload whose
+  bytes have moved on is refused by name with both hashes and the build command
+  that would restore it, and one that is not there at all is refused the same
+  way. If the profile has since resolved differently, each changed field is
+  printed before the replay rather than after it.
+
+  `make bug-report-check` is the regression, run by the `doc-examples` stage:
+  a session that finished reproduces, a session that ran out of cycles
+  reproduces *its failure* — the case a bug report actually exists for — and
+  both the stale and the missing payload are refused instead of substituted.
+
+  What remains is the URL: reconstructing the same selection from a link needs
+  the WebAssembly bundle and therefore emscripten, which this environment does
+  not have. The exported record is the same reconstruction by another route,
+  and is what such a URL would have to encode.
+- [x] **Verification made visible.** `make evidence-views` renders three views
+  into `build/evidence/` from records that already exist, each self-contained
+  and theme-aware, with a `views.json` naming what was rendered from what.
+
+  **Formal** comes from `research/formal-coverage.json`, so it shows the
+  coverage the configuration actually has: for each core, the command, the
+  `.cfg`, the wrapper, the ISA and proof mode, `ENABLE_M`, the retire channels
+  proved out of those declared, and the depths — then every instruction, the
+  four proved and the thirty-three not, the latter rendered as **unsupported**
+  rather than left out, because a coverage view that lists only the covered
+  part is the most misleading kind there is. What is outside the proofs
+  entirely (RV32M, misaligned memory, CSR and privilege, liveness) is rendered
+  the same way. With `FORMAL_LOG=` pointing at a failing check's `result.log`
+  it also renders the counterexample: the check, the depth the solver was
+  given, the step, the failing assertion, and the signal table that is the
+  model. The adapter is matched to Yosys's actual wording rather than a guess
+  at it, and was validated both ways against real solver output — a real
+  passing log yields no counterexample, and a real `model found: FAIL!` log
+  yields the depth, assertion, step and table.
+
+  **Cosim** summarises a whole `make -C sim/cosim test` run — the programs, the
+  launches, the total events compared — and, if there was one, the *first*
+  divergence with its event index, field, and both values, because everything
+  after the first is a consequence.
+
+  **L3** renders `research/live-fpga/l3/morph-rtl-trial.json`: the faulted
+  canary digest against its oracle, the manager and role that owned the trial,
+  whether the resident RTL and bitstream were touched, the verified rollback
+  and the oracle coverage — and what the trial does *not* authorize, rendered
+  as unsupported alongside the rest.
+
+  `make evidence-views` runs the fixtures first: known records are rendered and
+  the output must contain each identity, scope, location and status they hold,
+  the uncovered instructions must render as unsupported, the unauthorized
+  actions must render as unsupported, and a divergence must never render with a
+  passing status. Runs as part of the `doc-examples` stage.
 
 ## Final physical FPGA gate
 
@@ -1387,15 +1771,23 @@ is explicitly non-physical until hardware becomes available.
 - [ ] Capture a reproducible Primer evidence bundle: exact core/Dock revision,
   OSS CAD Suite and programmer versions, bitstream/profile identity, timing
   and utilisation summary, serial-device identity, and complete UART
-  transcript.  Keep the procedure in
+  transcript. Keep loader-bitstream identity separate from every runtime
+  payload, identify which earlier observations apply to which image, and link
+  recovery runs and failures. Close with a repeat from the lab procedure whose
+  identities and outputs match the compact record; retain hashes and summaries
+  in the repository rather than generated build trees. Keep the procedure in
   [tangprimer25k-bringup.md](tangprimer25k-bringup.md) authoritative.
 - [ ] Decide whether persistent Primer flash programming is useful only after
-  the runtime SRAM regression above is repeatable.  Until then, `flash` remains
-  intentionally unused.
+  the runtime SRAM regression above is repeatable. Close the decision with a
+  concrete need, recovery procedure, and expected power-on behavior; deferral
+  is an acceptable outcome. A decision to support it is not authorization to
+  program flash: each such operation still needs explicit current-turn approval.
 - [ ] Treat external SDRAM, USB host, PMOD, and removable-storage validation as
   optional Primer expansion work.  Do not make it a gate for the current
   core-board-plus-Dock target; add a specific profile and evidence item if the
-  corresponding module is acquired.
+  corresponding module is acquired. Each new item must name the actual module,
+  pin/clock/electrical contract, isolated bring-up test, and recovery path;
+  simulation or a connector listed in a manifest cannot close its board gate.
 
 ### Supported targets not currently in the lab
 

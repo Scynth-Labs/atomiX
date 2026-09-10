@@ -12,7 +12,18 @@ module ax_sdram_sim (
   input logic [1:0] ba,
   input logic [12:0] a,
   input logic [1:0] dqm,
-  inout wire [15:0] dq
+  inout wire [15:0] dq,
+  // Command activity at the pins, for observation only: nothing in the model
+  // or the SoC reads these.  They exist because a test that merely *names* an
+  // SDRAM target cannot tell a physical-pin run from a build that quietly
+  // resolved to on-chip RAM -- `check-sdboot` did exactly that for months.  A
+  // run whose counters are all zero never drove these pins, whatever the
+  // target was called.
+  output logic [31:0] cmd_activate,
+  output logic [31:0] cmd_read,
+  output logic [31:0] cmd_write,
+  output logic [31:0] cmd_precharge,
+  output logic [31:0] cmd_refresh
 );
   logic [15:0] data_mem [0:16777215];
   logic [12:0] open_row [0:3];
@@ -22,6 +33,32 @@ module ax_sdram_sim (
   wire [23:0] mem_index = {ba, open_row[ba], a[8:0]};
 
   assign dq = read_valid_1 ? read_data_1 : 16'hzzzz;
+
+  // Decode the command from the control pins alone, without the open-row
+  // qualification the data path applies: the question these answer is what the
+  // controller *drove*, not what this model chose to honour.
+  wire selected = cke && !cs_n;
+  wire is_activate  = selected && !ras_n &&  cas_n &&  we_n;
+  wire is_read      = selected &&  ras_n && !cas_n &&  we_n;
+  wire is_write     = selected &&  ras_n && !cas_n && !we_n;
+  wire is_precharge = selected && !ras_n &&  cas_n && !we_n;
+  wire is_refresh   = selected && !ras_n && !cas_n &&  we_n;
+
+  always_ff @(negedge clk) begin
+    if (rst) begin
+      cmd_activate  <= '0;
+      cmd_read      <= '0;
+      cmd_write     <= '0;
+      cmd_precharge <= '0;
+      cmd_refresh   <= '0;
+    end else begin
+      if (is_activate)  cmd_activate  <= cmd_activate + 1;
+      if (is_read)      cmd_read      <= cmd_read + 1;
+      if (is_write)     cmd_write     <= cmd_write + 1;
+      if (is_precharge) cmd_precharge <= cmd_precharge + 1;
+      if (is_refresh)   cmd_refresh   <= cmd_refresh + 1;
+    end
+  end
 
   always_ff @(negedge clk) begin
     if (rst) begin

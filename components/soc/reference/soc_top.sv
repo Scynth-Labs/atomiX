@@ -50,6 +50,29 @@ module soc_top #(
   // gate a clock and lets a simulator stop paying for cycles in which, by
   // construction, nothing can happen until an input changes.
   output logic       cpu_idle
+`ifdef AX_PROGRESS_MONITOR
+  // Optional CPU progress observation.  Declined by every profile that does
+  // not ask for it, and compiled away rather than tied off, for the same
+  // reason the role-event ports are: a tie-off still perturbs the netlist.
+  ,
+  output logic [63:0] progress_cycles,
+  output logic [63:0] progress_retired,
+  output logic [63:0] progress_retired_user,
+  output logic [63:0] progress_retired_supervisor,
+  output logic [63:0] progress_retired_machine,
+  output logic [63:0] progress_exceptions,
+  output logic [63:0] progress_user_exits,
+  output logic [63:0] progress_user_entries,
+  output logic [63:0] progress_timer_arrivals,
+  output logic [63:0] progress_timer_pending_cycles,
+  output logic [63:0] progress_idle_cycles,
+  output logic [63:0] progress_ifetch_stall_cycles,
+  output logic [63:0] progress_dmem_stall_cycles,
+  output logic [31:0] progress_last_pc,
+  output logic [31:0] progress_last_mip,
+  output logic [31:0] progress_last_mie,
+  output logic [1:0]  progress_last_prv
+`endif
 );
   // One source of truth for the boot ROM window. Both bus muxes decode it, the
   // ROM instance is based at it, and the reset-into-ROM test that selects the
@@ -124,6 +147,10 @@ module soc_top #(
   logic irq_software, irq_timer;
   logic core_trace_valid, core_trace_trap;
   logic [31:0] core_trace_insn;
+`ifdef AX_PROGRESS_MONITOR
+  logic [31:0] core_trace_pc, core_trace_mip, core_trace_mie;
+  logic [1:0]  core_trace_prv;
+`endif
 
   // This is deliberately a lean CPU plug-in boundary.  A component supplies
   // the execution bus, interrupt inputs, and only the three commit signals
@@ -145,8 +172,41 @@ module soc_top #(
     .irq_s_external(plic_irq[PLIC_CTX_S]), .cpu_idle(cpu_idle),
     .trace_valid(core_trace_valid),
     .trace_trap(core_trace_trap), .trace_insn(core_trace_insn)
+`ifdef AX_PROGRESS_MONITOR
+    , .trace_pc(core_trace_pc), .trace_prv(core_trace_prv),
+    .trace_mip(core_trace_mip), .trace_mie(core_trace_mie)
+`endif
   );
   // verilator lint_on PINMISSING
+
+`ifdef AX_PROGRESS_MONITOR
+  // Observation only: nothing here drives a bus, an interrupt, or a device,
+  // so a run with the monitor compiled in executes the same instruction
+  // stream as one without it.
+  axprogmon u_progmon (
+    .clk(clk), .rst(rst),
+    .trace_valid(core_trace_valid), .trace_trap(core_trace_trap),
+    .trace_pc(core_trace_pc), .trace_prv(core_trace_prv),
+    .trace_mip(core_trace_mip), .trace_mie(core_trace_mie),
+    .irq_timer(irq_timer),
+    .ibus_valid(ibus_valid), .ibus_ready(ibus_ready),
+    .dbus_valid(dbus_valid), .dbus_ready(dbus_ready),
+    .cpu_idle(cpu_idle),
+    .cycles(progress_cycles), .retired(progress_retired),
+    .retired_user(progress_retired_user),
+    .retired_supervisor(progress_retired_supervisor),
+    .retired_machine(progress_retired_machine),
+    .exceptions(progress_exceptions),
+    .user_exits(progress_user_exits), .user_entries(progress_user_entries),
+    .timer_arrivals(progress_timer_arrivals),
+    .timer_pending_cycles(progress_timer_pending_cycles),
+    .idle_cycles(progress_idle_cycles),
+    .ifetch_stall_cycles(progress_ifetch_stall_cycles),
+    .dmem_stall_cycles(progress_dmem_stall_cycles),
+    .last_pc(progress_last_pc), .last_mip(progress_last_mip),
+    .last_mie(progress_last_mie), .last_prv(progress_last_prv)
+  );
+`endif
 
   // A fetch-side page-table walk can write a PTE that the data side cached,
   // so it invalidates the D$ after completing.  The I$ is deliberately not

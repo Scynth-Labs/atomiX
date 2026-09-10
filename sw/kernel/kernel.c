@@ -14,6 +14,7 @@
 #include "scheduler.h"
 #include "syscall.h"
 #include "task.h"
+#include "timer.h"
 #if AXOS_EMBED_USER
 #include "userprog_image.h"
 #endif
@@ -283,14 +284,34 @@ uint32_t *supervisor_trap(uint32_t *trap_frame) {
     /* M-mode turns MTIP into delegated SSIP for scheduler policy. */
     csr_write_sip(0);
     supervisor_ticks++;
-    if (!scheduler_running) return trap_frame;
+    if (!scheduler_running) {
+      clint_arm_timer(AXOS_TIMER_QUANTUM_CYCLES);
+      return trap_frame;
+    }
     if (current_task == TASK_NONE && supervisor_context.trap_frame == 0) {
       supervisor_context.trap_frame = trap_frame;
       supervisor_context.sepc = csr_read_sepc();
       supervisor_context.sstatus = csr_read_sstatus();
     }
     scheduled_ticks++;
-    return schedule(trap_frame);
+    uint32_t *const resumed = schedule(trap_frame);
+    /* Arm the quantum here, on the way out, rather than leaving the shim's
+     * arming to stand.  The shim armed it at trap entry, so everything since
+     * -- the shim itself, this handler, the scheduler's page-table switch and
+     * its sfence -- has been spent out of the interval the resumed task was
+     * supposed to get.  Where that service cost approaches the quantum, the
+     * task is preempted again before it retires anything: the SDRAM pin model
+     * measured 785 user instructions across 787 handler entries, and never
+     * finished an ELF exec in 120 million cycles.
+     *
+     * Rearming last makes the quantum measure the resumed task's own
+     * execution, which is what a scheduling quantum is supposed to mean, and
+     * makes forward progress independent of how expensive service happens to
+     * be on a given memory.  It does not weaken the tick: the shim's arming
+     * still stands for every path that does not reach here, so a lost rearm
+     * cannot stop the timer. */
+    clint_arm_timer(AXOS_TIMER_QUANTUM_CYCLES);
+    return resumed;
   }
 
   if (cause == SCAUSE_USER_ECALL) return syscall_dispatch(trap_frame, &kernel_ops);
@@ -738,7 +759,7 @@ static int process_session_wait(void) {
   process_session_status = 0;
   supervisor_context.trap_frame = 0;
   scheduler_running = 1;
-  clint_arm_timer(2000);
+  clint_arm_timer(AXOS_TIMER_QUANTUM_CYCLES);
   while (!process_session_done) __asm__ volatile("wfi");
   process_session_active = 0;
   return (int)process_session_status;

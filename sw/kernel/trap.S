@@ -1,3 +1,5 @@
+#include "timer.h"
+
 /* First S-mode trap frame. Saving every GPR makes this entry a sound base for
  * preemption: the C handler sees an ordinary call ABI and SRET restores the
  * interrupted supervisor context exactly. */
@@ -114,7 +116,15 @@ mmio_probe_done:
   .size mmio_probe_read32, . - mmio_probe_read32
 
 /* The existing CLINT exposes only MTIP. M-mode acknowledges/rearms it, then
- * raises delegated SSIP so the kernel's real policy stays in S-mode. */
+ * raises delegated SSIP so the kernel's real policy stays in S-mode.
+ *
+ * The rearm here is an acknowledgment, not the scheduling quantum: it happens
+ * on the way *in*, so whatever the S-mode handler then costs is spent out of
+ * the interval it just set.  On a machine whose service cost approaches the
+ * quantum that leaves the resumed task nothing, which is exactly what the
+ * SDRAM pin model measured.  The S-mode handler therefore arms the real
+ * quantum on the way out; this one only guarantees the tick cannot be lost if
+ * S-mode declines to. */
   .globl machine_timer_trap
   .type machine_timer_trap, @function
 machine_timer_trap:
@@ -131,13 +141,15 @@ machine_timer_trap:
   li t1, 0x80000007             /* machine timer interrupt */
   bne t0, t1, machine_trap_bad
 
-  /* mtimecmp = mtime + 2000, written in the CLINT-safe high/low/high order. */
+  /* mtimecmp = mtime + quantum, written in the CLINT-safe high/low/high
+   * order.  The constant is the same one kernel.c uses; see timer.h. */
   li t0, 0x02004000
   li t1, -1
   sw t1, 4(t0)
   li t1, 0x0200bff8
   lw t2, 0(t1)
-  addi t2, t2, 2000
+  li t1, AXOS_TIMER_QUANTUM_CYCLES
+  add t2, t2, t1
   sw t2, 0(t0)
   sw zero, 4(t0)
 

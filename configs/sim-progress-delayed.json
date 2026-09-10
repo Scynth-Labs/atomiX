@@ -1,0 +1,28 @@
+{
+  "schema": 1,
+  "name": "sim-progress-delayed",
+  "components": {
+    "core": "core.pipeline5",
+    "soc": "soc.reference",
+    "memory": "memory.delayed",
+    "uart": "uart.mmio16550",
+    "clint": "clint.qemu-virt",
+    "spi": "spi.polling-mode0",
+    "board": "board.sim",
+    "interconnect": "interconnect.axbus-reference",
+    "cache": "cache.direct-mapped",
+    "rom": "rom.axrom",
+    "finisher": "finisher.sifive-test",
+    "harness": "harness.verilator-soc"
+  },
+  "settings": {
+    "ram_bytes": 33554432,
+    "caches": true,
+    "reset_pc": "0x80000000"
+  },
+  "parameters": {
+    "soc": {
+      "progress_monitor": 1
+    }
+  }
+}

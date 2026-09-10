@@ -112,6 +112,14 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   still carry no explicit addresses, so deriving and validating the 85F address
   function remains open.
 
+- [ ] **85F map closure — deferred behind 45F confinement.** State the
+  address-function hypothesis, then test independent tile perturbations at
+  segment boundaries and held-out locations. Compare the 45F control against
+  its existing encoder and require explicit rejection of unsupported 85F
+  cases. Close only when the derived addresses agree with independent probes
+  and packed-delta round trips; a decoded full-image geometry is insufficient.
+  Record a missing Trellis database as skipped evidence, not a successful map.
+
 - [~] **No hardware — now the binding constraint:** lock shell placement and
   routing, constrain the role to whole-frame-compatible columns, and show that
   two role implementations have identical shell frames and boundary routing.
@@ -138,6 +146,20 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   reference reaches only 21.91 MHz versus 28.62 MHz flattened.  The next iteration must
   use a separately synthesised physical role boundary (or fix nextpnr's
   packed-netlist resume), not make global `-noflatten` the production flow.
+- [ ] **45F confinement gate 1 — stable shell construction.** Compare a
+  separately synthesised role boundary with a scoped packed-netlist resume
+  fix, keeping device, shell sources, boundary contract, and build inputs
+  matched. Account for unmatched packed cells and boundary nets, and record
+  resource/timing costs and tool failures. Close with identical shell cells,
+  placement, and routing across `role.none` and `role.loopback`, or a recorded
+  refutation of the attempted method; a refutation does not close confinement.
+- [ ] **45F confinement gate 2 — an accepted candidate delta.** After stable
+  shell construction, generate a candidate whose changed frames all lie in
+  the measured role region, with unchanged shell frames and boundary routing.
+  Require the existing independent decoder and all `pr-gate-check` gates to
+  accept it, including the size budget; repeat from clean inputs and record
+  seed sensitivity. Keep the current rejected delta as a negative control.
+  Closure is offline tool evidence and grants no physical load authority.
 - [x] **No hardware:** generate a candidate delta, unpack it, and prove it
   addresses only the allowed region; reject truncated, out-of-region, and
   wrong-shell inputs before any physical load attempt.  Evidence:
@@ -189,7 +211,13 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   `pr-delta-pack` recursive call.
 - [!] Load `role.none` and `role.loopback` partial images on an active ULX3S,
   prove the UART/CPU survive, and test isolation during the swap.  **Blocked:**
-  no ULX3S is currently available.
+  no ULX3S is currently available, and no candidate yet passes confinement.
+  After both prerequisites close, bind the request to the exact device and
+  shell, measure management responsiveness throughout the isolated load, and
+  verify role identity and an oracle workload after release. Close only with
+  repeated volatile swaps plus interrupted-load and bad-image recovery that
+  retain the UART/loader channel. Primer isolation evidence cannot substitute
+  for this board's frame-confinement and recovery result.
 - [x] **No hardware, parallel feasibility spike:** document GW5A-25A
   configuration frames and test whether the open Gowin/Apicula tool surface
   can safely express a Primer partial image.  **Outcome: not feasible with the
@@ -343,6 +371,27 @@ throughput than separate CPU/GPU/TPU implementations?
   kernel reset and an upload stopped at 2,048/4,829 bytes. Each recovery was
   followed by three further passing runs. Power and energy measurement remain
   pending until a fixture is selected.
+
+- [ ] **Power/energy gate 1 — select the measurement method.** Define the
+  measurement boundary (whole Dock or a named rail), fixture bandwidth and
+  resolution, calibration, workload trigger, and idle baseline. Record which
+  switch and execution intervals the fixture can actually resolve and the
+  uncertainty to report. Close with a documented fixture/procedure decision;
+  purchasing or wiring it is a separate lab action, and a selection is not a
+  measured energy result.
+- [!] **Power/energy gate 2 — matched physical trials.** Blocked on an
+  available, calibrated fixture. Measure correctness, switch latency,
+  throughput, and energy per completed workload under matched inputs and
+  clocks for the reviewed alternatives. Separate idle, transfer, switch, and
+  execute costs where resolvable; retain uncertainty, repeats, and failures.
+  Close with physical traces and compact summaries tied to loader and payload
+  identities, or an explicit finding that the fixture cannot answer the question.
+- [ ] **Resident GPU+TPU board validation.** The composite currently has RTL
+  and P&R evidence only. On the Primer, bind a volatile trial to its exact
+  loader profile and runtime payload, alternate the two engines in one
+  session, and verify oracle outputs, busy/uncleared-completion rejection,
+  retained state, and reset/reload recovery. Close with physical identities and
+  timings; any new hardware build must pass its own fit and timing gates first.
 
 Provisional success targets for the first prototype are: one resident image;
 all three minimal workloads correct; personality replacement below 1 ms at the
@@ -582,6 +631,26 @@ that proposes something wrong a rejected candidate rather than an incident.
   `tools/morph_l3_trial.py self-test` and `make l3-check`.  This remains
   simulation-only, with no hardware, persistence, or autonomous-promotion
   claim.
+- [ ] **Telemetry distinguishes zero from unavailable.** Define how a trial
+  records whether rejection and watchdog producers are present and observed.
+  Exercise enabled and declined profiles and a missing-observation case;
+  absent counters must not silently satisfy a zero-event correctness gate.
+  Close with capability-aware fitness/evidence records while preserving the
+  existing Primer opt-out and proposal-only authority.
+- [ ] **Watchdog authority decision.** Specify whether the shell watchdog
+  remains observational or may request isolation, and define who owns any
+  actuation, in-flight transaction behavior, recovery deadline, and rollback.
+  Close the decision with fault-injected simulation and a documented safety
+  contract before changing the current observe-only behavior. No optimizer
+  or telemetry record gains configuration authority through this item.
+- [ ] **L3 physical-trial readiness.** Map the reviewed simulated mode and
+  dimension cases onto an actually fitting Primer morph loader profile;
+  identify unsupported cases rather than assuming the one-PE fabric matches
+  the multi-PE trial. Require payload fit, primary/canary oracles, immutable
+  shell identity, manager-owned volatile activation, deadline handling, and
+  known-good rollback. Only then run a physical trial and record exact coverage;
+  otherwise retain an explicit capacity or capability blocker. Hardware
+  success would not authorize persistence or autonomous promotion.
 - [!] Explore L4 LUT/frame mutation only after R1 proves frame confinement,
   isolation, live recovery, and bad-image rejection.  **Blocked:** R1 exit gate.
 
@@ -617,16 +686,21 @@ results above from reading as general claims.
 
 ## Immediate queue without hardware
 
-1. Derive and validate the ECP5-85F frame-address function now that compressed
-   full-chip frames can be walked; the 45F path means this remains useful but
-   is no longer on R1's critical path.
-2. Select a current-sense fixture so the R2 power and energy line can close.
-3. Find a device with room for the Live FPGA role-event producers.  Every Tang
-   Primer profile declines them because they cost 2,251 LUT4 and `role.morph`
-   at one PE stops placing, so `DESCRIPTOR_REJECTIONS` and `WATCHDOG_EVENTS`
-   have no path to a physical result on the only board in hand.  This is the
-   binding constraint on L0 telemetry becoming hardware evidence rather than
-   simulation evidence.
+1. Pursue the two 45F confinement gates: stable shell construction, then a
+   candidate accepted by the existing delta verifier. This is R1's current
+   critical path; a new address map alone cannot make a delta safe.
+2. Make missing telemetry explicit in R3 fitness/evidence and settle the
+   watchdog authority contract in simulation before proposing more actuation.
+3. Select the R2 power/energy measurement method and define the matched trial;
+   acquisition, calibration, and physical measurements remain separate gates.
+4. Compare a scoped reduction in role-event producer cost with a larger-device
+   profile. Require enabled/disabled RTL behavior, synthesis/P&R headroom,
+   timing, and preservation of the declined implementation before choosing.
+   Every current Primer profile declines these producers; another device's
+   fit result cannot become physical telemetry evidence without that board.
+5. Return to the 85F address-map gate after the 45F confinement experiment, or
+   when a concrete 85F hardware need changes the priority. Preserve the 45F
+   control and negative results whichever route is chosen.
 
 Closed on 2026-08-13: the fabric watchdog and role-reject producers, which
 until then left two `axlivemon` counters reading zero by construction.

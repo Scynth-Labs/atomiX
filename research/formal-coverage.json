@@ -1,0 +1,265 @@
+{
+  "cores": {
+    "ax2": {
+      "config": "formal/checks-ax2.cfg",
+      "defines": [
+        "RISCV_FORMAL_ALIGNED_MEM"
+      ],
+      "depths": {
+        "causal": [
+          4,
+          12
+        ],
+        "insn": [
+          12
+        ],
+        "pc_bwd": [
+          4,
+          12
+        ],
+        "pc_fwd": [
+          4,
+          12
+        ],
+        "reg": [
+          4,
+          12
+        ],
+        "unique": [
+          1,
+          4,
+          12
+        ]
+      },
+      "enable_m": "1'b0",
+      "instructions_proved": [
+        "add",
+        "beq",
+        "lw",
+        "sw"
+      ],
+      "instructions_unproved": [
+        "addi",
+        "and",
+        "andi",
+        "auipc",
+        "bge",
+        "bgeu",
+        "blt",
+        "bltu",
+        "bne",
+        "jal",
+        "jalr",
+        "lb",
+        "lbu",
+        "lh",
+        "lhu",
+        "lui",
+        "or",
+        "ori",
+        "sb",
+        "sh",
+        "sll",
+        "slli",
+        "slt",
+        "slti",
+        "sltiu",
+        "sltu",
+        "sra",
+        "srai",
+        "srl",
+        "srli",
+        "sub",
+        "xor",
+        "xori"
+      ],
+      "interrupts": "tied low",
+      "isa": "rv32i",
+      "memory_ready": "always",
+      "mode": "bmc",
+      "retire_channels_declared": 2,
+      "retire_channels_proved": [
+        0,
+        1
+      ],
+      "target": "make -C formal check-ax2",
+      "wrapper": "components/core/ax2/ax2_rvfi_wrapper.sv"
+    },
+    "minimal": {
+      "config": "formal/checks-minimal.cfg",
+      "defines": [
+        "RISCV_FORMAL_ALIGNED_MEM"
+      ],
+      "depths": {
+        "causal": [
+          4,
+          12
+        ],
+        "insn": [
+          12
+        ],
+        "pc_bwd": [
+          4,
+          12
+        ],
+        "pc_fwd": [
+          4,
+          12
+        ],
+        "reg": [
+          4,
+          12
+        ],
+        "unique": [
+          1,
+          4,
+          12
+        ]
+      },
+      "enable_m": "1'b0",
+      "instructions_proved": [
+        "add",
+        "beq",
+        "lw",
+        "sw"
+      ],
+      "instructions_unproved": [
+        "addi",
+        "and",
+        "andi",
+        "auipc",
+        "bge",
+        "bgeu",
+        "blt",
+        "bltu",
+        "bne",
+        "jal",
+        "jalr",
+        "lb",
+        "lbu",
+        "lh",
+        "lhu",
+        "lui",
+        "or",
+        "ori",
+        "sb",
+        "sh",
+        "sll",
+        "slli",
+        "slt",
+        "slti",
+        "sltiu",
+        "sltu",
+        "sra",
+        "srai",
+        "srl",
+        "srli",
+        "sub",
+        "xor",
+        "xori"
+      ],
+      "interrupts": "tied low",
+      "isa": "rv32i",
+      "memory_ready": "always",
+      "mode": "bmc",
+      "retire_channels_declared": 1,
+      "retire_channels_proved": [
+        0
+      ],
+      "target": "make -C formal check-minimal",
+      "wrapper": "components/core/minimal/axcore_rvfi_wrapper.sv"
+    },
+    "pipeline5": {
+      "config": "formal/checks.cfg",
+      "defines": [
+        "RISCV_FORMAL_ALIGNED_MEM"
+      ],
+      "depths": {
+        "causal": [
+          4,
+          12
+        ],
+        "insn": [
+          12
+        ],
+        "pc_bwd": [
+          4,
+          12
+        ],
+        "pc_fwd": [
+          4,
+          12
+        ],
+        "reg": [
+          4,
+          12
+        ],
+        "unique": [
+          1,
+          4,
+          12
+        ]
+      },
+      "enable_m": "1'b0",
+      "instructions_proved": [
+        "add",
+        "beq",
+        "lw",
+        "sw"
+      ],
+      "instructions_unproved": [
+        "addi",
+        "and",
+        "andi",
+        "auipc",
+        "bge",
+        "bgeu",
+        "blt",
+        "bltu",
+        "bne",
+        "jal",
+        "jalr",
+        "lb",
+        "lbu",
+        "lh",
+        "lhu",
+        "lui",
+        "or",
+        "ori",
+        "sb",
+        "sh",
+        "sll",
+        "slli",
+        "slt",
+        "slti",
+        "sltiu",
+        "sltu",
+        "sra",
+        "srai",
+        "srl",
+        "srli",
+        "sub",
+        "xor",
+        "xori"
+      ],
+      "interrupts": "tied low",
+      "isa": "rv32i",
+      "memory_ready": "always",
+      "mode": "bmc",
+      "retire_channels_declared": 1,
+      "retire_channels_proved": [
+        0
+      ],
+      "target": "make -C formal check",
+      "wrapper": "components/core/pipeline5/axcore_rvfi_wrapper.sv"
+    }
+  },
+  "excluded": {
+    "csr_and_privilege": "no check in the lists below proves a CSR access, a trap, or a privilege transition; those are covered by simulation and cosim only",
+    "liveness": "mode is bmc, so these are bounded safety proofs: they show no counterexample within the depth, not that one does not exist beyond it",
+    "rv32m": "every wrapper elaborates ENABLE_M(1'b0), so multiply and divide are not in the proved design at all",
+    "unaligned_memory": "RISCV_FORMAL_ALIGNED_MEM is defined, so misaligned accesses are excluded from the memory model"
+  },
+  "note": "Derived from formal/Makefile, the per-core .cfg files, and each RVFI wrapper by tools/formal_coverage.py, which fails if this record and the configuration disagree. `make -C formal check-all` is not itself evidence: it is the three targets below, and only what has been run proves anything.",
+  "schema": "org.atomix.formal-coverage.v1"
+}

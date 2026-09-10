@@ -102,5 +102,25 @@
   },
   "inference": "Timer-service starvation is suspected: post-exec PC samples remain in supervisor trap entry/handling while the machine timer rearms every 2000 cycles. Root-cause correction remains open.",
   "test_gap": "check-sdboot currently calls run-sdram without selecting sim-sdram and therefore defaults to a BRAM model. Its pass is not physical-SDRAM evidence.",
-  "scope": "No FPGA synthesis, programming, or physical-board result."
+  "scope": "No FPGA synthesis, programming, or physical-board result.",
+  "test_gap_resolved": {
+    "date": "2026-09-06",
+    "checklist_item": "SDRAM gate 1",
+    "summary": "check-sdboot now selects configs/sim-sdram.json, asserts the resolved memory/harness/top/runner identities, and requires the run to have driven the SDRAM pins. run-sdram refuses a profile without SDRAM pins, and a transcript from the BRAM machine is rejected as evidence; both refusals are exercised against configs/sim-bram.json on every run.",
+    "shell_pin_counts": {
+      "activate": 263368,
+      "read": 348888,
+      "write": 177848,
+      "precharge": 263369,
+      "refresh": 37336
+    },
+    "fork_pin_counts": {
+      "activate": 354544,
+      "read": 502064,
+      "write": 207024,
+      "precharge": 354545,
+      "refresh": 42284
+    },
+    "exec_status": "still failing; preserved as make -C sw/kernel check-sdboot-exec and depended on by no aggregate target"
+  }
 }

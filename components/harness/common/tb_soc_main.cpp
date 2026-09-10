@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <fstream>
 #include <iterator>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -15,6 +16,71 @@
 #include <unistd.h>
 
 #include "soc_machine.h"
+
+// How large the RAM the model elaborated is, so an image that does not fit can
+// be refused rather than silently truncated.  Compiled from the same variable
+// the RTL's RAM_BYTES parameter comes from; zero means the build did not say,
+// and the capacity check is then reported as not performed rather than passed.
+#ifndef AX_RAM_BYTES
+#define AX_RAM_BYTES 0
+#endif
+
+// Refuse an image the model would mis-load rather than hand it to $readmemh.
+//
+// $readmemh is forgiving in exactly the wrong way for a payload loader: a stray
+// non-hex character ends the read where it stands, an `@` record moves the
+// following words somewhere else in the array, and more words than the array
+// holds are dropped off the end.  Each of those boots *something* -- a
+// half-loaded program that traps somewhere unrelated, or worse, one that runs
+// and produces a wrong answer -- and the run reports the cycle count of
+// whatever that was.  A refusal naming the line is the only outcome that
+// cannot be mistaken for a result.
+static bool validate_ram_image(const std::string& path, std::string* why) {
+  std::ifstream stream(path);
+  if (!stream) {
+    *why = "cannot read " + path;
+    return false;
+  }
+  const uint64_t capacity_words = uint64_t(AX_RAM_BYTES) / 4u;
+  uint64_t words = 0;
+  std::string line;
+  for (unsigned number = 1; std::getline(stream, line); ++number) {
+    const size_t comment = line.find("//");
+    if (comment != std::string::npos) line.erase(comment);
+    if (line.find("/*") != std::string::npos) {
+      *why = path + ":" + std::to_string(number) +
+             ": block comments are not supported by this loader";
+      return false;
+    }
+    std::istringstream tokens(line);
+    std::string token;
+    while (tokens >> token) {
+      if (token[0] == '@') {
+        *why = path + ":" + std::to_string(number) +
+               ": address records (@" + token.substr(1) + ") would place the "
+               "words that follow somewhere other than the start of RAM";
+        return false;
+      }
+      if (token.size() > 8 ||
+          token.find_first_not_of("0123456789abcdefABCDEF") != std::string::npos) {
+        *why = path + ":" + std::to_string(number) + ": '" + token +
+               "' is not a 32-bit hexadecimal word";
+        return false;
+      }
+      ++words;
+    }
+  }
+  if (words == 0) {
+    *why = path + " contains no words";
+    return false;
+  }
+  if (capacity_words != 0 && words > capacity_words) {
+    *why = path + " holds " + std::to_string(words) + " words, but this "
+           "machine's RAM is " + std::to_string(capacity_words) + " words";
+    return false;
+  }
+  return true;
+}
 
 int main(int argc, char** argv) {
   // Keep the image argument alive until after the model has consumed its
@@ -43,9 +109,9 @@ int main(int argc, char** argv) {
         return 2;
       }
       const std::string path = argv[++i];
-      std::ifstream stream(path);
-      if (!stream || stream.peek() == std::ifstream::traits_type::eof()) {
-        std::fprintf(stderr, "[soc] cannot read RAM image: %s\n", path.c_str());
+      std::string why;
+      if (!validate_ram_image(path, &why)) {
+        std::fprintf(stderr, "[soc] rejected RAM image: %s\n", why.c_str());
         return 2;
       }
       ram_image_arg = "+atomix_ram_image=" + path;
@@ -114,6 +180,48 @@ int main(int argc, char** argv) {
   }
 
   if (!interactive) std::fwrite(uart.data(), 1, uart.size(), stdout);
+  // Name the memory the run actually used, before any pass/fail verdict, so a
+  // transcript that claims a physical-SDRAM path can be checked against the
+  // pins instead of believed.
+  const SocMachine::SdramPins pins = machine.sdram_pins();
+  if (pins.present) {
+    std::fprintf(stderr,
+                 "[soc] sdram-pins: present activate=%u read=%u write=%u "
+                 "precharge=%u refresh=%u\n",
+                 pins.activate, pins.read, pins.write, pins.precharge,
+                 pins.refresh);
+  } else {
+    std::fprintf(stderr, "[soc] sdram-pins: absent (no pin-level SDRAM model "
+                         "in this build)\n");
+  }
+  // One line per run, machine-readable, on stderr so a transcript comparison
+  // is unaffected.  It is printed for a completed run and a cycle-limited one
+  // alike: the whole point is to say what a run that did not finish spent its
+  // cycles on.
+  const SocMachine::Progress prog = machine.progress();
+  if (prog.present) {
+    std::fprintf(stderr,
+                 "[soc] progress: cycles=%llu retired=%llu user=%llu "
+                 "supervisor=%llu machine=%llu exceptions=%llu "
+                 "user_exits=%llu user_entries=%llu timer_arrivals=%llu "
+                 "timer_pending=%llu idle=%llu ifetch_stall=%llu "
+                 "dmem_stall=%llu last_pc=0x%08x last_mip=0x%08x "
+                 "last_mie=0x%08x last_prv=%u\n",
+                 (unsigned long long)prog.cycles,
+                 (unsigned long long)prog.retired,
+                 (unsigned long long)prog.retired_user,
+                 (unsigned long long)prog.retired_supervisor,
+                 (unsigned long long)prog.retired_machine,
+                 (unsigned long long)prog.exceptions,
+                 (unsigned long long)prog.user_exits,
+                 (unsigned long long)prog.user_entries,
+                 (unsigned long long)prog.timer_arrivals,
+                 (unsigned long long)prog.timer_pending_cycles,
+                 (unsigned long long)prog.idle_cycles,
+                 (unsigned long long)prog.ifetch_stall_cycles,
+                 (unsigned long long)prog.dmem_stall_cycles,
+                 prog.last_pc, prog.last_mip, prog.last_mie, prog.last_prv);
+  }
   // A closed console is an ordinary way for an interactive session to end, so
   // it is not the failure that never reaching the finisher would be in a batch
   // run. A nonzero exit code still is.

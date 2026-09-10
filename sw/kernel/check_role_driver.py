@@ -14,11 +14,18 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ROLE_INPUT = ROOT / "sw/kernel/role_input.txt"
 CONFIG = ROOT / "configs/sim-role-loopback.json"
+# The middle run is the recovery case: it submits a job and exits without
+# collecting the result, so the kernel has to discard the completion when the
+# task is torn down. The run after it is the assertion -- its submit would be
+# refused as busy if the slot had not been released, and hello.elf would exit
+# 44 instead of printing.
 EXPECTED = (
     "aXos: shell online\n"
     "aXos> role\n"
     "role: loopback v1\n"
     "role: copy ok irq=1 polled=0\n"
+    "aXos> exec hello.elf role-leak\n"
+    "exec: role-user: submitted without collecting\n"
     "aXos> exec hello.elf\n"
     "exec: role-user: loopback ok\n"
     "axlibc: pid=1 n=42 hex=beef str=reused motd=17\n"

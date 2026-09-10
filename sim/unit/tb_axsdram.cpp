@@ -79,6 +79,17 @@ int main(int argc, char** argv) {
   ok &= access(top, false, 0x80800000u, 0, 0, &value, &err) && !err && value == 0xdeadbeefu;
   ok &= access(top, false, 0x80000002u, 0, 0, &value, &err) && err;
 
+  // The pin counters make the traffic itself checkable, not just the values
+  // that came back: a controller that satisfied every readback without ever
+  // driving a command -- out of a latch, a cache, or a rearranged model --
+  // passes each comparison above and fails here.
+  std::fprintf(stderr,
+               "tb_axsdram: pins activate=%u read=%u write=%u precharge=%u "
+               "refresh=%u\n",
+               top->cmd_activate, top->cmd_read, top->cmd_write,
+               top->cmd_precharge, top->cmd_refresh);
+  ok &= top->cmd_activate > 0 && top->cmd_read > 0 && top->cmd_write > 0;
+
   if (!ok) std::fprintf(stderr, "tb_axsdram: FAIL value=%08x err=%d\n", value, err);
   delete top;
   if (!ok) return 1;

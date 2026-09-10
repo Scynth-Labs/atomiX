@@ -27,8 +27,11 @@ A profile carries two different kinds of knob, and the distinction is which
 thing owns the value. **`parameters`** override a knob a *component* declares in
 its own manifest, with its default and its documentation — the component owns
 it, so a profile may only name what that component declared. **`settings`** are
-system-level values no single component owns, such as `ram_bytes` or
-`task_slots`; they are checked against the `SETTINGS` registry in
+system-level values no single component owns, such as `ram_bytes`,
+`task_slots`, or `timer_quantum_cycles` — the scheduling quantum, which the
+M-mode shim and the S-mode handler both arm the same CLINT register with, and
+which depends on the machine underneath them rather than on either; they are
+checked against the `SETTINGS` registry in
 `tools/configure.py`. Both are validated: an unknown name, a wrong type, or an
 out-of-range value is a configuration error naming the problem, not a silently
 ignored line.

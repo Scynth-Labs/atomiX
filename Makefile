@@ -265,8 +265,56 @@ synth-baseline:
 	@test -n "$(REPORT)" || { echo "usage: make synth-baseline REPORT=<sweep.json>"; exit 2; }
 	$(PYTHON) tools/synth_baseline.py check $(REPORT)
 
-verification-check:
+# `validate` checks the manifest; `self-test` checks the runner, by running a
+# suite built to go wrong: a stage whose tool is missing, one naming a
+# configuration that does not resolve, and one the suite asks for but never
+# reaches. None of the three may read as a pass, and the two that never ran
+# must not silently vanish from the summary.
+# Depends on `coverage-map` rather than repeating its command: one spelling,
+# and the inventory's own accounting can then see that this rule runs it.
+verification-check: coverage-map formal-coverage
 	$(PYTHON) tools/verify.py validate
+	$(PYTHON) tools/verify.py self-test
+
+# The inventory on its own, with REPORT=1 to print it rather than only check it.
+coverage-map:
+	$(PYTHON) tools/coverage_map.py $(if $(REPORT),--report)
+
+# Boot every documentation example and require it to print exactly what the
+# document says it prints -- and to still be the command that document shows.
+example-replay: bug-report-check
+	$(PYTHON) tools/example_replay.py $(if $(EXAMPLE),--only $(EXAMPLE))
+
+# Render the verification evidence that is otherwise a second of terminal
+# output: what the bounded proofs cover and any counterexample, the first
+# ISS/RTL divergence, and an injected fault with the rollback that followed it.
+# FORMAL_LOG and COSIM_LOG point at real run output; without them the views
+# render what the committed records hold.
+evidence-views:
+	$(PYTHON) tools/evidence_views.py self-test
+	$(PYTHON) tools/evidence_views.py render \
+	  $(if $(FORMAL_LOG),--formal-log $(FORMAL_LOG)) \
+	  $(if $(COSIM_LOG),--cosim-log $(COSIM_LOG))
+
+# The report format's own failure modes: a finished session and a failed one
+# must both reproduce from their records, and a payload that is stale or
+# missing must be refused rather than silently substituted.
+bug-report-check:
+	$(PYTHON) tools/bug_report.py self-test
+
+# Export one session as a record anyone can replay, and replay one. A report
+# names its payload's hash, so a program whose bytes have moved on is refused
+# rather than quietly substituted for the one the report is about.
+bug-report:
+	@test -n "$(EXAMPLE)$(RECORD)" || { echo "usage: make bug-report EXAMPLE=<name> | RECORD=<path>"; exit 2; }
+	$(PYTHON) tools/bug_report.py $(if $(RECORD),replay $(RECORD),export $(EXAMPLE) $(if $(OUTPUT),--output $(OUTPUT)))
+
+# What the bounded proofs prove, derived from the check lists, the .cfg files,
+# and each RVFI wrapper, and compared against the committed record. WRITE=1
+# rewrites the record, which a proof getting wider or narrower requires --
+# deliberately, because that is a change of claim.
+formal-coverage:
+	$(PYTHON) tools/formal_coverage.py $(if $(REPORT),--report) $(if $(WRITE),--write)
 
 verify-smoke: verification-check
 	$(PYTHON) tools/verify.py run smoke
@@ -423,4 +471,4 @@ component-test: config-check-all personality-check comparison-check
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check

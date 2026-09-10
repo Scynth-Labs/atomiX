@@ -1,0 +1,18 @@
+{
+  "schema": 1,
+  "name": "kernel-slow-memory",
+  "components": {
+    "scheduler": "scheduler.round-robin",
+    "vm": "vm.sv32",
+    "allocator": "allocator.free-list",
+    "shell": "shell.axsh",
+    "filesystem": "filesystem.axfs",
+    "block": "block.spi-sd",
+    "syscall": "syscall.linux-compat",
+    "loader": "loader.elf32",
+    "libc": "libc.axlibc",
+    "evolution": "evolution.none",
+    "fitness": "fitness.none"
+  },
+  "settings": {"timer_quantum_cycles": 64000}
+}

@@ -13,7 +13,9 @@ make -C sw/kernel check-sdboot
 ```
 
 It builds this ROM, a storage-enabled kernel, and a combined SD image before
-starting the RTL SoC at the ROM reset address.
+starting the RTL SoC at the ROM reset address, on the profile whose memory is
+the pin-level SDRAM model. It covers the loader, the shell, fork/wait, and ELF
+exec.
 
 UART mode is the kernel-development and FPGA-runtime default. It scans for an
 `AXK1` frame, validates the payload length and CRC-32, writes the kernel binary

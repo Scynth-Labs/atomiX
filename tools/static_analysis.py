@@ -155,10 +155,12 @@ def analyse_rtl():
         resolved = run([sys.executable, "tools/configure.py", "resolve",
                         "--config", str(profile), "--output", str(mk)])
         if resolved.returncode != 0:
+            # A string, not a list: `message` is written straight into
+            # SARIF's message.text, which must be one.
             findings.append(finding("verilator", profile, 1, 1, "error",
                                     "profile-unresolvable",
-                                    resolved.stderr.strip().splitlines()[-1:] or
-                                    ["profile does not resolve"]))
+                                    (resolved.stderr.strip().splitlines() or
+                                     ["profile does not resolve"])[-1]))
             continue
         text = mk.read_text()
         top = re.search(r"^COMPONENT_SIM_TOP := (\S+)", text, re.M)
@@ -170,8 +172,22 @@ def analyse_rtl():
         # elaboration flags, so there is one authority for both.
         result = run(["make", "-s", "--no-print-directory", "-C", "sim/soc",
                       "lint", f"COMPONENT_CONFIG={profile.resolve()}"])
+        parsed = parse_verilator(result.stdout + result.stderr, profile.name)
+        findings += parsed
+        # A lint that could not run is not a lint that passed.  Verilator
+        # reports some refusals -- a top that does not declare a parameter the
+        # command line supplied, a missing source -- without a file:line, so
+        # the parser above sees nothing and the sweep used to count the profile
+        # as clean.  It did that for every pin-level SDRAM profile, which meant
+        # the harness top and its device model had never been linted at all.
+        if result.returncode != 0 and not parsed:
+            tail = [line.strip() for line in
+                    (result.stdout + result.stderr).splitlines() if line.strip()]
+            findings.append(finding(
+                "verilator", profile, 1, 1, "error", "lint-did-not-run",
+                " | ".join(tail[-3:]) or
+                f"lint exited {result.returncode} with no output"))
         linted += 1
-        findings += parse_verilator(result.stdout + result.stderr, profile.name)
     return findings, f"{linted} profile(s) elaborated and linted"
 
 

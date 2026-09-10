@@ -91,6 +91,13 @@ AXOS_CAPACITIES := \
   $(if $(COMPONENT_SETTING_ROLE_MAX_PAYLOAD),-DROLE_MAX_PAYLOAD=$(COMPONENT_SETTING_ROLE_MAX_PAYLOAD)) \
   $(if $(COMPONENT_SETTING_ROLE_STAGED_WORDS),-DROLE_STAGED_WORDS=$(COMPONENT_SETTING_ROLE_STAGED_WORDS))
 CPPFLAGS += $(AXOS_CAPACITIES)
+
+# Not a capacity: the scheduler's timer quantum, which trap.S and kernel.c both
+# arm the CLINT with and therefore must agree on.  Its #ifndef default lives in
+# include/timer.h, so a profile that does not name it builds exactly as before,
+# and the header's _Static_assert is what rejects an out-of-range one.
+CPPFLAGS += $(if $(COMPONENT_SETTING_TIMER_QUANTUM_CYCLES),\
+  -DAXOS_TIMER_QUANTUM_CYCLES=$(COMPONENT_SETTING_TIMER_QUANTUM_CYCLES))
 ifeq ($(KERNEL_MODE),monitor)
 CPPFLAGS += -DAXOS_MONITOR=1 -DAXOS_EMBED_USER=0
 else
@@ -202,10 +209,43 @@ ifeq ($(HOSTLINK),1)
 SOURCES += hostlink.c
 endif
 
+# Which build this is.  Everything here changes the code the compiler emits,
+# and all of it can change without a single source file changing: the selected
+# kernel profile and every define it resolves to, the storage and host-link
+# personalities, the block size, the linked RAM envelope, and the compiler
+# itself.  The outputs are one shared set of paths under build/, so without
+# this a switch between two profiles left the previous profile's kernel in
+# place and reported success -- `make images KERNEL_CONFIG=A` then `=B` was
+# measured producing byte-identical ELFs, because the ELF's only configuration
+# prerequisite was a per-profile .mk that was already older than it.
+#
+# The stamp rule runs every time and rewrites the file only when the identity
+# actually changed, so it forces a rebuild exactly when one is needed and never
+# otherwise.  `export` hands the value to the recipe through the environment,
+# which is the only way to pass CPPFLAGS' embedded quotes intact.
+IDENTITY_STAMP := $(BUILD_DIR)/kernel-identity.stamp
+KERNEL_IDENTITY := profile=$(abspath $(KERNEL_CONFIG)) mode=$(KERNEL_MODE) \
+  storage=$(STORAGE) hostlink=$(HOSTLINK) fs_block=$(FS_BLOCK) \
+  ram_bytes=$(RAM_BYTES) resident=$(RESIDENT_BUDGET) cc=$(CC) \
+  arch=$(RISCV_ARCH) cppflags=$(CPPFLAGS) cflags=$(CFLAGS)
+export KERNEL_IDENTITY
+
+$(IDENTITY_STAMP): FORCE | $(BUILD_DIR)
+	@$(PYTHON) kernel_identity.py $@
+
+FORCE:
+.PHONY: FORCE
+
 all: $(ELF)
 images: $(BIN) $(HEX)
 
-$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) $(IRQ_MAP) link.ld include/platform.h include/page.h include/task.h include/scheduler.h include/vm.h include/syscall.h include/loader.h include/fs.h include/sd.h include/role.h include/plic.h include/hostlink.h include/kernel_info.h include/process.h include/evolution.h include/fitness.h | $(BUILD_DIR)
+# The headers are a wildcard rather than a list.  The list had already drifted
+# -- include/console.h was never in it -- and every new header is one more
+# chance to forget, with the failure mode being a build that quietly does not
+# rebuild.  There is nothing in include/ the kernel does not compile against.
+KERNEL_HEADERS := $(wildcard include/*.h)
+
+$(ELF): $(SOURCES) $(KERNEL_COMPONENT_MK) $(KERNEL_USER_DEP) $(IRQ_MAP) link.ld $(KERNEL_HEADERS) $(IDENTITY_STAMP) | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $(LDFLAGS) -o $@ $(SOURCES)
 
 $(BIN): $(ELF)
@@ -400,14 +440,51 @@ check-loader-wx: images $(USER_ELF)
 	python3 make_fs_image.py --with-wx $(USER_ELF) build/axfs-wx.img
 	SD_IMAGE=$(abspath build/axfs-wx.img) python3 check_boot.py --loader-wx
 
+# KERNEL_CONFIG is forwarded rather than inherited: a sub-make does not see a
+# target-specific variable, so without this a caller that selected a kernel
+# profile for the boot image would silently get the default one built into it
+# while the rest of the recipe used its own choice of paths.
 boot-disk: images
-	$(MAKE) -B images STORAGE=1 FS_BLOCK=$(BOOT_FS_BLOCK)
+	$(MAKE) -B images STORAGE=1 FS_BLOCK=$(BOOT_FS_BLOCK) \
+	  KERNEL_CONFIG=$(abspath $(KERNEL_CONFIG))
 	$(MAKE) -C ../bootrom images
 	python3 make_boot_disk.py build/axos_boot.bin $(USER_ELF) \
 	  build/axos_boot.img $(BOOT_FS_BLOCK)
 
+# Boot aXos from the SD card through the pin-level SDRAM model.  The hardware
+# profile is selected explicitly: this check previously named the `run-sdram`
+# target without one, built the default on-chip-RAM machine, and still printed
+# a physical-SDRAM result.
+#
+# The kernel profile is selected explicitly for the same kind of reason.  The
+# default 2,000-cycle scheduling quantum is tuned for on-chip RAM; on this
+# machine a tick costs most of it, so the resumed task retires about one
+# instruction before the next deadline.  `kernel-slow-memory` is the profile
+# that carries this machine's assumption, and with it the same exec workload
+# finishes in 9.86M cycles rather than 39.1M.
+check-sdboot: KERNEL_CONFIG = $(abspath ../../configs/kernel-slow-memory.json)
 check-sdboot: boot-disk
 	SD_IMAGE=$(abspath build/axos_boot.img) BOOT_ROM=$(abspath ../bootrom/build/bootrom.hex) python3 check_boot.py --sd-boot
+
+# The same exec workload on the same machine, built with the *default* kernel
+# profile, whose quantum is far shorter than this machine's cost to service a
+# tick.  That is the condition under which user progress used to be lost
+# entirely -- 785 user instructions over 787 handler entries, and no completion
+# at 120M cycles -- so a run that finishes here is the evidence that the fix is
+# structural and not the larger quantum masking it.  Slow by construction:
+# 39.1M simulated cycles.
+check-sdboot-exec: boot-disk
+	SD_IMAGE=$(abspath build/axos_boot.img) BOOT_ROM=$(abspath ../bootrom/build/bootrom.hex) python3 check_boot.py --sd-boot-exec
+
+# Does a reused build tree still hold the configuration it says it does?  Six
+# profiles and personalities, each built both into a scratch tree that never
+# held another and into the shared tree after it held something different, with
+# the two required to agree -- and each required to boot as itself afterwards,
+# because an image that is merely different from the last one is not
+# necessarily the right one.  It costs twelve kernel builds; nothing else
+# proves that selecting a profile changes what runs.
+check-build-identity:
+	$(PYTHON) check_build_identity.py
 
 kernel-config: $(KERNEL_COMPONENT_MK)
 	@test -n "$(COMPONENT_SCHEDULER_ID)" || { echo "$(KERNEL_CONFIG): select a scheduler component"; exit 2; }
@@ -498,4 +575,4 @@ kernel-component-test: kernel-config-check-all
 clean:
 	rm -rf build
 
-.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-hostlink-stream check-memory check-storage check-storage-write check-loader-wx check-abi-torture check-abi-torture-small torture-run boot-disk check-sdboot kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean
+.PHONY: all images primer-images primer-runtime-images primer-uartboot uartboot-images run-iss run-qemu run-rtl check-boot check-shell check-primer check-primer-runtime check-uartboot check-role-driver check-role-irq check-hostlink check-hostlink-stream check-memory check-storage check-storage-write check-loader-wx check-abi-torture check-abi-torture-small torture-run boot-disk check-sdboot check-sdboot-exec check-build-identity kernel-config kernel-config-check kernel-config-check-all kernel-component-test evolution-policy-test fitness-policy-test evolution-profile-images evolution-check clean

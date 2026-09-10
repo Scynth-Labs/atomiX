@@ -105,17 +105,24 @@ make -C sw/kernel run-rtl UART_INPUT_FILE="$PWD/sw/kernel/shell_input.txt"
 
 `run` normally uses BRAM or the delayed-memory model selected by its
 parameters. For the physical x16 SDRAM pin model, select
-`COMPONENT_CONFIG=../../configs/sim-sdram.json` with `run-sdram`; the profile
-chooses `axsdram` and the CAS-2 behavioral SDRAM device.
+`COMPONENT_CONFIG=../../configs/sim-sdram.json`; the profile chooses `axsdram`
+and the CAS-2 behavioral SDRAM device, and `run-config` dispatches to the
+`run-sdram` runner the memory component declares. `run-sdram` refuses any
+profile without SDRAM pins rather than quietly building an on-chip-RAM machine
+under an SDRAM name, and every run prints a `[soc] sdram-pins:` line naming the
+memory that actually carried it.
 
-The legacy boot regression remains available:
+The boot regression:
 
 ```bash
-make -C sw/kernel check-sdboot
+make -C sw/kernel check-sdboot        # shell + fork/wait + exec on the pin model
+make -C sw/kernel check-sdboot-exec   # the same exec at the default quantum
 ```
 
-It currently omits that profile selection, so its printed physical-SDRAM label
-describes a BRAM run. Explicit pin-model testing boots the shell but does not
-complete exec even at 120M cycles, with PC samples pointing to timer-service
-starvation. The [follow-up evidence](../../research/benchmarks/sdram-exec-followup.json)
+`check-sdboot` selects that profile, checks the resolved identities, and proves
+both refusals — the target's and the evidence check's — against a real BRAM
+profile before running. All three stages pass. Exec used not to complete even
+at 120M cycles; the cause was the scheduling quantum being armed at trap entry
+rather than the memory, and `tools/sdram_progress_probe.py` is what
+distinguished the two. The [follow-up evidence](../../research/benchmarks/sdram-exec-followup.json)
 records this open simulation issue; no board result is implied.

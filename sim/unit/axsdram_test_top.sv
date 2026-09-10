@@ -17,7 +17,14 @@ module axsdram_test_top (
   output logic d_ready,
   output logic [31:0] d_rdata,
   output logic d_err,
-  output logic init_done
+  output logic init_done,
+  // The model's pin-command counters, published so this test can say how much
+  // traffic it actually put on the pins rather than only that it agreed.
+  output logic [31:0] cmd_activate,
+  output logic [31:0] cmd_read,
+  output logic [31:0] cmd_write,
+  output logic [31:0] cmd_precharge,
+  output logic [31:0] cmd_refresh
 );
   logic sdram_cke, sdram_cs_n, sdram_ras_n, sdram_cas_n, sdram_we_n;
   logic [1:0] sdram_ba, sdram_dqm;
@@ -46,6 +53,8 @@ module axsdram_test_top (
   ax_sdram_sim u_mem (
     .clk(clk), .rst(rst), .cke(sdram_cke), .cs_n(sdram_cs_n),
     .ras_n(sdram_ras_n), .cas_n(sdram_cas_n), .we_n(sdram_we_n),
-    .ba(sdram_ba), .a(sdram_a), .dqm(sdram_dqm), .dq(sdram_dq)
+    .ba(sdram_ba), .a(sdram_a), .dqm(sdram_dqm), .dq(sdram_dq),
+    .cmd_activate(cmd_activate), .cmd_read(cmd_read), .cmd_write(cmd_write),
+    .cmd_precharge(cmd_precharge), .cmd_refresh(cmd_refresh)
   );
 endmodule

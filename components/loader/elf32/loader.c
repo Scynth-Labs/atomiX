@@ -286,6 +286,19 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
   task->brk_start = task->brk;
   task->brk_limit = USER_STACK_TOP - (2u * PAGE_SIZE);
 
+  /* The segments above were written through the *data* path, and the hart is
+   * about to fetch them as instructions.  On a machine with split caches --
+   * which this one has -- nothing connects those two: the instruction cache
+   * may still hold whatever previously occupied these physical pages, and
+   * RISC-V makes FENCE.I the explicit synchronisation point.  Loading a
+   * program is the textbook case for it.
+   *
+   * Without this the first program a machine runs is fine and a later one
+   * fetches a stale line: the failure is an illegal instruction inside the new
+   * program's text, at an address that disassembles to something perfectly
+   * legal, and it moves when the program's size changes. */
+  __asm__ volatile("fence.i" ::: "memory");
+
   *entry_out = e_entry;
   *sp_out = sp;
   return 0;

@@ -232,6 +232,18 @@ SETTINGS: dict[str, dict[str, Any]] = {
     # `parameters`, not settings: the component that owns a knob declares
     # it, with its default and its documentation.
     "task_slots": {"type": int, "min": 2, "max": 64},
+    # The scheduler's timer quantum, in cycles.  Neither the scheduler
+    # component nor the trap code owns it: the M-mode shim acknowledges the
+    # interrupt, the S-mode handler decides who runs next, and how long a task
+    # should run before preemption is a property of the machine underneath
+    # them -- the same code services a tick in far more cycles on 32 MiB of
+    # SDRAM than on single-cycle on-chip RAM.  By the task_slots criterion
+    # that makes it a setting.  The bounds are coarse: below the floor the
+    # trap entry sequence cannot complete before the next deadline on any
+    # memory this project targets, and above the ceiling the delta approaches
+    # the range of the 32-bit mtimecmp arithmetic the shim uses.  The floor
+    # that actually matters is the machine's, and only the profile knows it.
+    "timer_quantum_cycles": {"type": int, "min": 256, "max": 1 << 24},
     # role_max_payload was a syscall.linux-compat parameter until three
     # paths came to share it. The syscall component's role_submit, the
     # role dispatcher, and the host-link service all stage the same

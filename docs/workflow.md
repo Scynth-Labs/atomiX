@@ -343,6 +343,14 @@ make comparison-check
 make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
+make verification-check          # the suite manifest, the runner, and the command inventory
+make coverage-map REPORT=1       # every advertised command and where its failures surface
+make formal-coverage REPORT=1    # what the bounded proofs prove, and what they do not
+make example-replay              # every documentation example, booted and compared
+make evidence-views              # render formal coverage, cosim divergence, and rollback
+make bug-report-check            # the report format's own failure modes
+make bug-report EXAMPLE=baremetal-hello   # export a session anyone can replay
+make bug-report RECORD=build/examples/report.json   # replay one from a clean session
 make static-analysis             # RTL lint, C path analysis, C++, Python, shell
 #   The RTL pass uses the selected simulator's exact source ordering.
 make fuzz-loader                 # binary-format parser regression (ELF, AXFS, AXK1)
@@ -510,18 +518,37 @@ rather than only the ones with storage.
 make -C sw/kernel check-boot QEMU=/path/to/qemu-system-riscv32   # shell + fork/wait on ISS, QEMU, RTL
 make -C sw/kernel check-shell         # generic commands, parsing, and kernel observability on ISS
 make -C sw/kernel kernel-component-test QEMU=/path/to/...        # default + cooperative scheduler
+make -C sw/kernel check-build-identity  # a reused build tree holds the profile it claims
 make -C sw/kernel check-memory          # 32 MiB cached external-memory RTL
 make -C sw/kernel check-storage         # AXFS mount over SPI-SD (RTL)
 make -C sw/kernel check-storage-write   # AXFS write/readback (RTL)
-make -C sw/kernel check-sdboot          # legacy SD boot check; profile caveat below
+make -C sw/kernel check-sdboot          # SD boot: shell + fork + exec on the SDRAM pin model
+make -C sw/kernel check-sdboot-exec     # the same exec at the default scheduling quantum
 make -C sw/kernel check-uartboot        # immutable ROM + blank RAM + runtime kernel upload
 ```
 
-`check-sdboot` currently omits the SDRAM profile and runs with default BRAM,
-so its printed physical-SDRAM label is incorrect. Explicit `sim-sdram` testing
-boots the shell but exposes an exec/timer failure. Reproduction and negative
-evidence are tracked in the [SDRAM follow-up](../research/benchmarks/sdram-exec-followup.json)
-and [design checklist](design-checklist.md).
+`check-sdboot` selects `configs/sim-sdram.json` explicitly, prints the
+component identities it resolved, and requires the run to have driven the SDRAM
+pins — the counters the behavioural model keeps — before it will call a
+transcript physical-SDRAM evidence.  It also proves both refusals first: that
+`run-sdram` will not build an on-chip-RAM machine, and that a transcript from
+one is not accepted.  Until 2026-09-06 the target named `run-sdram` without
+selecting a profile, so it built the default BRAM machine and printed a
+physical-SDRAM result anyway.
+
+Shell, fork and exec all pass on that path. Exec used not to, in any budget
+tried (15M, 27M, 120M): the scheduling quantum was armed at trap entry, so
+service cost was spent out of the interval the resumed task should have had,
+and at SDRAM latency the task retired about one instruction per preemption.
+The quantum is now armed on the way out of the S-mode handler and is a
+`timer_quantum_cycles` profile setting — see
+[memory.md](memory.md#the-scheduling-quantum-on-slow-memory).
+`check-sdboot` builds with `configs/kernel-slow-memory.json`, the profile
+matched to this machine; `check-sdboot-exec` runs the same workload at the
+default 2,000-cycle quantum and is the retained failure case for renewed loss
+of user progress. Evidence:
+[sdram-exec-progress.json](../research/benchmarks/sdram-exec-progress.json) and
+[timer-quantum-fix.json](../research/benchmarks/timer-quantum-fix.json).
 
 ### 3.6 Shell control plane + host-link (RTL-only)
 ```bash

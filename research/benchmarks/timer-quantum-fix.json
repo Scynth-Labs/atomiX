@@ -1,0 +1,235 @@
+{
+  "schema": "org.atomix.timer-quantum-fix.v1",
+  "date": "2026-09-06",
+  "evidence_kind": "simulation",
+  "scope": "No FPGA synthesis, programming, or physical-board result.",
+  "checklist_item": "SDRAM gates 3 and 4",
+  "defect": "The scheduling quantum was armed by the M-mode shim at trap entry, so the shim, the delegated S-mode handler, the scheduler's page-table switch and its sfence were all spent out of the interval the resumed task was supposed to get. Where service cost approaches the quantum the task is preempted before it retires anything. See sdram-exec-progress.json for the measurement that established this.",
+  "fix": {
+    "behaviour": "The S-mode SSIP handler arms the quantum on the way out, after schedule() has chosen who runs next, so the quantum measures the resumed task's own execution. The shim's arming at entry still stands for every path that does not reach the handler's exit, so a missed rearm cannot stop the tick.",
+    "ownership": "The interval is the profile setting timer_quantum_cycles, bounded 256..16777216 by tools/configure.py and again by _Static_assert in sw/kernel/include/timer.h, which is where its #ifndef default of 2000 lives. One define reaches both the C handler and the assembly shim, which must agree because both arm the same CLINT register.",
+    "files": [
+      "sw/kernel/include/timer.h",
+      "sw/kernel/kernel.c",
+      "sw/kernel/trap.S",
+      "tools/configure.py",
+      "sw/kernel/Makefile",
+      "configs/kernel-slow-memory.json"
+    ]
+  },
+  "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b",
+  "exec_workload": {
+    "before_fix_quantum_2000": {
+      "at_40M": [
+        {
+          "machine": "bram",
+          "memory": "memory.bram",
+          "finished": true,
+          "cycles": 6314808,
+          "retired": 1594289,
+          "user_retired": 4459,
+          "user_entries": 74,
+          "user_per_entry": 60.257,
+          "timer_arrivals": 83,
+          "idle_cycles": 2453,
+          "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+        },
+        {
+          "machine": "delayed",
+          "memory": "memory.delayed",
+          "finished": true,
+          "cycles": 13966802,
+          "retired": 2263392,
+          "user_retired": 4459,
+          "user_entries": 2944,
+          "user_per_entry": 1.515,
+          "timer_arrivals": 3247,
+          "idle_cycles": 1953,
+          "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+        },
+        {
+          "machine": "sdram",
+          "memory": "memory.sdram",
+          "finished": false,
+          "cycles": 40000000,
+          "retired": 2880192,
+          "user_retired": 0,
+          "user_entries": 0,
+          "user_per_entry": null,
+          "timer_arrivals": 13791,
+          "idle_cycles": 0,
+          "uart_tail": "oot\naXos: shell online\naXos> exec hello.elf one two\nexec: "
+        }
+      ],
+      "at_120M": [
+        {
+          "machine": "sdram",
+          "memory": "memory.sdram",
+          "finished": false,
+          "cycles": 120000000,
+          "retired": 6661641,
+          "user_retired": 785,
+          "user_entries": 787,
+          "user_per_entry": 0.997,
+          "timer_arrivals": 48822,
+          "idle_cycles": 1873,
+          "uart_tail": "oot\naXos: shell online\naXos> exec hello.elf one two\nexec: "
+        }
+      ]
+    },
+    "after_fix_quantum_2000": [
+      {
+        "machine": "bram",
+        "memory": "memory.bram",
+        "finished": true,
+        "cycles": 6293688,
+        "retired": 1589945,
+        "user_retired": 4459,
+        "user_entries": 50,
+        "user_per_entry": 89.18,
+        "timer_arrivals": 61,
+        "idle_cycles": 3818,
+        "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      },
+      {
+        "machine": "delayed",
+        "memory": "memory.delayed",
+        "finished": true,
+        "cycles": 8330562,
+        "retired": 1676943,
+        "user_retired": 4459,
+        "user_entries": 327,
+        "user_per_entry": 13.636,
+        "timer_arrivals": 503,
+        "idle_cycles": 3576,
+        "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      },
+      {
+        "machine": "sdram",
+        "memory": "memory.sdram",
+        "finished": true,
+        "cycles": 39112456,
+        "retired": 3000376,
+        "user_retired": 4459,
+        "user_entries": 4483,
+        "user_per_entry": 0.995,
+        "timer_arrivals": 9967,
+        "idle_cycles": 0,
+        "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      }
+    ],
+    "after_fix_quantum_64000": [
+      {
+        "machine": "bram",
+        "memory": "memory.bram",
+        "finished": true,
+        "cycles": 6341709,
+        "retired": 1583405,
+        "user_retired": 4459,
+        "user_entries": 25,
+        "user_per_entry": 178.36,
+        "timer_arrivals": 3,
+        "idle_cycles": 79470,
+        "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      },
+      {
+        "machine": "delayed",
+        "memory": "memory.delayed",
+        "finished": true,
+        "cycles": 7530196,
+        "retired": 1583238,
+        "user_retired": 4459,
+        "user_entries": 26,
+        "user_per_entry": 171.5,
+        "timer_arrivals": 8,
+        "idle_cycles": 90173,
+        "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      },
+      {
+        "machine": "sdram",
+        "memory": "memory.sdram",
+        "finished": true,
+        "cycles": 9864981,
+        "retired": 1585094,
+        "user_retired": 4459,
+        "user_entries": 28,
+        "user_per_entry": 159.25,
+        "timer_arrivals": 21,
+        "idle_cycles": 126869,
+        "uart_tail": "axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      }
+    ]
+  },
+  "fork_workload_preemption": {
+    "after_fix_quantum_2000_sdram": [
+      {
+        "machine": "sdram",
+        "memory": "memory.sdram",
+        "finished": true,
+        "cycles": 8471014,
+        "retired": 1246552,
+        "user_retired": 71,
+        "user_entries": 82,
+        "user_per_entry": 0.866,
+        "timer_arrivals": 368,
+        "idle_cycles": 2946,
+        "uart_tail": "ot\naXos: shell online\naXos> fork\nfork demo: PCWaXos> exit\n"
+      }
+    ],
+    "after_fix_quantum_64000": [
+      {
+        "machine": "bram",
+        "memory": "memory.bram",
+        "finished": true,
+        "cycles": 5485009,
+        "retired": 1218680,
+        "user_retired": 71,
+        "user_entries": 12,
+        "user_per_entry": 5.917,
+        "timer_arrivals": 3,
+        "idle_cycles": 107860,
+        "uart_tail": "ot\naXos: shell online\naXos> fork\nfork demo: PCWaXos> exit\n"
+      },
+      {
+        "machine": "delayed",
+        "memory": "memory.delayed",
+        "finished": true,
+        "cycles": 6396200,
+        "retired": 1218571,
+        "user_retired": 71,
+        "user_entries": 12,
+        "user_per_entry": 5.917,
+        "timer_arrivals": 4,
+        "idle_cycles": 127570,
+        "uart_tail": "ot\naXos: shell online\naXos> fork\nfork demo: CPWaXos> exit\n"
+      },
+      {
+        "machine": "sdram",
+        "memory": "memory.sdram",
+        "finished": true,
+        "cycles": 8079664,
+        "retired": 1218878,
+        "user_retired": 71,
+        "user_entries": 13,
+        "user_per_entry": 5.462,
+        "timer_arrivals": 7,
+        "idle_cycles": 126866,
+        "uart_tail": "ot\naXos: shell online\naXos> fork\nfork demo: CPWaXos> exit\n"
+      }
+    ],
+    "reading": "The fork demo's transcript is the preemption check: it prints PCW or CPW only if parent and child interleave. Both orders remain accepted and both appear across the three memories at both quanta, so preemption still happens at 64,000 cycles."
+  },
+  "headline": {
+    "sdram_exec_before": "no completion at 120,000,000 cycles",
+    "sdram_exec_after_default_quantum": 39112456,
+    "sdram_exec_after_slow_memory_profile": 9864981,
+    "delayed_exec_before": 13966802,
+    "delayed_exec_after_default_quantum": 8330562,
+    "note": "The fix helps every memory, not only the slow one: the delayed model went from 13,966,802 to 8,330,562 cycles at the same quantum, because each quantum is now spent on the task rather than on reaching it."
+  },
+  "residual": "At the default 2,000-cycle quantum the SDRAM machine still retires about one user instruction per handler entry -- it completes because entries are frequent, not because each is productive. Useful user progress on this machine needs a quantum matched to it, which is why configs/kernel-slow-memory.json exists and why check-sdboot builds with it. The default is unchanged, so every existing profile builds the policy it built before.",
+  "regression": {
+    "check-sdboot": "shell, fork and exec on the pin model with kernel-slow-memory; measured 7.54M, 8.47M and 9.86M cycles against 12M/12M/15M bounds",
+    "check-sdboot-exec": "the same exec at the default quantum, measured 39,112,456 cycles against a 60M bound. This is the failure case retained for renewed loss of user progress: with the quantum armed at entry again it does not finish at all."
+  }
+}

@@ -18,12 +18,31 @@ static volatile int data_marker = 0x5a;
 static volatile int bss_marker;
 
 int main(int argc, char **argv) {
-  if (argc != 1 && argc != 3) return 35;
+  if (argc != 1 && argc != 2 && argc != 3) return 35;
   if (argv == NULL || argv[argc] != NULL) return 36;
   if (strcmp(argv[0], "hello.elf") != 0) return 37;
+  if (argc == 2 && strcmp(argv[1], "role-leak") != 0) return 39;
   if (argc == 3 &&
       (strcmp(argv[1], "one") != 0 || strcmp(argv[2], "two") != 0))
     return 38;
+
+  if (argc == 2) {
+    struct ax_role_info role;
+    if (role_info(&role) != 0) return 51;
+    if (role.id != AX_ROLE_ID_LOOPBACK) {
+      puts("role-user: no loopback role to leak");
+      return 0;
+    }
+    const uint32_t leak_input[4] = {1u, 2u, 3u, 4u};
+    uint8_t leak_request[2 + sizeof(leak_input)];
+    leak_request[0] = 4;
+    leak_request[1] = 0;
+    memcpy(&leak_request[2], leak_input, sizeof(leak_input));
+    if (role_submit(AX_ROLE_OP_LOOPBACK, leak_request,
+                    sizeof(leak_request)) <= 0) return 52;
+    puts("role-user: submitted without collecting");
+    return 0;
+  }
 
   if (data_marker != 0x5a) return 2;
   if (bss_marker != 0) return 3;

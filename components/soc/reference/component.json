@@ -4,6 +4,7 @@
   "kind": "soc",
   "title": "QEMU-virt-aligned aXbus SoC shell",
   "sources": [
+    "components/soc/reference/axprogmon.sv",
     "components/soc/reference/axlivemon.sv",
     "components/soc/reference/axroleiso.sv",
     "components/soc/reference/soc_top.sv"
@@ -41,6 +42,12 @@
       "define": "AX_LIVE_ROLE_EVENTS",
       "omit_when_zero": true,
       "doc": "Drive DESCRIPTOR_REJECTIONS and WATCHDOG_EVENTS from real producers: the role ABI's reject_event line and the fence's stall watchdog. Setting 0 compiles both out, port included, so a declining profile builds the RTL it built before the producers existed and its counters read zero as they did. This is omit_when_zero because gating by value is not enough: on a GW5A-25A the producers take role.morph at one PE from 18,660 to 20,911 LUT4 (81% to 90.8%) and no legal placement, and merely gating the logic still left 20,280 LUT4 and no placement at five seeds. Unlike live_monitor=0 this keeps LIVE_ID, LIVE_VERSION, the snapshot command, and the four counters a payload can already read, so a profile can decline the producers without making the monitor unreachable."
+    },
+    "progress_monitor": {
+      "default": 0,
+      "define": "AX_PROGRESS_MONITOR",
+      "omit_when_zero": true,
+      "doc": "Instantiate the CPU progress monitor and publish its counters on the SoC top. It observes the core's commit trace, the timer line, and the two bus ports; it drives nothing, so the instruction stream is the same whether it is present or not. Off by default because it is a diagnostic instrument, not part of the machine: a profile that declines it compiles the RTL text it compiled before the monitor existed, ports included, which is why this is omit_when_zero rather than gated by value. Turn it on to ask why a workload stopped making progress -- user retirements, handler entries and exits, timer arrivals, pending interrupts, and fetch/data stall cycles separate interrupt starvation from a stalled memory transaction from work that is merely slow."
     }
   }
 }

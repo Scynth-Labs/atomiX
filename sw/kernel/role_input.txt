@@ -1,3 +1,4 @@
 role
+exec hello.elf role-leak
 exec hello.elf
 exit

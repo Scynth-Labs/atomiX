@@ -17,7 +17,11 @@ make -C sw/kernel check-sdboot
 ```
 
 The last command also creates `sw/kernel/build/axos_boot.img`, the exact raw
-SD image used below.
+SD image used below. It boots that image through the SDRAM pin model as far as
+the shell, fork/wait and ELF exec. The image is built with
+`configs/kernel-slow-memory.json`, whose scheduling quantum is sized for a
+machine backed by SDRAM rather than on-chip RAM — see
+[memory.md](memory.md#the-scheduling-quantum-on-slow-memory).
 
 ## 2. FPGA tool check and build
 

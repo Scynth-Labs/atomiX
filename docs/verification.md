@@ -54,14 +54,47 @@ making a later integration stage consume artifacts produced by earlier ones.
 
 Every stage streams its output and also writes
 `build/verification/<suite>/<stage>.log`. The runner continuously updates
-`summary.json`, including timestamps, duration, result, exit code, and log path.
+`summary.json` (`org.atomix.verification-result.v2`), including timestamps,
+duration, result, exit code, and log path.
 Scheduled jobs use `--keep-going` to report independent failures together and
 upload the entire suite directory even when all stages pass. CI stops at the
 first failed stage for fast feedback and uploads logs on failure.
 
 Each process runs in its own process group. A stage that exceeds its declared
 timeout is terminated with its children and recorded as `timeout`; a missing
-required tool is recorded as `blocked`. Both fail the suite.
+required tool is recorded as `blocked`; a stage the suite asked for but never
+reached is recorded as `not-run`. All three fail the suite, and every outcome
+is counted by name in `counts` and printed as an `outcomes:` line, so a pass is
+never read off a list whose length changed.
+
+### The record names the machine that ran
+
+A result that does not say what produced it is a claim about nothing in
+particular. Each summary carries an `environment` block — Verilator, Yosys,
+RISC-V GCC, clang, QEMU, make, node and Python versions, the host, the git
+revision, and whether the worktree was clean — and each stage may declare the
+profiles it exercises:
+
+```json
+"kernel-storage-mutation": {
+  "label": "...",
+  "command": ["make", "-C", "sw/kernel", "check-sdboot"],
+  "profiles": ["configs/sim-sdram.json", "configs/kernel-slow-memory.json"]
+}
+```
+
+The runner resolves each one itself and records what it resolved to — name,
+core, memory, cache, role, harness, simulation top, board, scheduler, every
+setting, and the define list — so the record describes the machine rather than
+repeating the profile's own name for it. A stage naming a profile that does not
+resolve **fails before its command runs**: a result labelled with a machine
+nothing could have built is worse than no result.
+
+`python3 tools/verify.py self-test`, which `make verification-check` runs, is
+the check on all of that. It runs a synthetic suite designed to go wrong and
+requires that a missing tool blocks, an unresolvable configuration fails
+without executing its command, a passing stage records the machine it ran on,
+and stages never attempted survive into the summary as `not-run`.
 
 ## Adding coverage
 
@@ -74,7 +107,7 @@ its build recipe in the manifest.
 Run these before submitting the change:
 
 ```bash
-python3 tools/verify.py validate
+make verification-check   # validate the manifest, then self-test the runner
 make verify-smoke
 ```
 

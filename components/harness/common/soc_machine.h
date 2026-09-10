@@ -99,6 +99,82 @@ class SocMachine {
   // caller with a cycle budget to spend knows it is buying nothing here.
   bool cpu_idle() const { return top_->cpu_idle != 0; }
 
+  // Which memory actually carried the run.  A profile that resolves to on-chip
+  // RAM has no pins to count, and says so; a pin-level build reports what the
+  // controller drove.  Both front ends print it, so "physical SDRAM" is a
+  // measurement of the build rather than a property of the target's name.
+  struct SdramPins {
+    bool present = false;
+    uint32_t activate = 0;
+    uint32_t read = 0;
+    uint32_t write = 0;
+    uint32_t precharge = 0;
+    uint32_t refresh = 0;
+  };
+
+  // CPU progress, when the profile asked for the monitor.  Present is a
+  // build fact, not a runtime one: a machine without the monitor has nothing
+  // to report and says so, rather than reporting zeros that would read as a
+  // hart that never retired anything.
+  struct Progress {
+    bool present = false;
+    uint64_t cycles = 0;
+    uint64_t retired = 0;
+    uint64_t retired_user = 0;
+    uint64_t retired_supervisor = 0;
+    uint64_t retired_machine = 0;
+    uint64_t exceptions = 0;
+    uint64_t user_exits = 0;
+    uint64_t user_entries = 0;
+    uint64_t timer_arrivals = 0;
+    uint64_t timer_pending_cycles = 0;
+    uint64_t idle_cycles = 0;
+    uint64_t ifetch_stall_cycles = 0;
+    uint64_t dmem_stall_cycles = 0;
+    uint32_t last_pc = 0;
+    uint32_t last_mip = 0;
+    uint32_t last_mie = 0;
+    uint32_t last_prv = 0;
+  };
+
+  Progress progress() const {
+    Progress p;
+#ifdef AX_PROGRESS_MONITOR
+    p.present = true;
+    p.cycles = top_->progress_cycles;
+    p.retired = top_->progress_retired;
+    p.retired_user = top_->progress_retired_user;
+    p.retired_supervisor = top_->progress_retired_supervisor;
+    p.retired_machine = top_->progress_retired_machine;
+    p.exceptions = top_->progress_exceptions;
+    p.user_exits = top_->progress_user_exits;
+    p.user_entries = top_->progress_user_entries;
+    p.timer_arrivals = top_->progress_timer_arrivals;
+    p.timer_pending_cycles = top_->progress_timer_pending_cycles;
+    p.idle_cycles = top_->progress_idle_cycles;
+    p.ifetch_stall_cycles = top_->progress_ifetch_stall_cycles;
+    p.dmem_stall_cycles = top_->progress_dmem_stall_cycles;
+    p.last_pc = top_->progress_last_pc;
+    p.last_mip = top_->progress_last_mip;
+    p.last_mie = top_->progress_last_mie;
+    p.last_prv = top_->progress_last_prv;
+#endif
+    return p;
+  }
+
+  SdramPins sdram_pins() const {
+    SdramPins pins;
+#ifdef AX_SOC_SDRAM
+    pins.present = true;
+    pins.activate = top_->sdram_cmd_activate;
+    pins.read = top_->sdram_cmd_read;
+    pins.write = top_->sdram_cmd_write;
+    pins.precharge = top_->sdram_cmd_precharge;
+    pins.refresh = top_->sdram_cmd_refresh;
+#endif
+    return pins;
+  }
+
  private:
   ax_soc_top_t* top_ = nullptr;
   SpiSdCard sd_;

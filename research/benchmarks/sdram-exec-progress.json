@@ -1,0 +1,370 @@
+{
+  "schema": "org.atomix.sdram-exec-progress.v1",
+  "date": "2026-09-06",
+  "evidence_kind": "simulation",
+  "scope": "No FPGA synthesis, programming, or physical-board result.",
+  "checklist_item": "SDRAM gate 2 - establish the progress failure",
+  "question": "ELF exec does not complete on the SDRAM pin model. Is the machine starved of interrupt service, stalled on a memory transaction, or simply doing slow useful work? A larger cycle budget cannot tell them apart, and all three were consistent with the PC samples recorded in sdram-exec-followup.json.",
+  "method": "The same kernel binary, SD image, ROM loader and input script booted on three memories with the SoC progress monitor compiled in (soc.reference parameter progress_monitor=1). The monitor observes the core's commit trace, the CLINT timer line and both bus ports; it drives nothing, so the instruction stream is unchanged by its presence. Reproduce with tools/sdram_progress_probe.py.",
+  "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b",
+  "input_sha256": {
+    "sw/kernel/build/axos_boot.img": "d1e00cf28ac51ead709c3a8a859876acb36a046e46f1425b8dc282994ca81d16",
+    "sw/kernel/build/axos_boot.bin": "054bd20a66298f262846f20d2701acd062b179f0c45a720a9490c1583e14e460",
+    "sw/bootrom/build/bootrom.hex": "0de96759889acaab416f72a40404626001dcab38d4a21565a244572a5cd20b80",
+    "sw/kernel/exec_input.txt": "282904b655ce9574a06343462b1b974c891a1faed2ec5187fd387bf5953069ac"
+  },
+  "reproduce": {
+    "root": "Replace {root} with the absolute repository root.",
+    "build": [
+      "make",
+      "-C",
+      "sw/kernel",
+      "boot-disk"
+    ],
+    "three_way": [
+      "python3",
+      "tools/sdram_progress_probe.py",
+      "--workload",
+      "exec",
+      "--max-cycles",
+      "40000000"
+    ],
+    "long_sdram": [
+      "python3",
+      "tools/sdram_progress_probe.py",
+      "--workload",
+      "exec",
+      "--machines",
+      "sdram",
+      "--max-cycles",
+      "120000000"
+    ],
+    "baseline_shell": [
+      "python3",
+      "tools/sdram_progress_probe.py",
+      "--workload",
+      "shell",
+      "--max-cycles",
+      "20000000"
+    ]
+  },
+  "runs": {
+    "shell_20M": [
+      {
+        "machine": "bram",
+        "note": "on-chip RAM array, single-cycle, 32 MiB, I/D caches on",
+        "profile": "sim-progress-bram",
+        "memory": "memory.bram",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-soc",
+        "sim_top": "soc_top",
+        "max_cycles": 20000000,
+        "finished": true,
+        "cycles": 5277722,
+        "progress": {
+          "cycles": 5277722,
+          "retired": 1179449,
+          "user": 0,
+          "supervisor": 24790,
+          "machine": 1154659,
+          "exceptions": 0,
+          "user_exits": 0,
+          "user_entries": 0,
+          "timer_arrivals": 0,
+          "timer_pending": 0,
+          "idle": 0,
+          "ifetch_stall": 3459959,
+          "dmem_stall": 826506,
+          "last_pc": 2147502184,
+          "last_mip": 0,
+          "last_mie": 642,
+          "last_prv": 1
+        },
+        "sdram_pins": null,
+        "derived": {
+          "summary": "completed; 81.2% of cycles stalled on memory"
+        },
+        "uart_tail": "f\naXos> cat motd\nWelcome to aXos.\naXos> echo atomiX\natomiX\naXos> exit\n"
+      },
+      {
+        "machine": "delayed",
+        "note": "delayed backing-store model, 32 MiB, I/D caches on",
+        "profile": "sim-progress-delayed",
+        "memory": "memory.delayed",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-soc",
+        "sim_top": "soc_top",
+        "max_cycles": 20000000,
+        "finished": true,
+        "cycles": 6064277,
+        "progress": {
+          "cycles": 6064277,
+          "retired": 1179281,
+          "user": 0,
+          "supervisor": 24622,
+          "machine": 1154659,
+          "exceptions": 0,
+          "user_exits": 0,
+          "user_entries": 0,
+          "timer_arrivals": 0,
+          "timer_pending": 0,
+          "idle": 0,
+          "ifetch_stall": 3975445,
+          "dmem_stall": 1596062,
+          "last_pc": 2147502184,
+          "last_mip": 0,
+          "last_mie": 642,
+          "last_prv": 1
+        },
+        "sdram_pins": null,
+        "derived": {
+          "summary": "completed; 91.9% of cycles stalled on memory"
+        },
+        "uart_tail": "f\naXos> cat motd\nWelcome to aXos.\naXos> echo atomiX\natomiX\naXos> exit\n"
+      },
+      {
+        "machine": "sdram",
+        "note": "axsdram controller against the CAS-2 x16 pin model, 32 MiB, I/D caches on (fixed by the harness top)",
+        "profile": "sim-progress-sdram",
+        "memory": "memory.sdram",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-sdram",
+        "sim_top": "soc_sdram_test_top",
+        "max_cycles": 20000000,
+        "finished": true,
+        "cycles": 7543477,
+        "progress": {
+          "cycles": 7543477,
+          "retired": 1179257,
+          "user": 0,
+          "supervisor": 24598,
+          "machine": 1154659,
+          "exceptions": 0,
+          "user_exits": 0,
+          "user_entries": 0,
+          "timer_arrivals": 0,
+          "timer_pending": 0,
+          "idle": 0,
+          "ifetch_stall": 4936264,
+          "dmem_stall": 3008111,
+          "last_pc": 2147502184,
+          "last_mip": 0,
+          "last_mie": 642,
+          "last_prv": 1
+        },
+        "sdram_pins": {
+          "activate": 263368,
+          "read": 348888,
+          "write": 177848,
+          "precharge": 263369,
+          "refresh": 37336
+        },
+        "derived": {
+          "summary": "completed; 105.3% of cycles stalled on memory"
+        },
+        "uart_tail": "f\naXos> cat motd\nWelcome to aXos.\naXos> echo atomiX\natomiX\naXos> exit\n"
+      }
+    ],
+    "exec_40M": [
+      {
+        "machine": "bram",
+        "note": "on-chip RAM array, single-cycle, 32 MiB, I/D caches on",
+        "profile": "sim-progress-bram",
+        "memory": "memory.bram",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-soc",
+        "sim_top": "soc_top",
+        "max_cycles": 40000000,
+        "finished": true,
+        "cycles": 6314808,
+        "progress": {
+          "cycles": 6314808,
+          "retired": 1594289,
+          "user": 4459,
+          "supervisor": 432598,
+          "machine": 1157232,
+          "exceptions": 24,
+          "user_exits": 74,
+          "user_entries": 74,
+          "timer_arrivals": 83,
+          "timer_pending": 4315,
+          "idle": 2453,
+          "ifetch_stall": 3511040,
+          "dmem_stall": 1174103,
+          "last_pc": 2147502184,
+          "last_mip": 0,
+          "last_mie": 642,
+          "last_prv": 1
+        },
+        "sdram_pins": null,
+        "derived": {
+          "retired_per_1k_cycles": 252.47,
+          "user_retired_per_1k_cycles": 0.706,
+          "ifetch_stall_share": 0.556,
+          "dmem_stall_share": 0.1859,
+          "idle_share": 0.0004,
+          "summary": "completed in 6314808 cycles; 55.6% of cycles waiting on instruction fetch, 18.6% on data"
+        },
+        "uart_tail": "e two\nexec: axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      },
+      {
+        "machine": "delayed",
+        "note": "delayed backing-store model, 32 MiB, I/D caches on",
+        "profile": "sim-progress-delayed",
+        "memory": "memory.delayed",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-soc",
+        "sim_top": "soc_top",
+        "max_cycles": 40000000,
+        "finished": true,
+        "cycles": 13966802,
+        "progress": {
+          "cycles": 13966802,
+          "retired": 2263392,
+          "user": 4459,
+          "supervisor": 1003617,
+          "machine": 1255316,
+          "exceptions": 24,
+          "user_exits": 2944,
+          "user_entries": 2944,
+          "timer_arrivals": 3247,
+          "timer_pending": 394962,
+          "idle": 1953,
+          "ifetch_stall": 7913265,
+          "dmem_stall": 4480780,
+          "last_pc": 2147502184,
+          "last_mip": 0,
+          "last_mie": 642,
+          "last_prv": 1
+        },
+        "sdram_pins": null,
+        "derived": {
+          "retired_per_1k_cycles": 162.06,
+          "user_retired_per_1k_cycles": 0.319,
+          "ifetch_stall_share": 0.5666,
+          "dmem_stall_share": 0.3208,
+          "idle_share": 0.0001,
+          "summary": "completed in 13966802 cycles; 56.7% of cycles waiting on instruction fetch, 32.1% on data"
+        },
+        "uart_tail": "e two\nexec: axlibc: pid=1 n=42 hex=beef str=reused motd=17\naXos> exit\n"
+      },
+      {
+        "machine": "sdram",
+        "note": "axsdram controller against the CAS-2 x16 pin model, 32 MiB, I/D caches on (fixed by the harness top)",
+        "profile": "sim-progress-sdram",
+        "memory": "memory.sdram",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-sdram",
+        "sim_top": "soc_sdram_test_top",
+        "max_cycles": 40000000,
+        "finished": false,
+        "cycles": 40000000,
+        "progress": {
+          "cycles": 40000000,
+          "retired": 2880192,
+          "user": 0,
+          "supervisor": 1298012,
+          "machine": 1582180,
+          "exceptions": 0,
+          "user_exits": 0,
+          "user_entries": 0,
+          "timer_arrivals": 13791,
+          "timer_pending": 3449387,
+          "idle": 0,
+          "ifetch_stall": 23930738,
+          "dmem_stall": 20280249,
+          "last_pc": 2147498100,
+          "last_mip": 2,
+          "last_mie": 642,
+          "last_prv": 1
+        },
+        "sdram_pins": {
+          "activate": 3349293,
+          "read": 5658252,
+          "write": 1040334,
+          "precharge": 3349293,
+          "refresh": 199396
+        },
+        "derived": {
+          "retired_per_1k_cycles": 72.0,
+          "user_retired_per_1k_cycles": 0.0,
+          "ifetch_stall_share": 0.5983,
+          "dmem_stall_share": 0.507,
+          "idle_share": 0.0,
+          "summary": "did not complete: never reached user mode; last commit at 0x80003874 in mode 1"
+        },
+        "uart_tail": "aXboot\naXos: shell online\naXos> exec hello.elf one two\nexec: "
+      }
+    ],
+    "exec_120M": [
+      {
+        "machine": "sdram",
+        "note": "axsdram controller against the CAS-2 x16 pin model, 32 MiB, I/D caches on (fixed by the harness top)",
+        "profile": "sim-progress-sdram",
+        "memory": "memory.sdram",
+        "cache": "cache.direct-mapped",
+        "harness": "harness.verilator-sdram",
+        "sim_top": "soc_sdram_test_top",
+        "max_cycles": 120000000,
+        "finished": false,
+        "cycles": 120000000,
+        "progress": {
+          "cycles": 120000000,
+          "retired": 6661641,
+          "user": 785,
+          "supervisor": 3992734,
+          "machine": 2668122,
+          "exceptions": 2,
+          "user_exits": 787,
+          "user_entries": 787,
+          "timer_arrivals": 48822,
+          "timer_pending": 12005245,
+          "idle": 1873,
+          "ifetch_stall": 72117553,
+          "dmem_stall": 62401150,
+          "last_pc": 2147484140,
+          "last_mip": 128,
+          "last_mie": 642,
+          "last_prv": 3
+        },
+        "sdram_pins": {
+          "activate": 11058411,
+          "read": 19002845,
+          "write": 3113976,
+          "precharge": 11058411,
+          "refresh": 597677
+        },
+        "derived": {
+          "retired_per_1k_cycles": 55.51,
+          "user_retired_per_1k_cycles": 0.007,
+          "ifetch_stall_share": 0.601,
+          "dmem_stall_share": 0.52,
+          "idle_share": 0.0,
+          "summary": "did not complete: 785 user instructions retired over 787 handler entries"
+        },
+        "uart_tail": "aXboot\naXos: shell online\naXos> exec hello.elf one two\nexec: "
+      }
+    ]
+  },
+  "finding": {
+    "cause": "interrupt starvation of user progress",
+    "mechanism": "The machine-timer shim rearms mtimecmp at a fixed +2000 mtime ticks, and this CLINT advances mtime once per clock, so the period is 2000 cycles of wall time on every machine. The cost of servicing it is not fixed: the M-mode shim and the delegated S-mode handler are ordinary code, so their cycle cost scales with memory latency. At SDRAM latency the service cost consumes essentially the whole period, and the user task retires one instruction per period.",
+    "discriminator": {
+      "measure": "user instructions retired per handler entry",
+      "bram": 60.257,
+      "delayed": 1.515,
+      "sdram_120M": 0.997,
+      "reading": "A uniform slowdown would lower every rate together and leave this ratio unchanged; instead it collapses from 53.7 to 1.51 to 0.997 as memory latency rises. One instruction per entry is the signature of a hart preempted as fast as it can be resumed."
+    },
+    "refuted": {
+      "stalled_memory_transaction": "Nothing is deadlocked. Between 40M and 120M cycles the SDRAM run retired a further 3.78M instructions, entered user mode 787 times, and drove 11.06M row activations and 597,677 refreshes. A stalled transaction would show retirement stopping and the pin counters flat.",
+      "slow_useful_work_alone": "The SDRAM machine is about 3.5x slower per retired instruction than BRAM (13.89 vs 3.96 cycles), which alone would put exec near 22M cycles. It has not completed at 120M, and the shortfall is not spread evenly: kernel and handler code keep retiring at 55.5 instructions per thousand cycles while user code retires 0.007."
+    },
+    "not_yet_established": "How the service cost divides between the M-mode shim, the delegated S-mode handler, the scheduler, and cache refills on entry is not separated by these counters. Gate 3 needs that split only insofar as its fix must be shown to restore user progress; the cause of the failure is established here."
+  },
+  "notes": [
+    "The shell and fork workloads pass on all three memories: the timer is armed at +0x00100000 during m_setup and only reaches its 2000-cycle period after the first arrival, so a session that finishes before that never sees the storm.",
+    "Cache settings are stated rather than equalised away: all three runs use cache.direct-mapped with I/D caches enabled and 32 MiB of RAM. The BRAM and delayed profiles are given those explicitly because the pin-level harness top fixes them.",
+    "M-mode retirement is dominated by the ROM loader, not the shim: it is 1,154,659 instructions in every shell run on all three memories, which is also the strongest available check that the three machines executed the same software."
+  ]
+}

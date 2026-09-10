@@ -68,8 +68,9 @@ most traffic and keep the first hardware design auditable.
 
 The controller emits separate DQ input/output/enable signals. The board top
 owns the ECP5 `BB` bidirectional pads, avoiding an internal tri-state loop.
-`run-axsdram` checks CAS-2 timing; `check-sdboot` boots the full shell through
-the same physical-controller path.
+`run-axsdram` checks CAS-2 timing and that the commands reached the pins;
+`check-sdboot` boots the shell and fork/wait through the same
+physical-controller path, and reports the pin-command counts that show it did.
 
 ## Cache contract
 
@@ -102,7 +103,7 @@ make -C sim/unit run-axcache       # fills, hits, write-through, flush, bypass
 make -C sim/unit run-axsdram       # init, refresh, x16 DQ, masks, bank mapping
 make -C sw/baremetal check-fencei QEMU="$HOME/.local/bin/qemu-system-riscv32"
 make -C sw/kernel check-memory     # cached delayed-memory shell + fork/wait
-make -C sw/kernel check-sdboot     # SD boot through physical-SDRAM RTL path
+make -C sw/kernel check-sdboot     # SD boot: shell + fork on the SDRAM pin model
 ```
 
 The `check-fencei` image fetches an instruction, patches it through the data
@@ -174,11 +175,49 @@ future service growth fit before the filesystem while the loaded kernel mounts
 the same image.
 
 ```bash
-make -C sw/kernel check-sdboot
+make -C sw/kernel check-sdboot        # shell + fork/wait + ELF exec
+make -C sw/kernel check-sdboot-exec   # the same exec at the default quantum
 ```
 
-This is a true SD-to-SDRAM boot through `axsdram`; the test requires the
-`aXboot` banner, shell, fork/wait, and filesystem-backed ELF-exec transcripts.
-It takes several million simulation cycles because the deliberately simple SPI
-controller transfers one byte at a time, including the multi-sector ELF, and
-SDRAM accesses are conservative.
+`check-sdboot` is a true SD-to-SDRAM boot through `axsdram`: it selects
+`configs/sim-sdram.json`, requires the `aXboot` banner and the shell,
+fork/wait and ELF-exec transcripts, and requires the run to have driven the
+SDRAM pins (263,360 activates and 37,335 refreshes for the shell run) before it
+will call any of that physical-SDRAM evidence. It also proves the two refusals
+first, against a real BRAM profile: `run-sdram` will not build a machine
+without SDRAM pins, and a transcript from one is not accepted. Measured 7.54M,
+8.47M and 9.86M cycles for the three stages; the bounds are 12M/12M/15M.
+
+### The scheduling quantum on slow memory
+
+Exec on this path used to make no progress at all, and the reason was not the
+memory. The machine-timer shim armed the next deadline at trap *entry*, so the
+shim, the delegated S-mode handler, the scheduler's page-table switch and its
+`sfence` were all spent out of the interval the resumed task was supposed to
+get. On on-chip RAM that overhead is small against a 2,000-cycle quantum; at
+SDRAM latency it is most of it, and the resumed task was preempted before
+retiring anything — 785 user instructions across 787 handler entries, with no
+completion at 120M cycles.
+
+The S-mode handler now arms the quantum on the way *out*, after the scheduler
+has chosen who runs next, so the quantum measures the resumed task's own
+execution and forward progress no longer depends on how expensive service is.
+The shim's arming still stands for every path that does not reach the handler's
+exit, so a missed rearm cannot stop the tick. Exec then completes on the pin
+model in 39.1M cycles at the default quantum, and the delayed model's exec
+dropped from 13.97M to 8.33M cycles at the same quantum.
+
+The interval itself is the `timer_quantum_cycles` profile setting, default
+2,000, bounded in `tools/configure.py` and again by `_Static_assert` in
+[sw/kernel/include/timer.h](../sw/kernel/include/timer.h) — one define reaching
+both the C handler and the assembly shim, which must agree because both arm the
+same CLINT register. `configs/kernel-slow-memory.json` sets 64,000 for machines
+like this one, and with it the same exec finishes in 9.86M cycles and the user
+task retires 159 instructions per handler entry rather than one.
+`check-sdboot` builds with that profile; `check-sdboot-exec` runs the same
+workload at the default 2,000 to keep a failure case for renewed loss of user
+progress, since with the quantum armed at entry again it does not finish at all.
+
+Evidence: [sdram-exec-progress.json](../research/benchmarks/sdram-exec-progress.json)
+for the diagnosis and [timer-quantum-fix.json](../research/benchmarks/timer-quantum-fix.json)
+for the fix, both produced by `tools/sdram_progress_probe.py`.

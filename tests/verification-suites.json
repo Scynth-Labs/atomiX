@@ -3,9 +3,41 @@
   "stages": {
     "runtime-payload": {
       "label": "Native runtime payload reuse, baked parity, and interactive continuity",
-      "command": ["make", "-C", "sim/soc", "check-runtime-payload"],
+      "command": [
+        "make",
+        "-C",
+        "sim/soc",
+        "check-runtime-payload"
+      ],
+      "profiles": [
+        "configs/sim-role-loopback.json",
+        "configs/sim-delayed.json",
+        "configs/kernel-default.json"
+      ],
       "timeout_seconds": 1800,
-      "requires": ["make", "python3", "verilator"]
+      "requires": [
+        "make",
+        "python3",
+        "verilator"
+      ]
+    },
+    "doc-examples": {
+      "label": "every documentation example boots the machine it describes, and the formal, cosim, and rollback evidence renders faithfully from its records",
+      "command": [
+        "make",
+        "example-replay",
+        "evidence-views"
+      ],
+      "profiles": [
+        "configs/sim-bram.json",
+        "configs/sim-role-loopback.json"
+      ],
+      "timeout_seconds": 1800,
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
     },
     "axsim-directed": {
       "label": "Golden ISS smoke and trap tests",
@@ -46,12 +78,34 @@
         "python3"
       ]
     },
+    "kernel-build-identity": {
+      "label": "a reused kernel build tree holds the configuration it claims, and each personality boots as itself",
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-build-identity"
+      ],
+      "profiles": [
+        "configs/kernel-default.json",
+        "configs/kernel-slow-memory.json",
+        "configs/kernel-small-caps.json",
+        "configs/kernel-primer-monitor.json",
+        "configs/sim-bram.json"
+      ],
+      "timeout_seconds": 1800,
+      "requires": [
+        "make",
+        "python3"
+      ]
+    },
     "research-contracts": {
-      "label": "Personality, comparison, and ECP5 frame research contracts",
+      "label": "Personality, comparison, ECP5 frame, and partial-image delta research contracts",
       "command": [
         "make",
         "comparison-check",
-        "ecp5-frame-check"
+        "ecp5-frame-check",
+        "pr-gate-check"
       ],
       "timeout_seconds": 300,
       "requires": [
@@ -205,6 +259,7 @@
         "check-gpu",
         "check-gpu-perf",
         "check-gpu1",
+        "check-gpu-tpu",
         "check-cpu-perf"
       ],
       "timeout_seconds": 10800,
@@ -237,7 +292,12 @@
         "check-shell",
         "check-role-driver",
         "check-role-irq",
-        "check-hostlink"
+        "check-hostlink",
+        "check-hostlink-stream"
+      ],
+      "profiles": [
+        "configs/kernel-default.json",
+        "configs/sim-role-loopback.json"
       ],
       "timeout_seconds": 5400,
       "requires": [
@@ -253,6 +313,9 @@
         "-C",
         "sw/kernel",
         "check-primer-runtime"
+      ],
+      "profiles": [
+        "configs/sim-primer-runtime-gpu.json"
       ],
       "timeout_seconds": 5400,
       "requires": [
@@ -270,6 +333,10 @@
         "check-primer",
         "check-uartboot"
       ],
+      "profiles": [
+        "configs/kernel-primer-monitor.json",
+        "configs/sim-primer-runtime-gpu.json"
+      ],
       "timeout_seconds": 3600,
       "requires": [
         "make",
@@ -278,13 +345,19 @@
       ]
     },
     "kernel-storage-mutation": {
-      "label": "aXos filesystem writes and SD boot",
+      "label": "aXos filesystem writes and SD boot, including exec at the default scheduling quantum",
       "command": [
         "make",
         "-C",
         "sw/kernel",
         "check-storage-write",
-        "check-sdboot"
+        "check-sdboot",
+        "check-sdboot-exec"
+      ],
+      "profiles": [
+        "configs/sim-sdram.json",
+        "configs/kernel-slow-memory.json",
+        "configs/kernel-default.json"
       ],
       "timeout_seconds": 7200,
       "requires": [
@@ -300,6 +373,28 @@
         "-C",
         "sw/kernel",
         "check-storage"
+      ],
+      "timeout_seconds": 3600,
+      "requires": [
+        "make",
+        "verilator",
+        "python3"
+      ]
+    },
+    "kernel-hardening": {
+      "label": "external memory, W^X loader rejection, and the adversarial ABI program at default and small capacities",
+      "command": [
+        "make",
+        "-C",
+        "sw/kernel",
+        "check-memory",
+        "check-loader-wx",
+        "check-abi-torture",
+        "check-abi-torture-small"
+      ],
+      "profiles": [
+        "configs/kernel-default.json",
+        "configs/kernel-small-caps.json"
       ],
       "timeout_seconds": 3600,
       "requires": [
@@ -493,13 +588,27 @@
         "make",
         "python3"
       ]
+    },
+    "verification-contract": {
+      "label": "the suite manifest, the runner's own failure modes, and the inventory of advertised commands",
+      "command": [
+        "make",
+        "verification-check"
+      ],
+      "timeout_seconds": 600,
+      "requires": [
+        "make",
+        "python3"
+      ]
     }
   },
   "suites": {
     "smoke": [
       "requirements",
+      "verification-contract",
       "system-profiles",
       "kernel-profiles",
+      "kernel-build-identity",
       "research-contracts",
       "l3-search",
       "axsim-directed",
@@ -509,9 +618,11 @@
     ],
     "ci-quick": [
       "requirements",
+      "verification-contract",
       "axsim-directed",
       "system-profiles",
       "kernel-profiles",
+      "kernel-build-identity",
       "candidate-registry",
       "cosim-directed",
       "diagrams",
@@ -527,6 +638,7 @@
     ],
     "ci-integration": [
       "runtime-payload",
+      "doc-examples",
       "component-composition",
       "baremetal-peripherals",
       "baremetal-role",
@@ -537,9 +649,12 @@
     ],
     "nightly-integrated": [
       "runtime-payload",
+      "doc-examples",
       "requirements",
+      "verification-contract",
       "system-profiles",
       "kernel-profiles",
+      "kernel-build-identity",
       "research-contracts",
       "l3-search",
       "axsim-directed",
@@ -558,6 +673,7 @@
       "kernel-primer-ci",
       "kernel-runtime-switch",
       "kernel-storage-ci",
+      "kernel-hardening",
       "kernel-storage-mutation",
       "diagrams",
       "brand-assets"
