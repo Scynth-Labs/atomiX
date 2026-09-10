@@ -173,5 +173,67 @@
     "cross_domain_ranking": "org.atomix.forbidden",
     "resource_claims": "org.atomix.require-matched-evidence"
   },
-  "extensions": {}
+  "extensions": {
+    "org.atomix.regression-policy": {
+      "schema": {
+        "id": "org.atomix.experiment-regression-policy",
+        "major": 1,
+        "minor": 0
+      },
+      "revision": 1,
+      "summary": "Per-change deterministic regression bounds for the three CPU candidates in the preview experiment",
+      "baseline": {
+        "recorded_on": "2026-09-10",
+        "reason": "Initial baseline from the committed same-binary records produced with Verilator 5.050. Per-change CI is pinned to Verilator 4.038 and must satisfy these same deterministic bounds rather than assuming simulator equivalence.",
+        "workload": {
+          "id": "org.atomix.workload.cpu-perf-mix",
+          "revision": 1,
+          "case": "resident-integer-mix",
+          "outputs": {
+            "checksum": [3911608133]
+          },
+          "output_sha256": "2e49c3c21daa6c85aac4a8ffc1603ecec131fbe5b945bf538cb74926db7d2491"
+        },
+        "artifact": {
+          "sha256": "48428e79c7fe6530cbd468cd9ca6b79b9e1433d525766f011b35552589c8168f",
+          "build_sha256": "efa723a00678f9853d8b6e6f019fdf9d101739bca29712fc507f9874ad0e3dbf",
+          "maximum_bytes": 2224
+        }
+      },
+      "candidates": {
+        "org.atomix.candidate.cpu-perf-on-minimal": {
+          "implementation": "org.atomix.implementation.cpu-perf-rv32",
+          "target": "org.atomix.target.sim-minimal",
+          "profile_sha256": "c27a212a0f51a5c4536a72497e9e02c191dc0484086d28a47fd653292c37a358",
+          "maximum_execute_cycles": 70650,
+          "maximum_total_cycles": 107453
+        },
+        "org.atomix.candidate.cpu-perf-on-pipeline5": {
+          "implementation": "org.atomix.implementation.cpu-perf-rv32",
+          "target": "org.atomix.target.sim-bram",
+          "profile_sha256": "6b6dbbc514d7bd2233962e804d8924e5755f1e3bff8c5a4e217f7b7cb631df6a",
+          "maximum_execute_cycles": 42978,
+          "maximum_total_cycles": 71952
+        },
+        "org.atomix.candidate.cpu-perf-on-ax2": {
+          "implementation": "org.atomix.implementation.cpu-perf-rv32",
+          "target": "org.atomix.target.sim-ax2",
+          "profile_sha256": "5a4dadd82be86c9975394ba3bffd18297821e44be92df70ce767ada0424fb4a1",
+          "maximum_execute_cycles": 25729,
+          "maximum_total_cycles": 47943
+        }
+      },
+      "diagnostic_metrics": [
+        "org.atomix.metric.simulator-host-elapsed-median"
+      ],
+      "change_process": "When a declared input or deterministic result intentionally changes, update the records, bump this policy revision, append a dated reason to history, and review cycle/size bounds at the new matched identities. Never promote simulator wall time to a threshold.",
+      "history": [
+        {
+          "revision": 1,
+          "date": "2026-09-10",
+          "reason": "Established exact oracle and zero-regression cycle/size bounds for the initial preview CPU subset."
+        }
+      ]
+    }
+  }
 }

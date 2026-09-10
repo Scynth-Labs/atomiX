@@ -115,16 +115,60 @@
         "python3"
       ]
     },
-    "experiment-adapters": {
-      "label": "Execution adapters, bounded sweeps, and the comparison report: their refusals, and one plan run end to end",
+    "native-adapter-conformance": {
+      "label": "Native execution adapter conformance without a RISC-V or RTL toolchain",
       "command": [
         "make",
-        "adapter-check",
+        "adapter-check"
+      ],
+      "timeout_seconds": 300,
+      "requires": [
+        "make",
+        "python3",
+        "cc"
+      ]
+    },
+    "experiment-adapters": {
+      "label": "Bounded sweep and comparison-report failure contracts",
+      "command": [
+        "make",
         "experiment-sweep-check",
-        "experiment-run",
         "experiment-report-check"
       ],
       "timeout_seconds": 900,
+      "requires": [
+        "make",
+        "python3",
+        "cc",
+        "verilator"
+      ]
+    },
+    "experiment-regression": {
+      "label": "Deterministic preview CPU experiment: exact oracle, cycle and size bounds, identity matching, and injected failures",
+      "command": [
+        "make",
+        "experiment-regression-check"
+      ],
+      "profiles": [
+        "configs/sim-minimal.json",
+        "configs/sim-bram.json",
+        "configs/sim-ax2.json"
+      ],
+      "timeout_seconds": 1200,
+      "requires": [
+        "make",
+        "python3",
+        "verilator",
+        "riscv64-unknown-elf-gcc"
+      ]
+    },
+    "experiment-full-sweep": {
+      "label": "Full native and RTL parameter sweep retained for scheduled verification",
+      "command": [
+        "make",
+        "experiment-run"
+      ],
+      "timeout_seconds": 1800,
       "requires": [
         "make",
         "python3",
@@ -639,6 +683,7 @@
     "ci-quick": [
       "requirements",
       "verification-contract",
+      "native-adapter-conformance",
       "axsim-directed",
       "system-profiles",
       "kernel-profiles",
@@ -658,6 +703,7 @@
     ],
     "ci-integration": [
       "experiment-adapters",
+      "experiment-regression",
       "runtime-payload",
       "doc-examples",
       "component-composition",
@@ -669,7 +715,10 @@
       "kernel-storage-ci"
     ],
     "nightly-integrated": [
+      "native-adapter-conformance",
       "experiment-adapters",
+      "experiment-regression",
+      "experiment-full-sweep",
       "runtime-payload",
       "doc-examples",
       "requirements",

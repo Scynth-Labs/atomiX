@@ -202,7 +202,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-07"></a>
 
-- [ ] **AX-07 — Experiment regression gate.** Add a small deterministic AX-02
+- [x] **AX-07 — Experiment regression gate.** Add a small deterministic AX-02
   experiment and its comparison eligibility checks to the existing verification
   manifest. Check exact oracle outputs and declared cycle/size regression rules
   at matched identities; noisy host wall time is diagnostic rather than a CPU
@@ -213,6 +213,19 @@ implemented; the targets for the underlying tools do not prove a future feature.
   Include native adapter conformance independently of the RTL toolchain. Treat
   host benchmark timing as a measured distribution; do not give it the exact
   cycle assertions reserved for deterministic RTL fixtures.
+  Closed 2026-09-10: `make experiment-regression-check` reruns the three
+  `same-binary-cores` preview candidates and admits all three to comparison only
+  after their exact checksum, payload/build identity, profile identity,
+  artifact-size limit, and deterministic execute/total-cycle limits pass. The
+  owning plan carries regression-policy revision 1 with dated rationale and an
+  explicit update procedure. Its self-test injects and detects a wrong output,
+  stale profile identity, and a one-cycle threshold breach. The dedicated
+  `experiment-regression` stage runs in `ci-integration` and
+  `nightly-integrated`; a warm local run cost 5.812 seconds and every hosted
+  run records its own duration. Native adapter conformance is now the separate
+  `native-adapter-conformance` stage with no Verilator or RISC-V prerequisite,
+  and the full SAXPY sweep moved to the scheduled `experiment-full-sweep`
+  stage. Host and simulator wall times remain diagnostics without thresholds.
 
 <a id="ax-08"></a>
 

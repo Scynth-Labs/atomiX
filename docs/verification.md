@@ -39,8 +39,9 @@ closed loop. The scheduled
 workflow additionally runs:
 
 - `nightly-integrated`: ordinary CI plus the Live FPGA loop, every RTL unit,
-  component composition, accelerator workloads, architecture variants, aXos
-  runtime switching, storage writes, and SD boot;
+  component composition, the full experiment parameter sweep, accelerator
+  workloads, architecture variants, aXos runtime switching, storage writes,
+  and SD boot;
 - `randomized`: fixed-seed M-mode fuzzing and Sv32 generation;
 - `isa`: official RV32UI/RV32MI/RV32UM on aXsim and lock-step RTL; and
 - `three-platform`: matching bare-metal and aXos behaviour on ISS, QEMU, and
@@ -49,6 +50,9 @@ workflow additionally runs:
 The GitHub jobs are separate so heavyweight campaigns run in parallel. Stages
 inside one job are sequential, preventing shared build-directory races and
 making a later integration stage consume artifacts produced by earlier ones.
+Ordinary CI runs `native-adapter-conformance` without an RTL-tool prerequisite
+and `experiment-regression` with the three deterministic preview CPU profiles;
+the latter records its elapsed stage cost in the verification summary.
 
 ## Results and failure handling
 

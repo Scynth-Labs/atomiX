@@ -84,6 +84,7 @@ FPGA environment once per shell: `source "$HOME/opt/oss-cad-suite/environment"`.
 make component-list                              # catalog of selectable components
 make component-show COMPONENT=role.gpu-compute   # one manifest
 make external-component-check                    # portable package + conformance
+make experiment-regression-check                 # exact preview CPU regression gate
 make config-check   CONFIG=configs/sim-bram.json # resolve one profile
 make config-check-all                            # resolve every profile in configs/
 ```
@@ -566,7 +567,26 @@ whose inputs have not changed.
 
 ```bash
 make experiment-sweep-check      # the sweep's own failure modes
+make experiment-regression-check # the deterministic preview CPU gate
 ```
+
+The per-change regression gate reruns the `same-binary-cores` preview subset:
+the unchanged `cpu_perf` payload on `sim-minimal`, `sim-bram`, and `sim-ax2`.
+The plan owns an `org.atomix.regression-policy` extension that pins the
+workload, exact checksum, payload/build identity, and profile identity before
+applying maximum artifact-size, workload-cycle, and total-cycle bounds. A
+stale identity is refused rather than compared to a number from another build.
+The policy revision and dated history explain the initial baseline and are the
+review point for an intentional change: regenerate evidence, bump the policy
+revision, append the reason, and set bounds from the newly matched identities.
+
+Simulator wall time stays diagnostic and has no threshold. Native host timing
+likewise remains the distribution recorded by the SAXPY experiment; it is not
+an exact CPU-performance gate. `native-adapter-conformance` checks the native
+adapter without requiring Verilator or a RISC-V toolchain, while
+`experiment-regression` is the small CI RTL gate. The complete SAXPY parameter
+sweep is retained as `experiment-full-sweep` in `nightly-integrated` rather
+than added to every change.
 
 Read the result, and hand it to someone else:
 

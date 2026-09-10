@@ -4,7 +4,7 @@
   "entries": {
     ".:adapter-check": {
       "kind": "suite",
-      "stage": "experiment-adapters"
+      "stage": "native-adapter-conformance"
     },
     ".:bug-report": {
       "kind": "manual",
@@ -95,6 +95,10 @@
       "kind": "suite",
       "stage": "experiment-adapters"
     },
+    ".:experiment-regression-check": {
+      "kind": "suite",
+      "stage": "experiment-regression"
+    },
     ".:experiment-reproduce": {
       "kind": "manual",
       "prerequisite": "an EXPERIMENT_BUNDLE= exported by experiment-export",
@@ -102,7 +106,7 @@
     },
     ".:experiment-run": {
       "kind": "suite",
-      "stage": "experiment-adapters"
+      "stage": "experiment-full-sweep"
     },
     ".:experiment-sweep-check": {
       "kind": "suite",
