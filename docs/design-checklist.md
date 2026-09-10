@@ -26,26 +26,209 @@ their engineering scope and evidence gate are concrete.
 
 ## Next work in order
 
-1. ~~Correct the SDRAM test's machine selection and establish why exec stops
-   making progress; close the timer and regression gates~~ — closed
-   2026-09-06 as SDRAM gates 1-4 under
-   [Interactive exploration](#interactive-exploration-next-milestone).
-2. ~~Close remaining build-identity and evidence-reporting gaps~~ — closed
-   2026-09-06 under
-   [Configurability](#configurability-the-build-actually-honours) and
-   [Documentation](#documentation-that-cannot-go-stale-silently).
-3. ~~Harden runtime payload failure handling, then deliver reproducible live
-   examples and verification views~~ — closed 2026-09-06 except the two
-   browser-dependent halves (a documentation block that boots in the reader's
-   browser, and a bug report as a URL), which need the WebAssembly bundle and
-   therefore emscripten. Their headless equivalents — the same records driving
-   the same machines — are done and checked.
-4. Add asynchronous host-link completion under
-   [Platform expansion](#platform-expansion), with the existing userspace ABI
-   and recovery behavior covered before exposing a new operation.
-5. In independent lab/research work, consolidate the Primer evidence bundle
-   and pursue the [research queue](research-checklist.md#immediate-queue-without-hardware).
-   Unavailable boards and measurement fixtures remain explicit dependencies.
+The [platform roadmap](roadmap.md) sets the direction: a user brings a workload,
+explores software and hardware implementations, and shares a reproducible design
+decision. Native software, model execution, FPGA, and eventual silicon use their
+own [execution-target contracts](execution-targets.md).
+The [priority boards](boards/README.md) own execution order, dependencies,
+state, and ownership. Start with AX-01 on the [delivery board](boards/delivery.md)
+and follow AX-10 on the [targets board](boards/targets.md) before AX-02–AX-04.
+Complete the experiment alpha before widening its architecture catalog.
+
+The platform gates below are new work, initially unchecked. Existing components,
+benchmarks, browser machines, and evidence tools are their starting points;
+their presence alone does not close these product gates. Asynchronous host-link
+completion remains open under Platform expansion, but follows demonstrated
+workload demand rather than heading the delivery queue.
+
+The previous queue's SDRAM, build-identity, payload-failure, headless-example,
+and evidence-view results remain recorded in their sections below. Browser
+documentation and URL replay remain partial and are included in AX-08.
+
+## Platform product gates
+
+These gates define completion; [board rows](boards/delivery.md) define the first
+slice to pull. Acceptance requires recorded results, including failures and
+unavailable evidence. New commands belong in [workflow.md](workflow.md) when
+implemented; the targets for the underlying tools do not prove a future feature.
+
+<a id="ax-01"></a>
+
+- [ ] **AX-01 — Workload-driven experiment contract.** A versioned plan names
+  the workload and oracle, input cases, implementation/build identity, execution
+  targets and their profiles, required capabilities, measurement boundaries,
+  and evaluation budget. Extend or adapt the existing personality/comparison
+  contracts rather than creating a competing evidence format. Prove the first fixture with one
+  `cpu_perf` payload across `sim-minimal`, `sim-bram`, and `sim-ax2`; reject an
+  incompatible capability requirement and a mismatched workload revision.
+  Add a shared-workload fixture binding native CPU and RTL implementations to
+  `saxpy-i32`; their binaries may differ, their logical inputs and oracle may
+  not. Define metric applicability so native candidates need no artificial FPGA
+  resources, board, UART, or role-transition fields. Existing R2 plans must
+  still validate through a deliberate schema version/extension. Record modeled
+  cycles separately from native execution and simulator host duration, and
+  require matched evidence for any resource claim.
+
+<a id="ax-02"></a>
+
+- [ ] **AX-02 — Bounded, resumable design-space execution.** Execute an AX-01
+  plan through AX-10 adapters using their owning resolver/build/run interfaces.
+  Enumerate a finite declared parameter space first; reject invalid combinations
+  before building.
+  User-declared evaluation/time limits, cancellation, and interrupted-run resume
+  must preserve passed, failed, blocked, timed-out, and not-run outcomes.
+  Result reuse must check source/tool/compiler/runtime and target identities,
+  resolved profiles, workload, artifact hashes, and relevant seeds/options;
+  hardware/model build identity must remain independent of runtime payload
+  identity. Close with a clean replay,
+  interruption/resume, stale-cache rejection, and a deliberately wrong result
+  excluded from ranking. Exercise native CPU and RTL paths, a non-default
+  parameter, and an evaluation bound.
+  Generated sweep profiles and build trees stay outside tracked source.
+
+<a id="ax-03"></a>
+
+- [ ] **AX-03 — Explainable comparisons and replay.** A local report consumes
+  AX-02 records and shows eligible candidates, rejected/missing cases, exact
+  workload and machine identities, measurement methods, and a Pareto table
+  over comparable metrics. A user can set a constraint and see either qualifying
+  candidates or an explicit lack of evidence; missing area or energy must never
+  pass a bound. Export a self-contained experiment description with artifact
+  hashes and documented retrieval/build instructions, then reproduce its oracle
+  outputs and deterministic cycles from a clean run. Reject changed or missing
+  payloads and incompatible evidence levels. Do not collapse the table into a
+  universal architecture score or infer physical performance from RTL cycles.
+  Show same-binary and same-workload comparisons distinctly. Native elapsed
+  time cannot be ranked against simulator wall time, ISS/emulator counters, or
+  RTL cycles; explain which pairings and requested constraints lack comparable
+  evidence. Replays compare each backend's declared observables: deterministic
+  model cycles where defined, and separately reported timing distributions for
+  actual host/device execution.
+
+<a id="ax-04"></a>
+
+- [ ] **AX-04 — Independent experiment-alpha pilot.** Provide a fresh-checkout
+  walkthrough for M0, then record two reproductions by people other than its
+  implementer. Each participant runs the comparison, changes a declared choice,
+  explains one tradeoff and one evidence limitation, and replays another record.
+  Include native-only execution without RISC-V/RTL/FPGA tools and the paired
+  native/RTL fixture with its declared prerequisites. Both paths are required.
+  Record prerequisite/setup, build, and interaction time separately, every
+  failure, and any help required. Target a first comparison within 15 minutes
+  after prerequisites; do not hide compilation time. Close after the target is
+  met and blocking friction is fixed, or document a deliberate revised target
+  and its reason before repeating. Lack of participants leaves this gate open;
+  an implementer's walkthrough is preparation, not independent reproduction.
+
+<a id="ax-05"></a>
+
+- [ ] **AX-05 — External-component SDK and conformance example.** Package one
+  small out-of-tree implementation with a manifest, parameter documentation,
+  compatibility scope, license/attribution, profile, and runnable conformance
+  checks. A fresh checkout must select it without editing the generic SoC or
+  resolver, run its own correctness evidence at default and non-default values,
+  and reject an unsupported combination. Document the boundary's compatibility
+  and migration rules. Include an inventory of supplied replacements' supported
+  modes and evidence gaps; close the existing Component discipline inventory
+  item only when its full coverage criterion is met. This is an SDK example,
+  not a claim that every external component is interchangeable or verified.
+
+<a id="ax-06"></a>
+
+- [ ] **AX-06 — Reproducible preview release preparation.** Name a supported
+  subset of profiles, workloads, and public contracts; define compatibility,
+  deprecation, and known limitations for that subset. Prepare a versioned
+  release manifest binding source, tool requirements, component/profile inputs,
+  software artifacts, and optional loader images to their hashes and evidence.
+  Rebuild and replay on a clean supported host, recording any nondeterministic
+  artifact differences. Keep loader and payload identities separate. Include
+  onboarding, release notes, and failure/recovery instructions. Existing CI and
+  scheduled checks for the chosen revision must have reviewed results, including
+  skips/failures; any advertised physical image needs HW-01 evidence for that
+  identity. Generated assets are packaged outside tracked source. This gate
+  prepares a release; publication is a separate action.
+
+<a id="ax-07"></a>
+
+- [ ] **AX-07 — Experiment regression gate.** Add a small deterministic AX-02
+  experiment and its comparison eligibility checks to the existing verification
+  manifest. Check exact oracle outputs and declared cycle/size regression rules
+  at matched identities; noisy host wall time is diagnostic rather than a CPU
+  performance gate. Prove detection with an injected wrong result, stale input,
+  and a threshold breach. Version thresholds in the owning experiment and
+  explain baseline changes. Record stage cost; leave costly sweeps to an
+  appropriate scheduled suite. The supported preview subset must be covered.
+  Include native adapter conformance independently of the RTL toolchain. Treat
+  host benchmark timing as a measured distribution; do not give it the exact
+  cycle assertions reserved for deterministic RTL fixtures.
+
+<a id="ax-08"></a>
+
+- [ ] **AX-08 — Browser experiment handoff.** Reuse the existing WASM machine
+  and AX-01/AX-03 records to open a documentation example or shared experiment,
+  run it, and export a record native tools can replay. Preserve profile and
+  payload identity, oracle outputs, and cycle counts across both paths. Reject
+  malformed, incompatible, oversized, or stale records without silently choosing
+  another machine. Validate the rendered interaction with an actual browser;
+  headless machine checks alone do not close it, and missing dependencies are
+  reported as blocked/skipped. Close the existing live-documentation and URL
+  replay items only when their respective browser cases pass. The native
+  experiment workflow remains usable without a browser or hosted service.
+
+<a id="ax-10"></a>
+
+- [ ] **AX-10 — Native CPU and RTL execution adapters.** Implement the
+  [execution-target boundary](execution-targets.md): capability/limit discovery,
+  implementation preparation, bounded execution/cancellation, result collection,
+  and identity-aware replay. Select adapters through their owning manifests or
+  profiles without requiring native workloads to instantiate a fake SoC or
+  board. Run the AX-01 integer workload as a native executable and as an RTL
+  implementation against the same independent oracle, including overflow and
+  tail cases. The native path must build/run with only its declared host tools
+  in an environment without RISC-V, RTL, or FPGA tools. Reject unsupported
+  semantics, stale artifacts, and unavailable prerequisites explicitly; test
+  cancellation/timeout and a non-default limit. Record compiler/runtime/target
+  identities and metric applicability. Keep FPGA activation and recovery under
+  their existing shell authority. Neither a native Verilator binary nor WASM
+  simulation counts as the native software implementation.
+
+<a id="ax-11"></a>
+
+- [ ] **AX-11 — Software/hardware co-design experiment.** Represent compiler
+  choices, algorithm/layout variants, runtime policy, and machine parameters as
+  separately identified candidate inputs. Start with two compiler configurations
+  on one native workload; hold logical semantics and inputs constant and pass
+  the independent oracle. Exercise a compiler-setting change that invalidates
+  result reuse and record executable/library/tool identities. Then combine one
+  software dimension with one compatible hardware/profile dimension, retaining
+  controls that show which change caused each result. Close with a replayable
+  comparison, correctness failures excluded, and an explicit tradeoff or null
+  result. Do not require a new compiler IR or change aXos to run host workloads.
+
+<a id="ax-12"></a>
+
+- [ ] **AX-12 — ISS and emulator execution adapters.** Connect existing aXsim
+  and QEMU entry points to the AX-10 contract. Run a shared supported software
+  fixture with exact expected behavior, pin ISA/ABI/machine requirements, and
+  reject unsupported role, privilege, or device requests before execution.
+  Record each model's counter semantics separately from host duration and RTL
+  cycle counts. Test missing-tool reporting, bounded execution, and failed-run
+  replay. A missing emulator leaves its gate open rather than quietly selecting
+  the ISS; the existing three-platform checks retain their original scope.
+
+<a id="ax-13"></a>
+
+- [ ] **AX-13 — External accelerator execution adapter.** Select one actually
+  accessible GPU or other compute device/runtime through a capability survey.
+  Provide an out-of-tree-selectable adapter using the workload contract, with
+  independent implementation and device/compiler/runtime identities. Run exact
+  integer oracle cases, check unsupported formats and unavailable devices, and
+  separate transfer, synchronization, warmup, execution, and readback costs.
+  Record repeated measurements and recovery/cancellation behavior. A CPU
+  fallback must be separately identified and cannot close device execution.
+  Close with reproducible results on the named device or leave the physical
+  execution gate blocked. Selecting this backend does not add a vendor-specific
+  dependency to other targets or imply mutable hardware configuration.
 
 ## Reference computer
 
@@ -724,6 +907,9 @@ thought of".  These three answer the other question.
 
 Use this for a substantive implementation or interface change:
 
+- [ ] Link the owning board card and acceptance gate. Record the user outcome
+  or research decision, and update its state and evidence when the gate closes;
+  a completed implementation slice does not automatically close its parent.
 - [ ] Update the component manifest and profile validation if source selection
   changes. For every new capacity, trace its owner, default/documentation,
   build define, bounds, and a test at a non-default value.

@@ -9,6 +9,13 @@ It answers one narrow question: what did this implementation cost and deliver
 for this exact workload and evidence level?  It does not assign a universal
 score to an architecture.
 
+This document describes the current R2 contract and its required FPGA metric
+matrix. The [execution-target design](execution-targets.md) plans broader
+native/software/ASIC comparisons in AX-01 and AX-10. Those gates must add
+explicit target and metric-applicability semantics while retaining validation
+of these records; the existing schema has not acquired new backend support
+through this planning update.
+
 ## Comparison rules
 
 1. **Correctness is a hard gate.** Failed or unexecuted oracle cases cannot be

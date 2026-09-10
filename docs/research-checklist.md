@@ -1,6 +1,6 @@
 # Research checklist
 
-This board tracks atomiX research questions separately from the engineering
+This checklist tracks atomiX research questions separately from the engineering
 completion gates in [design-checklist.md](design-checklist.md).  A plausible
 idea is not a capability: every checked research item needs a recorded
 experiment, artifact, result, and decision.  A useful negative result counts.
@@ -16,6 +16,12 @@ The only purchased and physically verified board is the Tang Primer 25K Dock
 (GW5A-25A).  Work labelled **no hardware** can proceed now.  ULX3S work may
 produce build and analysis evidence, but cannot close a live-hardware gate
 until that board is acquired or borrowed.
+
+The [platform roadmap](roadmap.md) explains which research results could make
+atomiX useful to other teams. The [research priority board](boards/research.md)
+owns the active order, dependencies, and first slices. The questions below add
+new product-directed experiments; they do not change the evidence status of R1,
+R2, or R3.
 
 ## Research rules
 
@@ -38,6 +44,80 @@ commit; the real figures are 119/887 and 119/699.  Records are now resealed
 with `python3 tools/candidate_registry.py seal`, which recomputes content IDs
 and registry references and refuses to refresh a tracked artifact digest
 unless the caller states that the test was re-run.
+
+## Platform research questions
+
+<a id="rx-01"></a>
+
+- [ ] **RX-01 — Search quality against exhaustive enumeration.** Hypothesis:
+  a replaceable search policy can recover useful configurations with fewer
+  evaluations than enumerating the same valid space. Use AX-02/AX-03 to record
+  a complete small-space reference frontier, then freeze the workload split,
+  seeds, budget, quality metric, and acceptable loss before running the policy.
+  Count failed evaluations and search overhead; evaluate on held-out cases and
+  retain multiple seeds. Close with a reproducible comparison and a decision
+  to adopt the policy, revise it, or retain enumeration. Fewer trials without
+  comparable solution quality do not establish a benefit. No search result
+  grants activation authority.
+
+<a id="rx-02"></a>
+
+- [ ] **RX-02 — End-to-end accelerator crossover.** Hypothesis: a resident
+  accelerator improves complete-job latency for an identifiable workload/input
+  range after transfer, dispatch, execution, readback, and verification costs.
+  Freeze matched CPU/role workloads and an input-size range spanning likely
+  overhead-dominated and compute-dominated cases. Measure cold and reused
+  sessions separately with the existing comparison contract; record correctness
+  first, then all observable cost components. Close with a measured crossover
+  or a bounded finding of no crossover, uncertainty/repeats where relevant,
+  and a decision on which workload or bottleneck deserves engineering. Keep
+  host transport observations separate from simulated cycles and P&R estimates.
+  This result decides whether AX-09 asynchronous jobs earn higher priority.
+
+<a id="rx-03"></a>
+
+- [ ] **RX-03 — Adaptation against the best fixed configuration.** Hypothesis:
+  selecting reviewed resident personalities over a changing workload beats the
+  best fixed supported choice after transition, canary, and recovery costs.
+  Freeze a workload sequence with held-out phases, fixed-choice baselines,
+  policy inputs, evaluation budget, and success threshold before the trial.
+  Compare against the best fixed baseline over the whole sequence; report an
+  ideal foreknowledge baseline separately if used. Inject a bad candidate and
+  timeout, require oracle rejection and known-good recovery, and count those
+  costs. Close with a reproducible gain or refutation and the domain where the
+  conclusion applies. Use existing reviewed authority; any actuation change
+  first needs the R3 telemetry/watchdog decisions. Simulation cannot close the
+  physical-trial gate or authorize L4 frame mutation.
+
+<a id="rx-08"></a>
+
+- [ ] **RX-08 — ASIC portability dependency audit.** Question: which parts of
+  a selected small RTL block depend on FPGA memory, arithmetic primitives,
+  initialization, clock/reset, or I/O assumptions, and which component seams
+  need technology-specific alternatives? Inventory exact source/manifests and
+  classify each dependency as portable logic, an existing adapter, or required
+  work. Specify memory semantics, startup/reset behavior, clock assumptions,
+  and a verification route for each proposed replacement. Close with a reviewed
+  dependency map, selected block, bounded next experiment, and an explicit
+  proceed/defer decision. No PDK or physical device is needed for the audit;
+  completing it does not prove an ASIC implementation.
+
+<a id="rx-09"></a>
+
+- [ ] **RX-09 — Technology-specific implementation feasibility.** Hypothesis:
+  the RX-08 block can meet declared area/timing constraints under an accessible
+  technology/library flow while preserving its functional contract. Before
+  execution, pin block/source, libraries and usage permissions, tools, memory
+  models, clocks/I/O constraints, timing corners, resource budget, and success
+  criteria. Prove functional/equivalence checks appropriate to the replacement,
+  then record synthesis and physical-design results at their actual stages,
+  including timing violations, missing macros, and unresolved verification.
+  Close with a reproducible feasibility result or refutation and next decision.
+  Area/timing estimates are technology-specific; power requires a documented
+  activity/method assumption and stays an estimate. Missing libraries or tools
+  block execution. This gate establishes neither sign-off nor manufactured
+  silicon; fabrication needs its own verification, test, packaging, resource,
+  and bring-up plan.
 
 ## R1 — Partial reconfiguration of an FPGA
 
@@ -686,21 +766,27 @@ results above from reading as general claims.
 
 ## Immediate queue without hardware
 
-1. Pursue the two 45F confinement gates: stable shell construction, then a
-   candidate accepted by the existing delta verifier. This is R1's current
-   critical path; a new address map alone cannot make a delta safe.
-2. Make missing telemetry explicit in R3 fitness/evidence and settle the
-   watchdog authority contract in simulation before proposing more actuation.
-3. Select the R2 power/energy measurement method and define the matched trial;
-   acquisition, calibration, and physical measurements remain separate gates.
-4. Compare a scoped reduction in role-event producer cost with a larger-device
-   profile. Require enabled/disabled RTL behavior, synthesis/P&R headroom,
-   timing, and preservation of the declined implementation before choosing.
-   Every current Primer profile declines these producers; another device's
-   fit result cannot become physical telemetry evidence without that board.
-5. Return to the 85F address-map gate after the 45F confinement experiment, or
-   when a concrete 85F hardware need changes the priority. Preserve the 45F
-   control and negative results whichever route is chosen.
+Use the [research board](boards/research.md) for current priority and ownership.
+RX-04 (missing telemetry) is independently pullable now; RX-01 through RX-03
+use the new experiment platform to test search quality, accelerator crossover,
+and adaptive value. The existing power-method decision remains available
+without a fixture; actual measurement does not.
+
+The [targets board](boards/targets.md) also offers RX-08, the ASIC dependency
+audit, without hardware or technology libraries. RX-09 follows only after a
+block, tool/library environment, and bounded feasibility experiment are chosen.
+
+Within R1, stable shell construction still precedes an accepted 45F candidate
+delta. The 85F map stays behind those gates unless a concrete device need changes
+that choice. This internal dependency does not make R1 the platform's first
+delivery milestone.
+
+Role-event producer cost remains a prerequisite to any physical telemetry
+claim: compare a scoped implementation reduction with a larger-device profile,
+checking enabled/declined RTL, P&R headroom and timing, and preservation of the
+declined implementation. Current Primer profiles decline these producers;
+another device's fit result cannot substitute for an observed counter on the
+available board. Track physical prerequisites on the [hardware board](boards/hardware.md).
 
 Closed on 2026-08-13: the fabric watchdog and role-reject producers, which
 until then left two `axlivemon` counters reading zero by construction.

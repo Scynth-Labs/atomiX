@@ -2,9 +2,12 @@
 
 ## Mission and constraints
 
-- Keep atomiX a replaceable, component/profile-driven RISC-V and FPGA platform.
-  Do not hard-wire a vendor flow, board, accelerator, or evolution policy into a
-  generic interface when a manifest/profile boundary can express it.
+- Keep atomiX a replaceable, component/profile-driven hardware/software
+  co-design platform. RISC-V is the reference machine; FPGA is one execution
+  target. Keep native software, simulation/emulation, external accelerators,
+  and future ASIC targets expressible through their own contracts and evidence.
+  Do not hard-wire an ISA, vendor flow, board, accelerator, or evolution policy
+  into a generic interface when a manifest/profile boundary can express it.
 - Preserve the immutable management shell, UART loader, isolation, watchdog,
   oracle, provenance, and rollback boundaries for Live FPGA work.
 - The only physically available board is the Tang Primer 25K Dock. Never turn

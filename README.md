@@ -2,7 +2,7 @@
 
 <img src="docs/assets/atomix-logo-cloud.svg" alt="atomiX" width="560">
 
-**A DIY RISC-V computer, operating system, and FPGA platform.**
+**A composable platform for hardware/software co-design.**
 
 Build the reference machine — or replace the parts that matter to you.
 
@@ -14,6 +14,7 @@ Build the reference machine — or replace the parts that matter to you.
 [Build, test, deploy](docs/workflow.md) ·
 [Dependencies](docs/dependencies.md) ·
 [Components](components/README.md) ·
+[Roadmap & priorities](docs/roadmap.md) ·
 [Live checklist](docs/design-checklist.md) ·
 [Research checklist](docs/research-checklist.md)
 
@@ -23,10 +24,10 @@ Build the reference machine — or replace the parts that matter to you.
 
 ## What is atomiX?
 
-atomiX is a from-scratch RISC-V computer that grows into a reconfigurable FPGA
-platform.  The reference build includes a five-stage CPU, SoC, bare-metal
-runtime, and the aXos kernel.  The longer-term platform keeps that computer as
-the management shell while accelerator roles attach at a defined boundary —
+atomiX is a hardware/software co-design project built around a from-scratch
+RISC-V reference computer. The reference build includes a five-stage CPU, SoC,
+bare-metal runtime, and the aXos kernel. On the FPGA target, that computer serves
+as the management shell while accelerator roles attach at a defined boundary —
 the role window is live today (`role.loopback` proves it), with TPU-lite,
 GPU-compute, and the banked-memory gpu1 family implemented and verified as
 selectable roles.  Their completion is available either polled or as a machine
@@ -47,6 +48,18 @@ external interrupt through the shell's PLIC.
 It is designed to be modified.  A user can substitute the CPU, memory,
 interconnect, peripherals, board, simulation harness, or aXos service policy
 without forking the rest of the project.
+
+The next step is an **open architecture experimentation platform**: bring a
+workload, explore software and hardware implementations, and share a reproducible
+design decision. The [execution-target plan](docs/execution-targets.md) spans
+native CPU execution, simulation/emulation, GPU or other accelerator backends,
+FPGA, and staged ASIC research. RISC-V is the reference ISA; the workload
+contract can describe implementations using other ISAs and runtimes.
+
+The [roadmap](docs/roadmap.md) and [priority boards](docs/boards/README.md) start
+with native CPU and RTL adapters, then an external-component SDK and a
+reproducible preview release. These are planned outcomes; the evidence below
+describes what runs today.
 
 ## Where this sits
 
@@ -144,7 +157,8 @@ On 2026-07-29, a Sipeed Tang Primer 25K Dock completed the first physical
 atomiX bring-up. The RV32IM CPU booted from on-chip BSRAM and printed over the
 Dock UART; separate volatile-SRAM images then passed the self-checking 4-lane
 GPU-compute and folded 24-MAC TPU-lite workloads. See the
-[captured evidence and reproduction commands](docs/tangprimer25k-bringup.md#verified-hardware-result).
+[captured evidence](docs/achievements/tangprimer25k.md#cpu-gpu-and-tpu-images--2026-07-29)
+and [reproduction procedure](docs/tangprimer25k-bringup.md).
 
 **Status:** simulation-verified reference system · component-first builds ·
 Tang Primer 25K CPU, GPU, and TPU verified on physical FPGA hardware.
@@ -248,6 +262,8 @@ and verification claim.  Read the [component catalog](components/README.md),
 | Build, test, or synthesize | [docs/workflow.md](docs/workflow.md) |
 | Set up a host or FPGA toolchain | [docs/dependencies.md](docs/dependencies.md) |
 | Change an implementation | [components/README.md](components/README.md) |
+| Understand the direction and pick the next task | [Roadmap](docs/roadmap.md) · [Priority boards](docs/boards/README.md) |
+| Explore execution targets beyond FPGA | [Execution-target design](docs/execution-targets.md) · [Targets board](docs/boards/targets.md) |
 | Inspect current evidence and open work | [docs/design-checklist.md](docs/design-checklist.md) |
 | Track partial reconfiguration, morph compute, and adaptive-logic research | [docs/research-checklist.md](docs/research-checklist.md) |
 | Extend the open compute-personality contract | [docs/personality-contract.md](docs/personality-contract.md) |

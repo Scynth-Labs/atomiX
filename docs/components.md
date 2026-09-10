@@ -5,6 +5,12 @@ a simple route to the verified reference machine. The mechanism is intentionally
 small: JSON manifests, standard-library Python, and generated Make variables.
 There is no dependency solver, vendor framework, or custom HDL generator.
 
+This is the implemented machine-component contract. The broader
+[execution-target design](execution-targets.md) adds a planned adapter boundary
+for native software, emulation, accelerators, and ASIC flows. Those adapters
+will use their owning build/profile contracts; a host executable need not
+instantiate the reference SoC or emulate its board peripherals.
+
 The catalog is in [`components/`](../components/README.md); supplied profiles
 are in [`configs/`](../configs/). The resolver is:
 

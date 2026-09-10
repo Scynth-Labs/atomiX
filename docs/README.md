@@ -6,6 +6,10 @@ verifiable, and replaceable.
 
 ## Start with these guides
 
+- [roadmap.md](roadmap.md) — platform direction, milestone exit gates, adoption
+  targets, and work deliberately deferred.
+- [boards/](boards/README.md) — delivery, execution targets, research, and lab priorities with
+  dependencies, first slices, and a task template.
 - [workflow.md](workflow.md) — the single, maintained build, test, and deploy
   command reference (profile selection, all checks, formal, and the FPGA flow).
 - [verification.md](verification.md) — shared CI/nightly suite manifest,
@@ -28,6 +32,8 @@ verifiable, and replaceable.
 
 ## Architecture and composition
 
+- [execution-targets.md](execution-targets.md) — planned native, simulated,
+  accelerator, FPGA, and ASIC boundaries for hardware/software co-design.
 - [axbus.md](axbus.md) — the normative aXbus transaction contract.
 - [memory.md](memory.md) — reference memory, cache, SDRAM, and SD architecture.
 - [components.md](components.md) — component model and extension boundary.

@@ -1,11 +1,16 @@
 # atomiX — Design Document
 
-A computer system built from scratch — CPU → SoC → kernel → OS — that grows
-into a **reconfigurable FPGA accelerator platform**: one FPGA that can serve as
-a CPU, a TPU-style matrix engine, or other roles, managed by our own kernel and
-controlled from a host PC through our own driver. This document records the
-closed design decisions and the phased plan. It is the contract for everything
-we build.
+A **composable hardware/software co-design platform**, with a from-scratch
+RISC-V computer — CPU → SoC → kernel → OS — as its reference machine. The
+platform direction spans native software, simulation/emulation, accelerators,
+FPGA implementation, and staged ASIC research. A workload's meaning and evidence
+are shared; each target owns its implementation and execution contract.
+
+This document describes the implemented reference architecture and the broader
+boundaries it must preserve. The [execution-target design](docs/execution-targets.md)
+and [roadmap](docs/roadmap.md) distinguish planned adapters and silicon research
+from existing capabilities. FPGA shell/role rules below apply to that target;
+they do not require every implementation to contain a board or run aXos.
 
 ## 1. Goals and non-goals
 
@@ -15,23 +20,31 @@ we build.
    synthesizable SystemVerilog.
 2. Our own monolithic Unix-like kernel (xv6-inspired *scope*, not a copy) running
    on that SoC: processes, virtual memory, syscalls, a filesystem, a shell.
-3. FPGA-portable from day one: every line of RTL obeys FPGA constraints
-   (synchronous single-clock design, BRAM-shaped memories, no latches), targeting
-   the open Yosys + nextpnr flow for Lattice ECP5.
+3. Preserve the FPGA reference builds and their memory/timing contracts while
+   keeping technology-specific memories, arithmetic, I/O, and build flows behind
+   selectable component/profile boundaries. ASIC alternatives earn their own
+   implementation evidence; source portability alone does not establish fit.
 4. "As close to actually working as possible": verified against a golden model,
    the official ISA tests, and formal proofs — not just demos that happen to run.
 5. **A shell + role accelerator platform** (§3.3): the CPU + kernel become the
    permanent management plane ("shell") of the FPGA; swappable "roles" (first: a
    TPU-lite systolic array) attach as aXbus devices; a host-side driver controls
-   the whole card over a host link. Goals 1–4 are unchanged — they *are* the
-   shell.
+   the whole card over a host link. Goals 1–4 provide this target's shell.
+6. **Workload-driven hardware/software experiments:** select software,
+   compiler/runtime choices, machine components, and execution targets through
+   explicit contracts. Native CPU and RTL adapters are the first portability
+   gate; ISS/emulator and external accelerator adapters follow. RISC-V binary
+   compatibility is a reference-machine property, not a platform-wide requirement.
+7. **A staged path to silicon:** audit FPGA-specific assumptions and evaluate
+   a small technology-mapped implementation before considering a full chip.
 
 **Non-goals (for now)**
 
 - Multicore / cache coherency.
 - Performance competitiveness — correctness and clarity win every tie.
 - USB, Ethernet, or graphics in v1 (the v1 machine is headless over UART).
-- ASIC considerations.
+- Fabrication or a tapeout commitment in the first milestones. ASIC portability
+  and implementation feasibility are research goals, with separate evidence.
 
 ## 2. Decision record
 
@@ -39,19 +52,20 @@ we build.
 |---|---|---|
 | Build vs adopt | **Scratch-build only what teaches** (core, bus, kernel, roles); **adopt the industry standard everywhere else** (RISC-V ISA, stock GCC, ELF, riscv-tests, riscv-formal, Verilator, QEMU-`virt` map, 16550 UART, xv6 scope, Wishbone-adjacent bus) | Maximum support and knowledge base; our effort concentrates where the learning is |
 | Languages | **Polyglot, right tool per layer**: C for target software (kernel, bare-metal, userland), C++ for host tooling (ISS/cosim — Verilator emits C++), Python for scripts | Cross-language conflicts are resolved at the boundary where they appear, case by case |
-| ISA | RISC-V **RV32IM + Zicsr**, privileged spec M/S/U, **Sv32** MMU | Free GCC/LLVM/QEMU ecosystem; privileged spec is mandatory for the kernel goal |
+| Reference ISA | RISC-V **RV32IM + Zicsr**, privileged spec M/S/U, **Sv32** MMU | The reference kernel uses this contract; other execution backends declare their own ISA/ABI |
 | HDL | **SystemVerilog** (synthesizable subset supported by Yosys) | Verilator for fast sim; portable to any vendor flow |
 | Microarchitecture | **Classic 5-stage pipeline from day one** (IF ID EX MEM WB) | Precise exceptions and hazard handling are designed in from the start, not retrofitted |
 | Memory system | **BRAM first**, then delayed external-memory + I$/D$ caches and an x16 SDRAM controller | CPU↔memory already tolerates wait states, so the cache/controller slots in without core changes; physical proof is a board gate |
 | Interconnect | **Custom minimal valid/ready bus**; Wishbone bridge later if we adopt third-party cores | We fully own and understand the "connectors" layer |
 | Peripherals v1 | **UART console + CLINT (timer/software interrupts)**; PLIC, SD card, video later | Minimum viable for a preemptive kernel with a serial shell |
-| FPGA target | **ULX3S v2/v3 85F (ECP5) / open flow** | Pin-constrained bitstream flow and SDRAM/UART PHY are checked in; P&R and physical proof remain explicit bring-up gates |
+| FPGA targets | **Component/profile-selected Gowin and ECP5 flows** | Tang Primer 25K Dock is the available lab board; other targets retain their own tool evidence and physical blockers |
 | Verification | **Own ISS golden model + lock-step cosim** in Verilator + **riscv-tests** + **riscv-formal** | Highest-confidence tier; the ISS doubles as a fast kernel-dev platform |
 | Core memory ports | **Separate ibus + dbus masters** (Harvard at the core edge) | No structural hazards; caches later attach per-port with no core changes; SoC serves both from dual-port BRAM |
 | Irregular instructions | **Serialize** CSR writes, `mret`, `fence.i` (later `div`): flush younger, complete alone, refetch | A few cycles on rare instructions buys away a whole class of in-flight side-effect hazards |
 | Build order | **ISS first, then RTL** | RTL debugging starts with a trusted golden model and cosim from day one |
 | Kernel | **Monolithic, xv6-inspired scope**, our own code | Achievable scope with a known-good reference for when we're stuck |
-| Platform model | **Shell + role** (AWS F1 / Catapult style): aXcore + loader fixed in the FPGA image, aXos uploaded as the common management payload, role selected or programmed per mode | Kernel and FPGA lifecycles are independent; the host driver never sees role internals, only the shell protocol |
+| Platform model | **Workload + implementation + execution target + evidence**, with adapters planned in AX-10 | Each backend declares its ISA/runtime, capabilities, metrics, and authority; no universal board or bitstream requirement |
+| FPGA target model | **Shell + role**: aXcore + loader fixed in the FPGA image, aXos uploaded as the management payload, role selected or programmed per mode | Kernel and FPGA lifecycles are independent; the existing isolation and recovery contracts remain mandatory |
 | Component composition | **Manifest-selected implementations with lenient stock seams** | Users may substitute CPU, SoC fabric, memory, peripherals, board/harness, software/kernel code, or aXos service policies; manifests compose sources but do not prescribe microarchitecture or verification claims |
 | Mode switching | **Runtime-programmable role first**; cached full-bitstream swap only for a different physical datapath; live partial reconfiguration remains research | Normal kernel/benchmark iteration never runs synthesis or P&R; the resident shell loads accelerator programs in milliseconds |
 | Kernel deployment | **Kernel is always a runtime payload** loaded by an immutable ROM; never a fabric-synthesis input in kernel profiles | aXos changes take a serial upload, not a new netlist, placement, route, or bitstream |
@@ -60,6 +74,9 @@ we build.
 | First role | **TPU-lite: int8 systolic GEMM array** on ECP5 DSP blocks | Most tractable "real" accelerator; clearly benchmarkable against host matmul |
 
 ## 3. System architecture
+
+This diagram describes the reference FPGA/RTL SoC. The broader experiment and
+execution boundaries are defined in [execution-targets.md](docs/execution-targets.md).
 
 ```mermaid
 flowchart TB
@@ -659,6 +676,12 @@ current contracts.  The live, command-backed status is maintained in
 [docs/design-checklist.md](docs/design-checklist.md), rather than duplicating
 a phase ledger here.
 
+The [priority boards](docs/boards/README.md) own development order. The first
+platform milestone now includes a native software implementation and an RTL
+implementation of a shared workload; the reference machine is one participant
+in the comparison. ASIC portability and implementation feasibility are tracked
+on the [targets board](docs/boards/targets.md).
+
 The role contract, its loopback proof, and two real accelerators are in
 place (`role` components, `make -C sw/baremetal check-role`, `check-tpu`, and
 `check-gpu`): TPU-lite (fixed-function systolic GEMM) and GPU-compute (a
@@ -680,12 +703,12 @@ against a host-side reference (`make -C sw/kernel check-hostlink`).  The
 same checked encodings are now available to local U-mode programs through the
 tokenized role ABI (`make -C sw/kernel check-role-driver`), while the driver
 retains bounded polling behind a submit/wait boundary ready for PLIC-backed
-completion. The remaining platform work enhances this base: a dedicated
-USB-serial channel so a
-console and the host daemon coexist (with the board gate), buffer/stream and
-asynchronous-completion ops, and bitstream-upload mode switching.  ECP5 place-and-route and physical ULX3S
-bring-up remain the final gate: they do not block simulation or component work,
-but no physical-hardware claim is made before their evidence is recorded.
+completion. Further FPGA work includes concurrent console/host access,
+asynchronous completion, and reviewed hardware-image selection, ordered by the
+checklists and measured workload needs. Physical results are scoped to each
+target: the Tang Primer 25K Dock is available and has recorded runs; ULX3S work
+retains its own tool evidence and unavailable-board gate. No particular FPGA
+bring-up is a prerequisite for native software or the broader platform roadmap.
 
 ## 9. Repository layout
 

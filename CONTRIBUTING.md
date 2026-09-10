@@ -1,5 +1,14 @@
 # Contributing to atomiX
 
+## Choosing work
+
+Read the [platform roadmap](docs/roadmap.md), then pull an available task from
+the [priority boards](docs/boards/README.md). Each card links its acceptance
+gate and names a first slice and dependencies. Record an owner when work starts,
+use the board's task template, and attach reproducible evidence before marking
+the gate complete. The engineering and research checklists retain the detailed
+criteria; the boards retain priority and execution state.
+
 ## Licensing of contributions
 
 atomiX is MIT-licensed. By submitting a contribution you agree that it is
