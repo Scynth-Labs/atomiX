@@ -214,12 +214,12 @@
     ".:web-compare-check": {
       "kind": "manual",
       "prerequisite": "emscripten (em++) and a built WebAssembly bundle",
-      "surfaces": "the browser/native comparison records under research/"
+      "surfaces": "the browser/native comparison records and experiment-handoff contract under research/"
     },
     ".:web-page-check": {
       "kind": "manual",
       "prerequisite": "emscripten (em++) and a built WebAssembly bundle",
-      "surfaces": "the browser evidence recorded in docs/design-checklist.md"
+      "surfaces": "the real-browser console, comparison, experiment handoff, native-export readiness, and malformed/incompatible/oversized/stale URL refusals recorded in docs/design-checklist.md"
     },
     "formal:check": {
       "kind": "workflow",

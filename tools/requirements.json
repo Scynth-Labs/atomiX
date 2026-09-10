@@ -246,7 +246,7 @@
       "name": "Chromium or Edge",
       "tier": "browser",
       "required": false,
-      "use": "Renders both browser pages for make web-page-check",
+      "use": "Renders the console, comparison, and experiment-handoff pages for make web-page-check",
       "probe": {
         "mode": "presence",
         "_comment": "Probed by presence, never by running it: a Windows browser invoked with --version from WSL attaches to the user's running session instead of printing a version. page_check.mjs reads this list, so there is one copy of it.",

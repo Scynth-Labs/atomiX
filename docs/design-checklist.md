@@ -229,7 +229,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-08"></a>
 
-- [ ] **AX-08 — Browser experiment handoff.** Reuse the existing WASM machine
+- [x] **AX-08 — Browser experiment handoff.** Reuse the existing WASM machine
   and AX-01/AX-03 records to open a documentation example or shared experiment,
   run it, and export a record native tools can replay. Preserve profile and
   payload identity, oracle outputs, and cycle counts across both paths. Reject
@@ -239,6 +239,29 @@ implemented; the targets for the underlying tools do not prove a future feature.
   reported as blocked/skipped. Close the existing live-documentation and URL
   replay items only when their respective browser cases pass. The native
   experiment workflow remains usable without a browser or hosted service.
+
+  Closed 2026-09-10. `make web-compare` now stages each committed
+  `same-binary-cores` record as the unchanged AX-03 bundle beside the matching
+  WASM machine. `handoff.html?bundle=experiments/<record>.json` bounds the bytes
+  before parsing, resolves the record's candidate to exactly one machine, checks
+  the current profile and fetched-payload hashes, asks the module to identify
+  itself, and runs it. The actual browser run reproduced checksum `0xe9266745`
+  and exact workload/total cycles: `sim-minimal` 70,650/107,453,
+  `sim-bram` 42,978/71,952, and `sim-ax2` 25,729/47,943. Export preserves the
+  native bundle and adds only `org.atomix.browser-run`, which the native AX-03
+  validator accepts and `make experiment-reproduce EXPERIMENT_BUNDLE=...`
+  replays through the ordinary adapter.
+
+  Evidence: `make web-compare-check` validates the bundle contract, a
+  non-default 64 KiB size bound, native-export compatibility, and injected
+  malformed, incompatible-target, stale-profile, and stale-payload records.
+  `make web-page-check` passed in Chrome under WSL, rendered the successful
+  handoff and native-export-ready state, and refused malformed, incompatible,
+  oversized, and stale URL cases before running any machine. It still prints an
+  explicit skip when no Chromium is present. The older documentation-code-block
+  and terminal-session bug-report bullets below remain partial: an experiment
+  URL is neither of those formats, so AX-08 does not silently award them its
+  browser evidence.
 
 <a id="ax-10"></a>
 
@@ -1928,11 +1951,11 @@ Staged so each step has its own evidence rather than landing as one large jump:
   them rather than replacing them. Runs as the `doc-examples` stage in
   `ci-integration` and `nightly-integrated`.
 
-  What remains is the *live* half: a documentation code block that boots the
-  machine in the reader's browser. That needs the WebAssembly bundle, and
-  therefore emscripten, which this environment does not have — the replay above
-  is the same record driving the same machine headlessly, and is what the
-  browser view would have to agree with.
+  What remains is the *live* half: a documentation code block that boots its
+  `tests/examples.json` record in the reader's browser. AX-08 proved this
+  handoff for AX experiment bundles in an actual browser, but did not translate
+  that evidence to the separate documentation-example schema. The replay above
+  remains what that future browser case must agree with.
 - [~] **Live documentation — replayable bug reports.** The exported-record
   half is closed; the URL half waits on the browser bundle. `make bug-report
   EXAMPLE=<name>` runs a session and writes a record that carries everything a
@@ -1957,10 +1980,11 @@ Staged so each step has its own evidence rather than landing as one large jump:
   reproduces *its failure* — the case a bug report actually exists for — and
   both the stale and the missing payload are refused instead of substituted.
 
-  What remains is the URL: reconstructing the same selection from a link needs
-  the WebAssembly bundle and therefore emscripten, which this environment does
-  not have. The exported record is the same reconstruction by another route,
-  and is what such a URL would have to encode.
+  What remains is the URL for this terminal-session schema. AX-08 now proves
+  explicit experiment-record URLs and their stale-input refusals in a real
+  browser, but a URL that claims to replay a bug report must also reproduce its
+  inline keystrokes, transcript, and finished-or-failed status. The exported
+  bug-report record is the reconstruction that future browser case must encode.
 - [x] **Verification made visible.** `make evidence-views` renders three views
   into `build/evidence/` from records that already exist, each self-contained
   and theme-aware, with a `views.json` naming what was rendered from what.

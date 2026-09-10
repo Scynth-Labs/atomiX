@@ -158,6 +158,13 @@ COMPARE_MACHINES ?= sim-minimal sim-bram sim-ax2
 COMPARE_PAYLOAD ?= $(abspath ../../sw/baremetal/build/cpu_perf.hex)
 MACHINES_DIR := $(OUT_DIR)/machines
 MACHINES_MANIFEST := $(MACHINES_DIR)/machines.json
+HANDOFF_PLAN ?= ../../research/experiments/same-binary-cores.json
+HANDOFF_RECORDS ?= ../../research/experiments/records
+# A protocol bound, emitted into the generated handoff manifest and enforced
+# before JSON parsing. It is overrideable so the refusal is exercised at a
+# non-default value by handoff-check rather than being a decorative limit.
+HANDOFF_MAX_BUNDLE_BYTES ?= 1048576
+HANDOFF_MANIFEST := $(OUT_DIR)/handoff.json
 
 # One bundle per selection, each in its own directory with its own module
 # factory, plus the entry the page reads to find it. The payload is staged once
@@ -193,12 +200,31 @@ machine: build
 	  '$(COMPONENT_CACHE_ID)' '$(COMPONENT_MEMORY_ID)' \
 	  > $(MACHINE_DIR)/machine.json
 
+# Stage the AX-03 bundles without translating them into a browser-only record.
+# browser_experiment.py first binds every record to current profile and payload
+# hashes; handoff.js repeats those checks against the bytes it actually loads.
+handoff: machines
+	$(PYTHON) ../../tools/browser_experiment.py \
+	  --plan "$(HANDOFF_PLAN)" --records "$(HANDOFF_RECORDS)" \
+	  --machines "$(MACHINES_MANIFEST)" --output "$(OUT_DIR)" \
+	  --max-bundle-bytes "$(HANDOFF_MAX_BUNDLE_BYTES)"
+
+# The record-contract half needs only Node. The page-check below supplies the
+# separate actual-browser evidence and may explicitly skip when none exists.
+handoff-check: handoff
+	@command -v $(NODE) >/dev/null 2>&1 || { \
+	  echo "$(NODE) not found - emsdk ships one (docs/toolchain.md)"; exit 2; }; \
+	  $(NODE) handoff_check.mjs
+	@$(MAKE) --no-print-directory handoff \
+	  HANDOFF_MAX_BUNDLE_BYTES=65536 >/dev/null
+	@$(NODE) handoff_check.mjs
+
 # The headless counterpart of the side-by-side page, and its self-check: every
 # machine runs the same binary to completion, each reports its own cycle count,
 # and all of them must agree on the checksum. Cycle counts that came out equal,
 # or a module whose own ax_profile() disagrees with the label it was staged
 # under, mean the page would be showing one machine three times.
-compare: machines
+compare: handoff-check
 	@command -v $(NODE) >/dev/null 2>&1 || { \
 	  echo "$(NODE) not found - emsdk ships one (docs/toolchain.md)"; exit 2; }; \
 	  $(NODE) compare.mjs
@@ -209,7 +235,7 @@ compare: machines
 # name, asset paths, the scheduling loop, and whether any number reaches the
 # screen. Skips rather than fails without a browser: this tier is optional, and
 # a check that could not run must not report as one that passed.
-page-check: build machines
+page-check: build handoff
 	@command -v $(NODE) >/dev/null 2>&1 || { \
 	  echo "$(NODE) not found - emsdk ships one (docs/toolchain.md)"; exit 2; }; \
 	  $(NODE) page_check.mjs
@@ -252,6 +278,7 @@ ANNOUNCE ?= 1
 
 clean:
 	rm -rf obj_dir_* build $(OUT_DIR)/axsoc.js $(OUT_DIR)/axsoc.wasm \
-	  $(OUT_DIR)/payload.hex $(OUT_DIR)/.bundle-tag $(MACHINES_DIR)
+	  $(OUT_DIR)/payload.hex $(OUT_DIR)/.bundle-tag $(MACHINES_DIR) \
+	  $(OUT_DIR)/experiments $(HANDOFF_MANIFEST)
 
-.PHONY: config build machine machines compare page-check check bench serve clean FORCE
+.PHONY: config build machine machines handoff handoff-check compare page-check check bench serve clean FORCE

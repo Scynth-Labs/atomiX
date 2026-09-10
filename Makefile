@@ -72,7 +72,7 @@ help:
 	@echo "  make web                 # boot the machine in a browser (needs emcc)"
 	@echo "  make web-check           # headless WASM boot, timed against native"
 	@echo "  make web-compare         # one binary on three cores, side by side"
-	@echo "  make web-page-check      # both browser pages, in a headless browser"
+	@echo "  make web-page-check      # console, comparison, and experiment handoff pages"
 	@echo "  make doctor              # what this host can build, and what it cannot"
 	@echo "  make requirements-check  # host and docs against tools/requirements.json"
 
@@ -574,8 +574,9 @@ web-compare-check:
 # `web-compare-check` drive the machines through the same C API the pages use,
 # which is where the evidence is; this covers the page around them -- module
 # loading, asset paths, the scheduling loop, and whether any number reaches the
-# screen.  Skips rather than fails when no browser is installed; AX_BROWSER
-# picks one.  It never terminates a browser process it did not start.
+# screen. The experiment page also proves browser/native record identity and
+# four refusal paths. Skips rather than fails when no browser is installed;
+# AX_BROWSER picks one. It never terminates a browser process it did not start.
 web-page-check:
 	./tools/web.sh --page-check --machines "$(WEB_MACHINES)"
 

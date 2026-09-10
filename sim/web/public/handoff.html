@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>atomiX — replay an experiment</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="shell">
+  <header class="masthead">
+    <h1>atomiX experiment handoff</h1>
+    <p>
+      This page opens an AX-03 experiment bundle, verifies its payload and
+      profile identities, runs that exact payload on the selected RTL machine,
+      and checks the oracle output and deterministic cycles before it permits
+      export.
+    </p>
+  </header>
+
+  <section class="handoff-panel">
+    <div class="handoff-state">
+      <span class="badge" id="handoff-state" data-state="loading">loading</span>
+      <strong id="handoff-candidate">reading experiment record</strong>
+    </div>
+    <p id="handoff-note" class="race-note">
+      An explicit bad link is refused. The page never falls back to another
+      record, payload, or machine.
+    </p>
+    <dl class="identity-grid">
+      <div><dt>profile</dt><dd id="handoff-profile">—</dd></div>
+      <div><dt>profile SHA-256</dt><dd id="handoff-profile-sha">—</dd></div>
+      <div><dt>payload SHA-256</dt><dd id="handoff-payload-sha">—</dd></div>
+      <div><dt>oracle SHA-256</dt><dd id="handoff-output-sha">—</dd></div>
+      <div><dt>workload cycles</dt><dd id="handoff-execute">—</dd></div>
+      <div><dt>total cycles</dt><dd id="handoff-total">—</dd></div>
+    </dl>
+  </section>
+
+  <section class="machine handoff-console">
+    <div class="machine-bar">
+      <span class="badge" id="machine-state" data-state="loading">machine</span>
+      <span class="provenance" id="machine-name">not selected</span>
+    </div>
+    <div class="console"><pre class="screen" id="handoff-screen"></pre></div>
+  </section>
+
+  <section class="handoff-actions">
+    <button type="button" id="export" disabled data-native-replay="unavailable">
+      Export native-replay bundle
+    </button>
+    <code>make experiment-reproduce EXPERIMENT_BUNDLE=&lt;download&gt;</code>
+  </section>
+
+  <section class="notes">
+    <h2>Share this run</h2>
+    <p>
+      The <code>?bundle=experiments/&hellip;.json</code> part of this URL selects
+      the record. Its candidate selects exactly one staged machine; a missing,
+      incompatible, oversized, or stale record stops here instead of choosing
+      a convenient substitute.
+    </p>
+    <p>
+      Export keeps the original experiment plan, workload, record, retrieval
+      hashes, and native reproduction command intact. The browser observation
+      is an extension, so the normal native tool can replay the downloaded
+      file without a browser or hosted service.
+    </p>
+    <p><a href="compare.html">Compare all three machines side by side</a></p>
+  </section>
+</main>
+<script src="terminal.js"></script>
+<script type="module" src="handoff.js"></script>
+</body>
+</html>

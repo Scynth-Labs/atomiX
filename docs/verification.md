@@ -53,6 +53,10 @@ making a later integration stage consume artifacts produced by earlier ones.
 Ordinary CI runs `native-adapter-conformance` without an RTL-tool prerequisite
 and `experiment-regression` with the three deterministic preview CPU profiles;
 the latter records its elapsed stage cost in the verification summary.
+The Emscripten/browser tier remains optional and manual: `make
+web-compare-check` covers the AX-08 handoff contract, while `make web-page-check`
+records either a real Chromium pass over all three pages and four refusal cases,
+or an explicit skip when no browser is installed. A skip is not AX-08 evidence.
 
 ## Results and failure handling
 

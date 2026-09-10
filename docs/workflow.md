@@ -236,7 +236,7 @@ retired instructions and cycles per workload and prints a checksum every core
 must agree on.
 
 ```bash
-make web-page-check                                # both pages, in a browser
+make web-page-check                                # all three pages, in a browser
 AX_BROWSER=/path/to/chrome make web-page-check     # pick the browser
 ```
 
@@ -252,6 +252,34 @@ which selection it is (`ax_profile()` against the label it was staged under), if
 the checksums differ, or if two machines return the same cycle count — the last
 being exactly what a page showing one machine three times would look like. The
 native sweep behind the same numbers is `python3 tools/bench.py cpu`.
+
+### Hand an experiment through the browser
+
+`make web-compare` also stages the committed AX-01 same-binary records as AX-03
+bundles. Follow the **Open one of these committed results** link, or share an
+explicit selection such as:
+
+```text
+http://localhost:8000/handoff.html?bundle=experiments/cpu-perf-on-minimal.json
+```
+
+The page bounds and validates the bundle before selecting a machine, confirms
+the profile and payload SHA-256 identities, runs the payload, and requires the
+same oracle output, workload cycles, and total cycles as the native record.
+Malformed, incompatible, oversized, and stale inputs are refused without a
+fallback. After a pass, export the bundle and replay it with the ordinary native
+command:
+
+```bash
+make experiment-reproduce EXPERIMENT_BUNDLE=/path/cpu-perf-on-minimal-browser.json
+```
+
+The browser observation is a namespaced extension; the AX-03 inputs and replay
+command are unchanged. `make web-compare-check` exercises the portable contract,
+including a non-default bundle-size limit. `make web-page-check` performs the
+successful run and all four bad-link cases in a real Chromium. Without a browser
+or Emscripten this optional path is unavailable; the native experiment commands
+above remain unchanged.
 
 ---
 

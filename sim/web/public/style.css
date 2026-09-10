@@ -265,3 +265,34 @@ button:disabled { opacity: 0.45; cursor: default; }
 
 .verdict { margin: 0.9rem 0 0; color: var(--dim); font-size: 0.9rem; max-width: 52rem; }
 .verdict.bad { color: #f85149; }
+
+/* --- Experiment handoff -------------------------------------------------- */
+.handoff-panel {
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  background: var(--panel);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+.handoff-state { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }
+.handoff-state strong { font-family: var(--mono); font-size: .85rem; }
+.identity-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  gap: .65rem 1rem;
+  margin: 1rem 0 0;
+}
+.identity-grid div { min-width: 0; }
+.identity-grid dt {
+  color: var(--dim); font-size: .7rem; text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.identity-grid dd {
+  margin: .1rem 0 0; overflow-wrap: anywhere; font: .76rem/1.4 var(--mono);
+}
+.handoff-console .console { height: 18rem; cursor: default; }
+.handoff-actions {
+  display: flex; gap: .8rem; align-items: center; flex-wrap: wrap; margin-top: 1rem;
+}
+.handoff-actions code { color: var(--dim); font-size: .78rem; }
+.badge[data-state="passed"] { color: var(--accent); border-color: var(--accent-dim); }

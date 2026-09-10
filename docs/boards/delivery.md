@@ -15,7 +15,7 @@ P0 cards here plus AX-10 on the [targets board](targets.md) deliver M0.
 | [AX-05: ship an external-component SDK example](../design-checklist.md#ax-05) | P1 | Done | AX-01; completed independently while AX-04 awaits participants | Package one small replacement outside the source tree with its manifest and runnable conformance checks |
 | [AX-06: prepare a reproducible preview release](../design-checklist.md#ax-06) | P1 | Next | AX-04, AX-05, AX-07; HW-01 only for advertised hardware images | Define the supported subset and inventory the artifacts, compatibility promises, and reproduction commands |
 | [AX-07: detect experiment regressions in CI](../design-checklist.md#ax-07) | P1 | Done | AX-02, AX-03 | Add one deterministic CPU comparison to the existing verification manifest with a deliberately failing control |
-| [AX-08: open and share an experiment in the browser](../design-checklist.md#ax-08) | P1 | Next | AX-03; WASM build environment and browser for validation | Import one native experiment record into the existing web machine and confirm identity and result parity |
+| [AX-08: open and share an experiment in the browser](../design-checklist.md#ax-08) | P1 | Done | AX-03; WASM build environment and browser for validation | Import one native experiment record into the existing web machine and confirm identity and result parity |
 | [AX-09: asynchronous host jobs](../design-checklist.md#platform-expansion) | P2 | Next | RX-02 identifies a useful workload or pilot demonstrates blocking cost | Specify submit/poll/fetch ownership and recovery using the existing open host-link gate before adding operations |
 
 ## What is done, and what is next
@@ -62,6 +62,14 @@ candidates. A per-change stage reruns that small comparison and proves its own
 wrong-result, stale-input, and threshold-breach detection. Native conformance
 is a separate no-RTL-prerequisite stage; the full parameter sweep stays in the
 scheduled suite.
+
+AX-08 is closed. The comparison site stages the committed AX-03 bundles without
+inventing a browser-only experiment format. A shared URL binds a record to one
+WASM profile, verifies profile and payload identities, and reproduces its oracle
+and deterministic cycles before export. The export adds only a namespaced
+browser observation, so the ordinary native reproducer remains authoritative.
+The real-browser check passed the rendered happy path and refused malformed,
+incompatible, oversized, and stale URLs without selecting another machine.
 
 ## The first slice, as it was taken
 

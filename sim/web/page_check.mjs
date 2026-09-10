@@ -12,7 +12,9 @@
 // installed: this whole tier is optional and load-bearing for nothing, and a
 // check that cannot run must not be reported as one that passed.
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync,
+} from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -55,7 +57,9 @@ if (!browser) {
   process.exit(0);
 }
 
-for (const required of ['index.html', 'axsoc.js', 'machines/machines.json']) {
+for (const required of [
+  'index.html', 'axsoc.js', 'machines/machines.json', 'handoff.json',
+]) {
   if (!existsSync(join(publicDir, required))) {
     process.stderr.write(
       `[page] FAIL ${required} is not staged; run \`make -C sim/web build machines\` first\n`);
@@ -106,8 +110,12 @@ if (!profile) {
   server.kill();
   process.exit(0);
 }
+const fixtures = [];
 const cleanup = () => {
   server.kill();
+  for (const fixture of fixtures) {
+    try { unlinkSync(fixture); } catch { /* generated fixture was already absent */ }
+  }
   // Best effort: a stranded browser still holds files here, and failing to
   // tidy up is not a reason to fail a check that has already answered.
   try {
@@ -141,6 +149,28 @@ function render(path) {
   }
   return result.stdout.replace(/\r/g, '');
 }
+
+// AX-08 refusal fixtures live only for this check. An explicit URL selects
+// each one; the page must report why it refused and must not fall back to its
+// default record or machine.
+const handoff = JSON.parse(readFileSync(join(publicDir, 'handoff.json'), 'utf8'));
+const defaultBytes = readFileSync(join(publicDir, handoff.default));
+const defaultBundle = JSON.parse(defaultBytes);
+const fixture = (name, bytes) => {
+  const path = join(publicDir, 'experiments', name);
+  writeFileSync(path, bytes);
+  fixtures.push(path);
+  return `handoff.html?bundle=experiments/${name}`;
+};
+const malformedPath = fixture('check-malformed.json', '{broken');
+const incompatible = structuredClone(defaultBundle);
+incompatible.record.identity.target.id = 'org.atomix.target.not-staged';
+const incompatiblePath = fixture('check-incompatible.json', JSON.stringify(incompatible));
+const stale = structuredClone(defaultBundle);
+stale.record.identity.target.profile_sha256 = '0'.repeat(64);
+const stalePath = fixture('check-stale.json', JSON.stringify(stale));
+const oversizedPath = fixture(
+  'check-oversized.json', Buffer.alloc(handoff.limits.max_bundle_bytes + 1, 0x20));
 
 const problems = [];
 function require_(condition, message) {
@@ -200,12 +230,51 @@ const strip = (html) => html.replace(/<[^>]+>/g, '')
   }
 }
 
+// --- One experiment record handed through the browser -----------------------
+{
+  const expected = handoff.experiments.find((item) => item.bundle === handoff.default);
+  const dom = render(`handoff.html?bundle=${handoff.default}`);
+  const state = /id="handoff-state" data-state="([a-z]+)"/.exec(dom);
+  require_(state && state[1] === 'passed',
+           `experiment handoff ended in state ${state ? state[1] : 'unknown'}`);
+  const execute = /id="handoff-execute"[^>]*>([^<]*)/.exec(dom);
+  const total = /id="handoff-total"[^>]*>([^<]*)/.exec(dom);
+  require_(execute && Number(execute[1].replaceAll(',', '')) === expected.execute_cycles,
+           'handoff page did not render the recorded workload cycles');
+  require_(total && Number(total[1].replaceAll(',', '')) === expected.total_cycles,
+           'handoff page did not render the recorded total cycles');
+  require_(/id="export"[^>]*data-native-replay="ready"/.test(dom),
+           'handoff page did not prepare a native-replay export');
+
+  for (const [path, phrase] of [
+    [malformedPath, 'malformed'],
+    [incompatiblePath, 'incompatible'],
+    [oversizedPath, 'oversized'],
+    [stalePath, 'stale profile'],
+  ]) {
+    const refused = render(path);
+    const refusedState = /id="handoff-state" data-state="([a-z]+)"/.exec(refused);
+    const note = /id="handoff-note"[^>]*>([\s\S]*?)<\/p>/.exec(refused);
+    require_(refusedState && refusedState[1] === 'failed',
+             `${phrase} handoff did not enter the refused state`);
+    require_(note && strip(note[1]).toLowerCase().includes(phrase),
+             `${phrase} handoff did not explain its refusal`);
+    require_(/id="machine-state" data-state="failed">not run/.test(refused),
+             `${phrase} handoff selected a machine after refusal`);
+  }
+  if (problems.length === 0) {
+    process.stdout.write(
+      `[page] handoff: ${expected.machine} ${expected.execute_cycles}/${expected.total_cycles} ` +
+      'cycles, native export ready; four bad links refused\n');
+  }
+}
+
 if (problems.length) {
   for (const problem of problems) process.stderr.write(`[page] FAIL ${problem}\n`);
   process.exit(1);
 }
 process.stdout.write(
-  `[page] PASS both pages render their machines in ${browser.split(/[\\/]/).pop()}\n`);
+  `[page] PASS all three pages render their machines in ${browser.split(/[\\/]/).pop()}\n`);
 // The static server is a live child handle, so the event loop has work left
 // even though the check is over. Say so explicitly rather than hanging.
 process.exit(0);

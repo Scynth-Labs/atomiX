@@ -3,10 +3,12 @@
 The same Verilated SoC that `make sim` runs, compiled to WebAssembly, so aXos
 can be booted with no toolchain, no FPGA, and nothing installed.
 
-This tier is **optional and load-bearing for nothing**. The ISS, Verilator
+This tier is **optional for every native workflow**. The ISS, Verilator
 simulation, kernel checks, formal flow, and FPGA flow all work without it, and
-no evidence claim rests on it. If `emcc` is absent the targets here are simply
-unavailable, exactly as the FPGA targets are without the OSS CAD Suite.
+no native experiment or hardware claim rests on it. AX-08's browser-handoff
+claim naturally requires this tier. If `emcc` is absent the targets here are
+unavailable and the real-page check reports a skip, exactly as the FPGA targets
+are unavailable without the OSS CAD Suite.
 
 ## Build and run
 
@@ -77,13 +79,43 @@ claim: `python3 tools/bench.py cpu` already sweeps this natively, across more
 `core.ax2` parameter settings than three panes can hold. This is the
 presentation of that measurement, not a second source for it.
 
-`make -C sim/web page-check` covers what neither `check` nor `compare` can see.
+## Open and export a recorded experiment
+
+`compare.html` links to `handoff.html`, where each committed
+`same-binary-cores` result is staged as the same AX-03 experiment bundle the
+native reproducer consumes. A shared URL selects the bundle explicitly:
+
+```text
+http://localhost:8000/handoff.html?bundle=experiments/cpu-perf-on-minimal.json
+```
+
+The page accepts JSON only under `experiments/`, bounds its bytes before parsing,
+then binds the record's candidate to exactly one staged machine. It checks the
+current profile hash, hashes the fetched payload, asks the module for its own
+profile, runs the payload, and compares oracle output plus workload and total
+cycles. An explicit bad URL never falls back to the default machine.
+
+After a pass, **Export native-replay bundle** downloads the original plan,
+workload, record, retrieval hashes, and reproduction command with the browser
+observation added under `org.atomix.browser-run`. Replay it without a browser:
+
+```bash
+make experiment-reproduce EXPERIMENT_BUNDLE=cpu-perf-on-minimal-browser.json
+```
+
+`make -C sim/web handoff-check` covers the format and malformed, incompatible,
+oversized, stale-profile, and stale-payload refusals. It also restages with a
+non-default 64 KiB record limit. `make web-compare-check` includes this contract
+check before running the three machines.
+
+`make -C sim/web page-check` covers what the headless checks cannot see.
 Both of those drive the machines through the same C API the pages use, which is
 where the evidence is; the page around them — module loading by export name,
 asset paths, the scheduling loop, whether any number reaches the screen — has
 its own ways to be wrong and is invisible to a headless Node run. So it serves
-the directory, drives both pages in a headless Chromium, and reads the rendered
-DOM back. It skips rather than fails when no browser is installed (`AX_BROWSER`
+the directory, drives all three pages in a headless Chromium, and reads the
+rendered DOM back. The handoff cases include a successful native-export-ready
+run and four explicit bad URLs. It skips rather than fails when no browser is installed (`AX_BROWSER`
 picks one), runs in a throwaway profile of its own, and never terminates a
 browser process it did not start.
 
@@ -178,12 +210,15 @@ per command.
 | `tb_soc_wasm.cpp` | the C API both pages drive the machine through |
 | `boot.mjs` | headless boot, self-check, and same-host benchmark |
 | `compare.mjs` | headless side-by-side run, and its self-check |
-| `page_check.mjs` | both pages, driven in a headless browser |
+| `handoff_check.mjs` | portable-bundle validation and refusal self-tests |
+| `page_check.mjs` | all three pages, driven in a headless browser |
 | `public/index.html`, `app.js` | the single-machine console; tracked |
 | `public/compare.html`, `compare.js` | the side-by-side page; tracked |
-| `public/terminal.js`, `style.css` | shared by both pages; tracked |
+| `public/handoff.html`, `handoff.js`, `handoff_contract.js` | experiment import, run, and native export; tracked |
+| `public/terminal.js`, `style.css` | shared by all pages; tracked |
 | `public/axsoc.js`, `axsoc.wasm`, `payload.hex` | build products, not tracked |
 | `public/machines/` | one staged bundle per selection; not tracked |
+| `public/experiments/`, `handoff.json` | generated AX-03 bundles and bindings; not tracked |
 
 ## Known limits
 

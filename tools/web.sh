@@ -12,7 +12,7 @@
 #   tools/web.sh --config configs/sim-bram.json \
 #                --payload sw/baremetal/build/hello.hex
 #   tools/web.sh --compare                         # machines side by side
-#   tools/web.sh --page-check                      # drive both pages headless
+#   tools/web.sh --page-check                      # drive all pages headless
 #   tools/web.sh --port 9000 --no-check --no-open
 #
 # Everything it does is also available as ordinary targets; see sim/web/README.md.
@@ -179,7 +179,7 @@ fi
 # It comes last because it needs both bundles and both payloads present, which
 # is exactly what the ordinary path has just finished doing.
 if [ "$page_check" = 1 ]; then
-  say "driving both pages in a headless browser"
+  say "driving all three pages in a headless browser"
   web page-check COMPARE_MACHINES="$machines"
   exit 0
 fi
