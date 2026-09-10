@@ -47,6 +47,7 @@ help:
 	@echo "  make experiment-run     # run an experiment plan through its adapters"
 	@echo "  make adapter-check      # prove the execution adapters' refusals"
 	@echo "  make experiment-sweep-check # prove bounded, resumable sweep behaviour"
+	@echo "  make experiment-report  # compare one plan's records and explain the gaps"
 	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL, unit and SoC"
 	@echo "  make evolution-check    # bounded kernel-evolve tiers in Primer RAM"
 	@echo "  make fitness-check      # deterministic Live FPGA fitness contract"
@@ -156,11 +157,21 @@ adapter-check:
 experiment-sweep-check:
 	$(PYTHON) tools/experiment_sweep_check.py
 
+# What the report must refuse to do: rank across measurement domains, let a
+# missing measurement satisfy a bound, show a failed candidate as a result, or
+# reproduce a bundle whose inputs or evidence level have changed.
+experiment-report-check:
+	$(PYTHON) tools/experiment_report_check.py
+
 # Run one plan through its adapters. Records land outside tracked source
 # unless RECORDS points into the evidence tree, because a scratch run is not
 # evidence. ONLY selects candidates; LIMIT_SECONDS overrides the plan budget.
 EXPERIMENT_PLAN ?= research/experiments/saxpy-native-vs-rtl.json
 EXPERIMENT_RECORDS ?= build/experiments/records
+# Reading and writing have different defaults on purpose: a run writes to the
+# ignored build tree, while a report reads the records this repository ships as
+# evidence. Point EXPERIMENT_READ at your own run to look at that instead.
+EXPERIMENT_READ ?= research/experiments/records
 experiment-run:
 	$(PYTHON) tools/experiment_run.py $(EXPERIMENT_PLAN) \
 	  --records $(EXPERIMENT_RECORDS) \
@@ -171,6 +182,25 @@ experiment-run:
 	  $(if $(BUDGET_SECONDS),--budget-seconds $(BUDGET_SECONDS)) \
 	  $(if $(LIMIT_SECONDS),--limit-seconds $(LIMIT_SECONDS)) \
 	  $(if $(REPETITIONS),--repetitions $(REPETITIONS))
+
+# Read one plan's records: who is eligible, who was excluded and why, what
+# each identity was, and a Pareto table per measurement domain. CONSTRAINT may
+# be repeated; a metric nobody measured never satisfies one.
+experiment-report:
+	$(PYTHON) tools/experiment_report.py render $(EXPERIMENT_PLAN) \
+	  --records $(EXPERIMENT_READ) \
+	  $(foreach bound,$(CONSTRAINT),--constraint '$(bound)')
+
+# Export one result as a self-contained description, and rebuild it from that
+# description alone.
+EXPERIMENT_BUNDLE ?= build/experiments/bundle.json
+experiment-export:
+	@test -n "$(CANDIDATE)" || { echo "CANDIDATE is required"; exit 2; }
+	$(PYTHON) tools/experiment_report.py export $(EXPERIMENT_PLAN) $(CANDIDATE) \
+	  --records $(EXPERIMENT_READ) --output $(EXPERIMENT_BUNDLE)
+
+experiment-reproduce:
+	$(PYTHON) tools/experiment_report.py reproduce $(EXPERIMENT_BUNDLE)
 
 # Re-run a recorded candidate and compare identities, oracle outputs, and the
 # cycle counts that are supposed to be deterministic.
@@ -515,11 +545,11 @@ web-page-check:
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
-component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check
+component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check
 	$(MAKE) software CONFIG=configs/sim-hello.json
 	$(MAKE) sim CONFIG=configs/sim-delayed.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-delayed
 	$(MAKE) sim CONFIG=configs/sim-delayed-passthrough-cache.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-passthrough-cache
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-run experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-run experiment-report experiment-export experiment-reproduce experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check

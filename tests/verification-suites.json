@@ -115,12 +115,13 @@
       ]
     },
     "experiment-adapters": {
-      "label": "Execution adapters and bounded sweeps: their refusals, and one plan run end to end",
+      "label": "Execution adapters, bounded sweeps, and the comparison report: their refusals, and one plan run end to end",
       "command": [
         "make",
         "adapter-check",
         "experiment-sweep-check",
-        "experiment-run"
+        "experiment-run",
+        "experiment-report-check"
       ],
       "timeout_seconds": 900,
       "requires": [

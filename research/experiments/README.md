@@ -102,6 +102,37 @@ repetition count. Changing `-O2` to `-O1` is enough to make a result stale.
 including blocked and failed ones, and `--retry` names the ones to attempt
 again.
 
+## Reading the result
+
+```bash
+make experiment-report
+make experiment-report CONSTRAINT='org.atomix.metric.execute-cycles<=300'
+```
+
+The report ranks within a measurement domain and refuses to rank across them.
+It prints, in its own output, that no ratio between a model-cycle row and a
+host-time row means anything, and there is no combined score anywhere in this
+repository. A candidate is listed under a domain it cannot enter with the
+reason -- inapplicable to that class of target, or unmeasured -- rather than
+quietly dropped, and a candidate that failed its oracle keeps its record and
+loses its place in every table.
+
+A constraint answers with three groups: candidates that qualify, candidates
+outside the bound, and candidates about which there is no evidence. The third
+group never counts as a pass. Asking for a LUT budget in a simulation-only
+experiment therefore qualifies nobody, which is the correct answer.
+
+```bash
+make experiment-export CANDIDATE=saxpy-simt-rtl-lanes-4
+make experiment-reproduce
+```
+
+A bundle carries the plan, the workload, the record, every declared input with
+its hash, and the commit to retrieve. Reproducing it checks those hashes before
+rebuilding anything, runs through the ordinary runner rather than a path only
+bundles use, and compares identity, oracle outputs, and the deterministic
+values. A changed input or a mismatched evidence level is refused.
+
 ## Adding a plan
 
 Copy a shipped plan, give it a new namespaced ID, and pin the workload revision

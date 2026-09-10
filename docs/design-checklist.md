@@ -31,12 +31,13 @@ explores software and hardware implementations, and shares a reproducible design
 decision. Native software, model execution, FPGA, and eventual silicon use their
 own [execution-target contracts](execution-targets.md).
 The [priority boards](boards/README.md) own execution order, dependencies,
-state, and ownership. AX-01, AX-02, and AX-10 are closed: an experiment plan
-is a versioned input, one workload runs on a host CPU and on RTL through a
-single adapter boundary, and a bounded sweep can be interrupted and resumed
-without losing what it already learned. AX-03 (explainable comparison and
-replay) is next on the [delivery board](boards/delivery.md). Complete the
-experiment alpha before widening its architecture catalog.
+state, and ownership. AX-01, AX-02, AX-03, and AX-10 are closed: an experiment
+plan is a versioned input, one workload runs on a host CPU and on RTL through a
+single adapter boundary, a bounded sweep can be interrupted and resumed without
+losing what it already learned, and its result renders as a comparison that
+names what it cannot compare. AX-04, the independent pilot, is what remains of
+M0 -- and it cannot be closed by its implementer. Complete the experiment alpha
+before widening its architecture catalog.
 
 The platform gates below are new work, initially unchecked. Existing components,
 benchmarks, browser machines, and evidence tools are their starting points;
@@ -109,7 +110,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-03"></a>
 
-- [ ] **AX-03 — Explainable comparisons and replay.** A local report consumes
+- [x] **AX-03 — Explainable comparisons and replay.** A local report consumes
   AX-02 records and shows eligible candidates, rejected/missing cases, exact
   workload and machine identities, measurement methods, and a Pareto table
   over comparable metrics. A user can set a constraint and see either qualifying
@@ -125,6 +126,15 @@ implemented; the targets for the underlying tools do not prove a future feature.
   evidence. Replays compare each backend's declared observables: deterministic
   model cycles where defined, and separately reported timing distributions for
   actual host/device execution.
+  Evidence: `make experiment-report`, `make experiment-export`,
+  `make experiment-reproduce`, and `make experiment-report-check`, which proves
+  the two claims are labelled differently, host time and model cycles render as
+  separate tables carrying an explicit statement that no ratio between them
+  means anything, a host candidate appears under the cycle table as not
+  applicable rather than absent, an area bound with no evidence qualifies
+  nobody, a failed candidate is named as excluded and enters no table, a
+  candidate the bound never reached is named as never attempted, and a bundle
+  is refused when an input hash or the evidence level has changed.
 
 <a id="ax-04"></a>
 

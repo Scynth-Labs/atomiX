@@ -10,8 +10,8 @@ P0 cards here plus AX-10 on the [targets board](targets.md) deliver M0.
 |---|---|---|---|---|
 | [AX-01: describe a workload-driven experiment](../design-checklist.md#ax-01) | P0 | Done | Existing workload and comparison contracts | Specify workload semantics, distinct implementation/target identities, and metric applicability for native/RTL and same-binary fixtures |
 | [AX-02: execute and resume a bounded design-space sweep](../design-checklist.md#ax-02) | P0 | Done | AX-01, AX-10 | Execute a fixed plan through the native CPU and RTL adapters and retain every attempted outcome |
-| [AX-03: compare and replay a design decision](../design-checklist.md#ax-03) | P0 | Ready | AX-02 | Render a local comparison from the run records, including a rejected candidate and a replay reference |
-| [AX-04: prove a new user can use the experiment alpha](../design-checklist.md#ax-04) | P0 | Next | AX-03; independent participants for the pilot gate | Write separate native-only and native/RTL walkthroughs; test locally before arranging reproduction |
+| [AX-03: compare and replay a design decision](../design-checklist.md#ax-03) | P0 | Done | AX-02 | Render a local comparison from the run records, including a rejected candidate and a replay reference |
+| [AX-04: prove a new user can use the experiment alpha](../design-checklist.md#ax-04) | P0 | Ready | AX-03; independent participants for the pilot gate | Write separate native-only and native/RTL walkthroughs; test locally before arranging reproduction |
 | [AX-05: ship an external-component SDK example](../design-checklist.md#ax-05) | P1 | Next | AX-01; start after M0 unless pilot needs it sooner | Package one small replacement outside the source tree with its manifest and runnable conformance checks |
 | [AX-06: prepare a reproducible preview release](../design-checklist.md#ax-06) | P1 | Next | AX-04, AX-05, AX-07; HW-01 only for advertised hardware images | Define the supported subset and inventory the artifacts, compatibility promises, and reproduction commands |
 | [AX-07: detect experiment regressions in CI](../design-checklist.md#ax-07) | P1 | Next | AX-02, AX-03 | Add one deterministic CPU comparison to the existing verification manifest with a deliberately failing control |
@@ -32,13 +32,19 @@ a state file saying what was attempted, what was reused, and what was never
 tried. `research/experiments/records/` now holds a five-candidate run of the
 saxpy plan.
 
-AX-03 is the next slice, and it is the one a user sees. The records already
-carry eligibility (correctness status), identity (four hashes), measurement
-domains, and applicability, so the report is a rendering problem rather than a
-data problem: eligible candidates and rejected ones side by side, a Pareto
-table per domain with no cross-domain arithmetic, a constraint that either
-qualifies candidates or says there is no evidence, and a self-contained export
-that reproduces its oracle outputs and deterministic cycles from a clean run.
+AX-03 is closed. `make experiment-report` renders one table per measurement
+domain and says which pairings are not comparable; `make experiment-export`
+writes a self-contained bundle and `make experiment-reproduce` rebuilds it from
+that description alone, refusing a changed input or a mismatched evidence
+level.
+
+AX-04 is what remains of M0, and it is the one card its implementer cannot
+close. The walkthroughs can be written and tested locally -- a native-only path
+needing no RISC-V or RTL toolchain, and the paired native/RTL path with its
+prerequisites -- but the gate needs two people other than the implementer to
+run them, change a declared choice, and say what the evidence does not support.
+Until those two reproductions are recorded, this stays open no matter how well
+the commands work here.
 
 ## The first slice, as it was taken
 
@@ -95,3 +101,7 @@ when implemented. A missing browser that causes a skip cannot close AX-08.
 - 2026-09-10: closed AX-02 with finite enumeration only. A search strategy was
   deliberately not added: bounds, resume, and trustworthy records are what a
   sweep needs before it needs to be clever about where it looks next.
+- 2026-09-10: closed AX-03 without a summary score, deliberately. The report
+  ranks within a measurement domain and states in its own output that no ratio
+  across domains means anything; a single number would have been easier to read
+  and would have been the most misleading thing here.

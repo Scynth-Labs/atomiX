@@ -559,6 +559,38 @@ whose inputs have not changed.
 make experiment-sweep-check      # the sweep's own failure modes
 ```
 
+Read the result, and hand it to someone else:
+
+```bash
+make experiment-report                                  # the shipped saxpy records
+make experiment-report EXPERIMENT_PLAN=research/experiments/same-binary-cores.json
+make experiment-report CONSTRAINT='org.atomix.metric.execute-cycles<=300'
+make experiment-export CANDIDATE=saxpy-simt-rtl-lanes-4  # a self-contained result
+make experiment-reproduce                                # rebuild it from that alone
+```
+
+The report reads the records this repository ships; point `EXPERIMENT_READ` at
+your own run to read that instead.  It prints one table per measurement domain
+and states, in the output, that no ratio between them means anything — there is
+no combined score anywhere in this repository, and a host process is listed
+under the model-cycles table as *not applicable* rather than omitted.  A
+candidate that failed its oracle is named as excluded with the first mismatch;
+a candidate the bound never reached is named as never attempted.  A constraint
+returns qualifying candidates, candidates outside the bound, and candidates
+about which there is no evidence — that last group never counts as a pass, so
+asking for a LUT budget in a simulation-only experiment qualifies nobody.
+
+`make experiment-export` writes a bundle carrying the plan, the workload, the
+record, every declared input with its hash, and the commit to retrieve.
+`make experiment-reproduce` checks those inputs still hash the same, re-runs
+through the ordinary runner, and compares identity, oracle outputs, and the
+deterministic values.  A changed input is refused before anything is rebuilt,
+and a bundle claiming a different evidence level is refused outright.
+
+```bash
+make experiment-report-check     # what the report must refuse to do
+```
+
 `make adapter-check` proves what a passing run never shows: the native leg
 builds and runs with every RISC-V, Verilator, and FPGA tool shadowed by a
 failing stub, an absent tool blocks instead of silently selecting another
