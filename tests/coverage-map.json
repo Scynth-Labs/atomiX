@@ -108,6 +108,10 @@
       "kind": "suite",
       "stage": "experiment-adapters"
     },
+    ".:external-component-check": {
+      "kind": "suite",
+      "stage": "component-composition"
+    },
     ".:formal-coverage": {
       "kind": "via",
       "aggregate": "verification-check"

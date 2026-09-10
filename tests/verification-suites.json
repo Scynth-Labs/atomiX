@@ -210,10 +210,11 @@
       ]
     },
     "component-composition": {
-      "label": "Component composition across supplied profiles",
+      "label": "Component composition across supplied profiles and the external SDK example",
       "command": [
         "make",
-        "component-test"
+        "component-test",
+        "external-component-check"
       ],
       "timeout_seconds": 5400,
       "requires": [

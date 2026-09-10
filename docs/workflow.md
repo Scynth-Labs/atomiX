@@ -83,6 +83,7 @@ FPGA environment once per shell: `source "$HOME/opt/oss-cad-suite/environment"`.
 ```bash
 make component-list                              # catalog of selectable components
 make component-show COMPONENT=role.gpu-compute   # one manifest
+make external-component-check                    # portable package + conformance
 make config-check   CONFIG=configs/sim-bram.json # resolve one profile
 make config-check-all                            # resolve every profile in configs/
 ```

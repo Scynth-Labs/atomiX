@@ -80,10 +80,35 @@ def validate_manifest(path: Path, value: dict[str, Any]) -> dict[str, Any]:
             if not isinstance(spec["default"], int) or isinstance(spec["default"], bool):
                 raise ConfigError(
                     f"{path}: parameter {name!r} default must be an integer")
+            if not isinstance(spec.get("doc"), str) or not spec["doc"].strip():
+                raise ConfigError(
+                    f"{path}: parameter {name!r} needs a non-empty 'doc'")
             if "omit_when_zero" in spec and not isinstance(
                     spec["omit_when_zero"], bool):
                 raise ConfigError(
                     f"{path}: parameter {name!r} omit_when_zero must be true or false")
+            if "range" in spec:
+                limits = spec["range"]
+                allowed = {"minimum", "maximum", "power_of_two"}
+                if not isinstance(limits, dict) or not set(limits) <= allowed:
+                    raise ConfigError(
+                        f"{path}: parameter {name!r} range may contain only "
+                        "minimum, maximum, and power_of_two")
+                for bound in ("minimum", "maximum"):
+                    if bound in limits and (not isinstance(limits[bound], int) or
+                                            isinstance(limits[bound], bool)):
+                        raise ConfigError(
+                            f"{path}: parameter {name!r} range.{bound} must be an integer")
+                if ("power_of_two" in limits and
+                        not isinstance(limits["power_of_two"], bool)):
+                    raise ConfigError(
+                        f"{path}: parameter {name!r} range.power_of_two must be true or false")
+                low = limits.get("minimum")
+                high = limits.get("maximum")
+                if low is not None and high is not None and low > high:
+                    raise ConfigError(
+                        f"{path}: parameter {name!r} range minimum exceeds maximum")
+                check_parameter_range(path, name, spec["default"], limits)
     if "defaults" in value:
         defaults = value["defaults"]
         if (not isinstance(defaults, dict) or
@@ -323,6 +348,21 @@ def check_setting(path: Path, key: str, value: Any) -> None:
                 f"{', '.join(choices)}")
 
 
+def check_parameter_range(path: Path, name: str, value: int,
+                          limits: dict[str, Any]) -> None:
+    low = limits.get("minimum")
+    high = limits.get("maximum")
+    if low is not None and value < low:
+        raise ConfigError(
+            f"{path}: parameter {name!r} is {value}, below the minimum {low}")
+    if high is not None and value > high:
+        raise ConfigError(
+            f"{path}: parameter {name!r} is {value}, above the maximum {high}")
+    if limits.get("power_of_two") and (value <= 0 or value & (value - 1)):
+        raise ConfigError(
+            f"{path}: parameter {name!r} is {value}, expected a power of two")
+
+
 def source_list(component: dict[str, Any]) -> list[str]:
     sources: list[str] = []
     for source in component.get("sources", []):
@@ -409,6 +449,9 @@ def to_make(resolved: dict[str, Any]) -> str:
             if not isinstance(value, int) or isinstance(value, bool):
                 raise ConfigError(
                     f"{resolved['path']}: parameter {kind}.{name} must be an integer")
+            if "range" in spec:
+                check_parameter_range(
+                    resolved["path"], f"{kind}.{name}", value, spec["range"])
             # `omit_when_zero` exists because `ifdef` tests whether a macro is
             # defined, not what it is worth, and a parameter that always emits
             # `NAME=0` therefore cannot remove a module port or a port

@@ -12,7 +12,7 @@ P0 cards here plus AX-10 on the [targets board](targets.md) deliver M0.
 | [AX-02: execute and resume a bounded design-space sweep](../design-checklist.md#ax-02) | P0 | Done | AX-01, AX-10 | Execute a fixed plan through the native CPU and RTL adapters and retain every attempted outcome |
 | [AX-03: compare and replay a design decision](../design-checklist.md#ax-03) | P0 | Done | AX-02 | Render a local comparison from the run records, including a rejected candidate and a replay reference |
 | [AX-04: prove a new user can use the experiment alpha](../design-checklist.md#ax-04) | P0 | Ready | AX-03; independent participants for the pilot gate | Write separate native-only and native/RTL walkthroughs; test locally before arranging reproduction |
-| [AX-05: ship an external-component SDK example](../design-checklist.md#ax-05) | P1 | Next | AX-01; start after M0 unless pilot needs it sooner | Package one small replacement outside the source tree with its manifest and runnable conformance checks |
+| [AX-05: ship an external-component SDK example](../design-checklist.md#ax-05) | P1 | Done | AX-01; completed independently while AX-04 awaits participants | Package one small replacement outside the source tree with its manifest and runnable conformance checks |
 | [AX-06: prepare a reproducible preview release](../design-checklist.md#ax-06) | P1 | Next | AX-04, AX-05, AX-07; HW-01 only for advertised hardware images | Define the supported subset and inventory the artifacts, compatibility promises, and reproduction commands |
 | [AX-07: detect experiment regressions in CI](../design-checklist.md#ax-07) | P1 | Next | AX-02, AX-03 | Add one deterministic CPU comparison to the existing verification manifest with a deliberately failing control |
 | [AX-08: open and share an experiment in the browser](../design-checklist.md#ax-08) | P1 | Next | AX-03; WASM build environment and browser for validation | Import one native experiment record into the existing web machine and confirm identity and result parity |
@@ -47,6 +47,14 @@ prerequisites -- but the gate needs two people other than the implementer to
 run them, change a declared choice, and say what the evidence does not support.
 Until those two reproductions are recorded, this stays open no matter how well
 the commands work here.
+
+AX-05 is closed. The delayed-finisher SDK package carries its source, manifest,
+documented bounded knob, simulation-only compatibility claim, profiles,
+license, migration rules, and conformance runner together. `make
+external-component-check` proves the package after copying it outside the
+checkout, including default/non-default latency and two precise refusal cases.
+The wider replacement inventory remains candid about gaps rather than granting
+the SDK example's evidence to other components.
 
 ## The first slice, as it was taken
 

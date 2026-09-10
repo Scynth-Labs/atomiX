@@ -126,6 +126,22 @@ The shortest profile-to-verification path is in
 
 ## External component example
 
+The runnable SDK example is
+[`sdk/examples/finisher-delayed/`](../sdk/examples/finisher-delayed/README.md).
+Its conformance runner copies the complete package outside the checkout, selects
+the external manifest at default and non-default parameter values, and refuses
+an unsupported board combination. Run it with:
+
+```bash
+make external-component-check
+```
+
+The example is deliberately a simulation finisher rather than another claimed
+CPU: it demonstrates packaging, compatibility ownership, and evidence without
+borrowing the reference core's ISA or formal status. The current compatibility
+and evidence inventory for all supplied alternatives is in
+[`docs/component-compatibility.md`](../docs/component-compatibility.md).
+
 An implementation may live anywhere. Create a manifest next to its sources:
 
 ```json

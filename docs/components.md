@@ -121,6 +121,13 @@ selects `core.finisher-smoke`, a tiny core that writes the simulation pass value
 and nothing else. It validates source replacement and the thin stock boundary;
 it is intentionally not evidence for RISC-V execution.
 
+For a complete portable package rather than a manifest fragment, use the
+[delayed-finisher SDK example](../sdk/examples/finisher-delayed/README.md).
+`make external-component-check` copies it outside the checkout and runs its
+default/non-default and negative conformance cases. The
+[replacement inventory](component-compatibility.md) records which supplied
+alternatives have evidence and where their compatibility claims remain thin.
+
 The same posture applies to `software`: `software.axos-sdboot` is the known
 kernel payload, not an imposed operating system. A custom software manifest
 may build another kernel, monitor, or entirely bare-metal program from outside

@@ -24,6 +24,7 @@ help:
 	@echo "  make component-list"
 	@echo "  make component-show COMPONENT=memory.sdram"
 	@echo "  make config-check CONFIG=configs/sim-sdram.json"
+	@echo "  make external-component-check # out-of-tree SDK example + conformance"
 	@echo "  make sim CONFIG=configs/sim-bram.json RAM_INIT_FILE=/path/program.hex"
 	@echo "  make software CONFIG=configs/sim-hello.json"
 	@echo "  make fpga CONFIG=configs/ulx3s-85f.json"
@@ -572,11 +573,14 @@ web-page-check:
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
-component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-pages-check
+external-component-check:
+	$(PYTHON) sdk/examples/finisher-delayed/check.py --atomix-root "$(CURDIR)"
+
+component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-pages-check external-component-check
 	$(MAKE) software CONFIG=configs/sim-hello.json
 	$(MAKE) sim CONFIG=configs/sim-delayed.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-delayed
 	$(MAKE) sim CONFIG=configs/sim-delayed-passthrough-cache.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-passthrough-cache
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight external-component-check component-test web web-check web-bench web-compare web-compare-check web-page-check

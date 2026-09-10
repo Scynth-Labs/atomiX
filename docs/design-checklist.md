@@ -163,7 +163,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-05"></a>
 
-- [ ] **AX-05 — External-component SDK and conformance example.** Package one
+- [x] **AX-05 — External-component SDK and conformance example.** Package one
   small out-of-tree implementation with a manifest, parameter documentation,
   compatibility scope, license/attribution, profile, and runnable conformance
   checks. A fresh checkout must select it without editing the generic SoC or
@@ -173,6 +173,17 @@ implemented; the targets for the underlying tools do not prove a future feature.
   modes and evidence gaps; close the existing Component discipline inventory
   item only when its full coverage criterion is met. This is an SDK example,
   not a claim that every external component is interchangeable or verified.
+  Closed 2026-09-10: [`sdk/examples/finisher-delayed/`](../sdk/examples/finisher-delayed/README.md)
+  is a portable MIT-licensed package with its manifest, RTL, profiles,
+  compatibility/migration rules, and component-owned runner. `make
+  external-component-check` copies it outside the checkout, resolves its
+  package-local source without a generic SoC edit, observes exit at 2 cycles
+  for the default `ack_delay_cycles=1` and 5 cycles for the non-default value
+  `4`, rejects out-of-range `17`, and refuses the simulation-only endpoint with
+  `board.tangprimer25k`. It runs in the `component-composition` CI/nightly
+  stage. [The replacement inventory](component-compatibility.md) states
+  supported modes, parameter evidence, and gaps; the broader Component
+  discipline item deliberately remains open where that inventory names gaps.
 
 <a id="ax-06"></a>
 
