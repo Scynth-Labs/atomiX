@@ -35,13 +35,36 @@ def model(config, sync, image=""):
     return path
 
 
+def verilator_major():
+    """The installed Verilator's major version, or 0 if it cannot be read.
+
+    Options come and go between generations, and this check runs on both: CI
+    is pinned to 4.038 per docs/dependencies.md while development hosts are on
+    5.x. Guarding by version is what the Makefiles already do for -Wno-
+    UNUSEDPARAM; the same rule applies here.
+    """
+    result = run([os.environ.get("VERILATOR", "verilator"), "--version"],
+                 success=False)
+    text = (result.stdout or result.stderr).split()
+    if len(text) < 2:
+        return 0
+    digits = text[1].split(".")[0]
+    return int(digits) if digits.isdigit() else 0
+
+
 def preprocessed(source, *, define):
     """The memory source as a compiler would see it, with and without the guard.
 
     Verilator's -E is the same preprocessor the build uses, so this is the text
     that actually reaches elaboration rather than an approximation of it.
+
+    --no-std suppresses Verilator 5's built-in std package. Verilator 4 has no
+    such package and rejects the option outright, which failed this check on CI
+    while passing on every 5.x development host.
     """
-    command = [os.environ.get("VERILATOR", "verilator"), "-E", "--no-std"]
+    command = [os.environ.get("VERILATOR", "verilator"), "-E"]
+    if verilator_major() >= 5:
+        command.append("--no-std")
     if define:
         command.append("+define+AX_RUNTIME_RAM_IMAGE")
     command.append(str(source))
