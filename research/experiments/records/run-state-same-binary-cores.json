@@ -1,0 +1,42 @@
+{
+  "schema": {
+    "id": "org.atomix.experiment-run-state",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "experiment-run-state",
+  "id": "org.atomix.experiment-run.same-binary-cores",
+  "revision": 1,
+  "summary": "What one run of org.atomix.experiment.same-binary-cores attempted, reused, and never tried",
+  "plan": {
+    "id": "org.atomix.experiment.same-binary-cores",
+    "revision": 1
+  },
+  "budget": {
+    "max_candidates": 3,
+    "per_candidate_seconds": 900,
+    "repetitions": 1,
+    "run_seconds": null
+  },
+  "candidates": {
+    "org.atomix.candidate.cpu-perf-on-minimal": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "cpu-perf-on-minimal.json",
+      "timestamp_utc": "2026-09-10T09:06:40Z"
+    },
+    "org.atomix.candidate.cpu-perf-on-pipeline5": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "cpu-perf-on-pipeline5.json",
+      "timestamp_utc": "2026-09-10T09:06:41Z"
+    },
+    "org.atomix.candidate.cpu-perf-on-ax2": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "cpu-perf-on-ax2.json",
+      "timestamp_utc": "2026-09-10T09:06:42Z"
+    }
+  },
+  "extensions": {}
+}

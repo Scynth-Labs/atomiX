@@ -46,6 +46,7 @@ help:
 	@echo "  make experiment-check   # validate experiment plans and run records"
 	@echo "  make experiment-run     # run an experiment plan through its adapters"
 	@echo "  make adapter-check      # prove the execution adapters' refusals"
+	@echo "  make experiment-sweep-check # prove bounded, resumable sweep behaviour"
 	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL, unit and SoC"
 	@echo "  make evolution-check    # bounded kernel-evolve tiers in Primer RAM"
 	@echo "  make fitness-check      # deterministic Live FPGA fitness contract"
@@ -147,6 +148,14 @@ experiment-check: comparison-check
 adapter-check:
 	$(PYTHON) tools/adapter_conformance.py
 
+# What a sweep must do when things go wrong: refuse an out-of-range point
+# before building it, survive an interrupt with a usable state file, resume
+# without re-attempting settled outcomes, keep the candidates it never tried,
+# reuse a result only while its inputs hold, and record a wrong answer in full
+# while refusing to rank it.
+experiment-sweep-check:
+	$(PYTHON) tools/experiment_sweep_check.py
+
 # Run one plan through its adapters. Records land outside tracked source
 # unless RECORDS points into the evidence tree, because a scratch run is not
 # evidence. ONLY selects candidates; LIMIT_SECONDS overrides the plan budget.
@@ -156,6 +165,10 @@ experiment-run:
 	$(PYTHON) tools/experiment_run.py $(EXPERIMENT_PLAN) \
 	  --records $(EXPERIMENT_RECORDS) \
 	  $(foreach candidate,$(ONLY),--only $(candidate)) \
+	  $(foreach candidate,$(RETRY),--retry $(candidate)) \
+	  $(if $(RESUME),--resume) $(if $(NO_REUSE),--no-reuse) \
+	  $(if $(MAX_CANDIDATES),--max-candidates $(MAX_CANDIDATES)) \
+	  $(if $(BUDGET_SECONDS),--budget-seconds $(BUDGET_SECONDS)) \
 	  $(if $(LIMIT_SECONDS),--limit-seconds $(LIMIT_SECONDS)) \
 	  $(if $(REPETITIONS),--repetitions $(REPETITIONS))
 
@@ -502,11 +515,11 @@ web-page-check:
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
-component-test: config-check-all personality-check comparison-check experiment-check adapter-check
+component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check
 	$(MAKE) software CONFIG=configs/sim-hello.json
 	$(MAKE) sim CONFIG=configs/sim-delayed.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-delayed
 	$(MAKE) sim CONFIG=configs/sim-delayed-passthrough-cache.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-passthrough-cache
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-run experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-run experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check

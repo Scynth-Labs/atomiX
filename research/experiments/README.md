@@ -67,6 +67,41 @@ produce metrics from its own domain (context metrics excepted):
 Native elapsed time, simulator wall time, and model cycles are not one scale,
 and no arithmetic in this repository converts between them.
 
+## Sweeps, bounds, and what a run remembers
+
+A candidate may declare a sweep over a target's build-time parameters as an
+explicitly enumerated set:
+
+```json
+"sweep": {"target_parameters": {"lanes": [1, 2, 4, 8]}}
+```
+
+Ranges and step counts are deliberately absent. The expansion has to be
+countable before the run starts, and `budget.max_candidates` is checked against
+the expanded space rather than the written list. The component manifest owns
+what values are legal -- `role.gpu-compute` declares `lanes` 1..256 and
+`data_words` as a power of two in 256..4096 -- so an out-of-range point is
+refused before its model is built, by the component's own rule.
+
+Each run writes `run-state-<plan>.json` beside its records:
+
+| Disposition | Meaning |
+|---|---|
+| `org.atomix.attempted` | this run produced the record |
+| `org.atomix.reused` | the previous record's inputs were identical, so it still stands |
+| `org.atomix.not-attempted` | bounded out, or never reached; its status stays `not-run` |
+
+The distinction in the last row is the point. A candidate that was never tried
+and a candidate that lost are different results, and a report that cannot tell
+them apart is guessing.
+
+Reuse compares artifact and build hashes, the target's model and profile
+hashes, tool versions, the workload revision and its selected cases, and the
+repetition count. Changing `-O2` to `-O1` is enough to make a result stale.
+`--no-reuse` re-executes regardless; `--resume` keeps outcomes already recorded,
+including blocked and failed ones, and `--retry` names the ones to attempt
+again.
+
 ## Adding a plan
 
 Copy a shipped plan, give it a new namespaced ID, and pin the workload revision

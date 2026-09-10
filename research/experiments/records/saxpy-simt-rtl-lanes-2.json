@@ -5,15 +5,15 @@
     "minor": 0
   },
   "kind": "experiment-record",
-  "id": "org.atomix.experiment-record.saxpy-simt-rtl",
+  "id": "org.atomix.experiment-record.saxpy-simt-rtl-lanes-2",
   "revision": 1,
-  "summary": "saxpy-simt-rtl: 4 oracle cases passed on org.atomix.target.role-gpu-compute-sim",
+  "summary": "saxpy-simt-rtl-lanes-2: 4 oracle cases passed on org.atomix.target.role-gpu-compute-sim",
   "claim": "org.atomix.observation",
   "plan": {
     "id": "org.atomix.experiment.saxpy-native-vs-rtl",
-    "revision": 1
+    "revision": 2
   },
-  "candidate": "org.atomix.candidate.saxpy-simt-rtl",
+  "candidate": "org.atomix.candidate.saxpy-simt-rtl-lanes-2",
   "status": "org.atomix.pass",
   "identity": {
     "implementation": {
@@ -28,24 +28,24 @@
       "id": "org.atomix.target.role-gpu-compute-sim",
       "class": "org.atomix.rtl-simulator",
       "adapter": "org.atomix.adapter.rtl-role-simulator",
-      "build_sha256": "cd9cb802e09ce55bff65c02d03e9d7be998061268e93998dd010f7e8cfb5c74c",
-      "profile_sha256": "2c16f789377fc2804766192a84cc41d9f06ae1b9deff77fb5bfa2f596881594d"
+      "build_sha256": "c5a10acabe2bf05f5c7f879f56ed52f53c464be01278435e335a7236d3a42c30",
+      "profile_sha256": "f295300c1a24daea20814a5ada53940971eac6dc09fd304516455c696d95610e"
     }
   },
   "execution": {
     "repetitions": 1,
     "limit_seconds": 900,
-    "elapsed_seconds": 0.017249,
+    "elapsed_seconds": 0.015616,
     "termination": "org.atomix.completed"
   },
   "source": {
-    "commit": "8c8f566ebc4494d0ecffb20934c337561b321c0d",
+    "commit": "aeb3cca06cd712c2f8b67effe602403eaa66303b",
     "dirty": true,
-    "diff_sha256": "4ec5bedd1d817d11c32fc11652c3f3ab49437619eb3d96b3623f0e12d0d960ff"
+    "diff_sha256": "28d0b30974605224760bf51f383a49f3fb9fecb9061a0cc18b3f5b470a589deb"
   },
   "environment": {
     "evidence_level": "org.atomix.simulation",
-    "timestamp_utc": "2026-09-10T08:50:43Z",
+    "timestamp_utc": "2026-09-10T09:06:34Z",
     "board": null,
     "device": null,
     "tools": {
@@ -78,13 +78,13 @@
       "method": "SIMT kernel instruction words, hashed as 74de93b49115"
     },
     "org.atomix.metric.execute-cycles": {
-      "value": 212,
+      "value": 332,
       "unit": "org.atomix.unit.cycle",
       "status": "org.atomix.measured",
       "method": "model cycles from job start to observed completion, summed over cases"
     },
     "org.atomix.metric.total-cycles": {
-      "value": 324,
+      "value": 444,
       "unit": "org.atomix.unit.cycle",
       "status": "org.atomix.measured",
       "method": "model cycles including staging and checked readback, summed over cases"
@@ -108,7 +108,7 @@
       "method": "org.atomix.rtl-simulator has no such quantity"
     },
     "org.atomix.metric.simulator-host-elapsed-median": {
-      "value": 4332894.0,
+      "value": 3846696.5,
       "unit": "org.atomix.unit.nanosecond",
       "status": "org.atomix.measured",
       "method": "wall time of the simulator process per case; a cost of the tool, not of the design"
@@ -134,6 +134,13 @@
       "program_words": 64,
       "data_words": 4096
     },
+    "org.atomix.target-parameters": {
+      "lanes": 2
+    },
+    "org.atomix.reuse": {
+      "fingerprint": "a698a041e921443056752088bfa364ad5cff90a92289e18e1983b2db539f4dd7",
+      "key": "713e8fc0c88f879ddbcee7d8699c02203a0752f2dbd236cd17f410a7bb595925"
+    },
     "org.atomix.case-outcomes": {
       "signed-and-tail": {
         "outputs": {
@@ -146,11 +153,11 @@
           ]
         },
         "cycles": {
-          "execute": 53,
-          "total": 84
+          "execute": 99,
+          "total": 130
         },
         "detail": {
-          "simulator_elapsed_ns": 4418969,
+          "simulator_elapsed_ns": 4277707,
           "program_words": 9
         }
       },
@@ -164,11 +171,11 @@
           ]
         },
         "cycles": {
-          "execute": 53,
-          "total": 80
+          "execute": 67,
+          "total": 94
         },
         "detail": {
-          "simulator_elapsed_ns": 4246819,
+          "simulator_elapsed_ns": 3941052,
           "program_words": 9
         }
       },
@@ -179,11 +186,11 @@
           ]
         },
         "cycles": {
-          "execute": 53,
-          "total": 68
+          "execute": 35,
+          "total": 50
         },
         "detail": {
-          "simulator_elapsed_ns": 4051648,
+          "simulator_elapsed_ns": 3644548,
           "program_words": 9
         }
       },
@@ -200,11 +207,11 @@
           ]
         },
         "cycles": {
-          "execute": 53,
-          "total": 92
+          "execute": 131,
+          "total": 170
         },
         "detail": {
-          "simulator_elapsed_ns": 4531320,
+          "simulator_elapsed_ns": 3752341,
           "program_words": 9
         }
       }

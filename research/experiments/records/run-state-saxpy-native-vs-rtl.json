@@ -1,0 +1,54 @@
+{
+  "schema": {
+    "id": "org.atomix.experiment-run-state",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "experiment-run-state",
+  "id": "org.atomix.experiment-run.saxpy-native-vs-rtl",
+  "revision": 1,
+  "summary": "What one run of org.atomix.experiment.saxpy-native-vs-rtl attempted, reused, and never tried",
+  "plan": {
+    "id": "org.atomix.experiment.saxpy-native-vs-rtl",
+    "revision": 2
+  },
+  "budget": {
+    "max_candidates": 5,
+    "per_candidate_seconds": 900,
+    "repetitions": 5,
+    "run_seconds": null
+  },
+  "candidates": {
+    "org.atomix.candidate.saxpy-native": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "saxpy-native.json",
+      "timestamp_utc": "2026-09-10T09:06:32Z"
+    },
+    "org.atomix.candidate.saxpy-simt-rtl-lanes-1": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "saxpy-simt-rtl-lanes-1.json",
+      "timestamp_utc": "2026-09-10T09:06:34Z"
+    },
+    "org.atomix.candidate.saxpy-simt-rtl-lanes-2": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "saxpy-simt-rtl-lanes-2.json",
+      "timestamp_utc": "2026-09-10T09:06:35Z"
+    },
+    "org.atomix.candidate.saxpy-simt-rtl-lanes-4": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "saxpy-simt-rtl-lanes-4.json",
+      "timestamp_utc": "2026-09-10T09:06:36Z"
+    },
+    "org.atomix.candidate.saxpy-simt-rtl-lanes-8": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "saxpy-simt-rtl-lanes-8.json",
+      "timestamp_utc": "2026-09-10T09:06:38Z"
+    }
+  },
+  "extensions": {}
+}

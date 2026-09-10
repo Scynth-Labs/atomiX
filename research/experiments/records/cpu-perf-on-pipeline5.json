@@ -35,17 +35,17 @@
   "execution": {
     "repetitions": 1,
     "limit_seconds": 900,
-    "elapsed_seconds": 0.08504,
+    "elapsed_seconds": 0.067599,
     "termination": "org.atomix.completed"
   },
   "source": {
-    "commit": "8c8f566ebc4494d0ecffb20934c337561b321c0d",
+    "commit": "aeb3cca06cd712c2f8b67effe602403eaa66303b",
     "dirty": true,
-    "diff_sha256": "4ec5bedd1d817d11c32fc11652c3f3ab49437619eb3d96b3623f0e12d0d960ff"
+    "diff_sha256": "27d4b41659c091cf8913c6a9860668b275ca1f4067d270a3a0b1497691dee4c8"
   },
   "environment": {
     "evidence_level": "org.atomix.simulation",
-    "timestamp_utc": "2026-09-10T08:50:46Z",
+    "timestamp_utc": "2026-09-10T09:06:40Z",
     "board": null,
     "device": null,
     "tools": {
@@ -91,7 +91,7 @@
       "method": "model cycles including staging and checked readback, summed over cases"
     },
     "org.atomix.metric.simulator-host-elapsed-median": {
-      "value": 85040293,
+      "value": 67599008,
       "unit": "org.atomix.unit.nanosecond",
       "status": "org.atomix.measured",
       "method": "wall time of the simulator process per case; a cost of the tool, not of the design"
@@ -121,6 +121,10 @@
         "plic": "plic.qemu-virt"
       }
     },
+    "org.atomix.reuse": {
+      "fingerprint": null,
+      "key": "72a81932cb4fc6f8a09dae245fcf20433e2b8366e0cdb8fa6b7efeeefb263549"
+    },
     "org.atomix.case-outcomes": {
       "resident-integer-mix": {
         "outputs": {
@@ -134,7 +138,7 @@
         },
         "detail": {
           "self_check": "cpu_perf: PASS",
-          "simulator_elapsed_ns": 85040293
+          "simulator_elapsed_ns": 67599008
         }
       }
     }

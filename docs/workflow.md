@@ -511,7 +511,8 @@ what may be spent finding out.  Plans and records live in
 make experiment-run                                   # the native/RTL saxpy plan
 make experiment-run EXPERIMENT_PLAN=research/experiments/same-binary-cores.json
 make experiment-run ONLY=saxpy-native LIMIT_SECONDS=60 REPETITIONS=9
-make experiment-replay RECORD=research/experiments/records/saxpy-simt-rtl.json
+make experiment-replay RECORD=research/experiments/records/saxpy-simt-rtl-lanes-8.json
+make experiment-run RESUME=1                          # keep outcomes already recorded
 ```
 
 Two plans ship, and they make different claims on purpose:
@@ -538,6 +539,25 @@ model, and profile hashes before it compares any number; then oracle outputs
 and the cycle counts that are supposed to be deterministic.  Elapsed times are
 printed side by side and not asserted.  A rebuilt artifact that still passes is
 reported as a different candidate rather than as the same one.
+
+A plan may sweep a target's build-time parameters over an explicitly
+enumerated set; `saxpy-native-vs-rtl` sweeps `role.gpu-compute` over 1, 2, 4,
+and 8 lanes.  The expansion is finite and its size is checked against
+`budget.max_candidates` before anything runs, an out-of-range point is refused
+before its model is built, and the component manifest owns the range that
+decides which points are out of range.
+
+Every run writes `run-state-<plan>.json` beside the records: what was
+attempted, what was reused because its inputs were unchanged, and what was
+never tried.  `--resume` keeps settled outcomes -- including blocked and failed
+ones -- instead of quietly redoing them, `--retry` names the ones to attempt
+again, and `--max-candidates` / `--budget-seconds` bound a run and record the
+remainder as not-run rather than dropping them.  `--no-reuse` re-executes work
+whose inputs have not changed.
+
+```bash
+make experiment-sweep-check      # the sweep's own failure modes
+```
 
 `make adapter-check` proves what a passing run never shows: the native leg
 builds and runs with every RISC-V, Verilator, and FPGA tool shadowed by a

@@ -62,6 +62,20 @@ class NativeCpuAdapter(Adapter):
             limits={"max_items": self.MAX_ITEMS},
         )
 
+    def fingerprint(self, implementation: dict[str, Any], target: dict[str, Any],
+                    cases: list[dict[str, Any]]) -> dict[str, Any] | None:
+        build = implementation["build"]
+        source = ROOT / build["value"]["source"]
+        if build["kind"] != "org.atomix.host-cc" or not source.is_file():
+            return None
+        return {
+            "source": build["value"]["source"],
+            "source_sha256": sha256_file(source),
+            "standard": build["value"]["standard"],
+            "flags": list(build["value"]["flags"]),
+            "compiler": tool_version(self.compiler()),
+        }
+
     def prepare(self, implementation: dict[str, Any], target: dict[str, Any],
                 workdir: Path, cases: list[dict[str, Any]], *,
                 limit_seconds: float, cancel_after: float | None = None) -> Prepared:

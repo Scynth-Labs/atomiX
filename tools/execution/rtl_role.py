@@ -89,6 +89,8 @@ class RtlRoleAdapter(Adapter):
             raise Unsupported(
                 f"{component['id']} has no parameters {sorted(unknown)}"
             )
+        for name, value in sorted(parameters.items()):
+            self.check_range(component["parameters"][name], name, value)
         capabilities = {
             namespaced_capability(name) for name in component.get("capabilities", [])
         } | self.ADAPTER_CAPABILITIES
@@ -111,6 +113,54 @@ class RtlRoleAdapter(Adapter):
                 "data_words": data_words,
             },
         )
+
+    def fingerprint(self, implementation: dict[str, Any], target: dict[str, Any],
+                    cases: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if implementation["build"]["kind"] != "org.atomix.gpu-compute-program":
+            return None
+        try:
+            component = self.component(target)
+        except (Blocked, Unsupported):
+            return None
+        sources = {
+            source: sha256_file(ROOT / source) for source in component["sources"]
+            if (ROOT / source).is_file()
+        }
+        if len(sources) != len(component["sources"]) or not HARNESS.is_file() or \
+                not ENCODER.is_file():
+            return None
+        return {
+            "component": component["id"],
+            "sources": sources,
+            "harness_sha256": sha256_file(HARNESS),
+            "encoder_sha256": sha256_file(ENCODER),
+            "profile": target["profile"]["value"],
+            "verilator": tool_version("verilator"),
+        }
+
+    def check_range(self, spec: dict[str, Any], name: str, value: Any) -> None:
+        """Enforce whatever range the component declares about its own knob.
+
+        The range lives in the component manifest because the component owns
+        it: the engine's lane count is bounded by its own indexing, not by any
+        experiment that happens to sweep it. A manifest that declares no range
+        is not second-guessed here.
+        """
+        if not isinstance(value, int) or isinstance(value, bool):
+            raise Unsupported(f"parameter {name} must be an integer, not {value!r}")
+        limits = spec.get("range")
+        if not limits:
+            return
+        if "minimum" in limits and value < limits["minimum"]:
+            raise Unsupported(
+                f"{name}={value} is below the component's minimum of {limits['minimum']}"
+            )
+        if "maximum" in limits and value > limits["maximum"]:
+            raise Unsupported(
+                f"{name}={value} is above the component's maximum of {limits['maximum']}"
+            )
+        if limits.get("power_of_two") and (value <= 0 or value & (value - 1)):
+            raise Unsupported(f"{name}={value} is not a power of two")
 
     def kernel(self, encoder, items: int, a: int) -> list[int]:
         """SAXPY as nine straight-line SIMT instructions, one thread per element."""

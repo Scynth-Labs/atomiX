@@ -1,15 +1,27 @@
 {
-  "schema": {"id": "org.atomix.experiment-plan", "major": 1, "minor": 0},
+  "schema": {
+    "id": "org.atomix.experiment-plan",
+    "major": 1,
+    "minor": 1
+  },
   "kind": "experiment-plan",
   "id": "org.atomix.experiment.saxpy-native-vs-rtl",
-  "revision": 1,
-  "summary": "One integer workload, two unrelated implementations: a host C executable and a SIMT kernel on the RTL role, judged by the same oracle",
+  "revision": 2,
+  "summary": "One integer workload, two unrelated implementations: a host C executable and a SIMT kernel swept across the role's lane count, judged by the same oracle",
   "claim": "org.atomix.same-workload",
   "workload": {
     "id": "org.atomix.workload.saxpy-i32",
     "revision": 2,
-    "parameters": {"items": 50, "a": 3},
-    "cases": ["signed-and-tail", "int32-wrap", "single-element", "simt-lane-tail"]
+    "parameters": {
+      "items": 50,
+      "a": 3
+    },
+    "cases": [
+      "signed-and-tail",
+      "int32-wrap",
+      "single-element",
+      "simt-lane-tail"
+    ]
   },
   "implementations": [
     {
@@ -26,7 +38,12 @@
         "value": {
           "source": "sw/native/saxpy_i32.c",
           "standard": "c11",
-          "flags": ["-O2", "-Wall", "-Wextra", "-Werror"]
+          "flags": [
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror"
+          ]
         }
       }
     },
@@ -49,7 +66,11 @@
         "value": {
           "encoder": "sw/host/gpu_programs.py",
           "immediate_bits": 17,
-          "layout": {"x": 0, "y": "items", "out": "2*items"}
+          "layout": {
+            "x": 0,
+            "y": "items",
+            "out": "2*items"
+          }
         }
       }
     }
@@ -92,7 +113,10 @@
         "value": {
           "component": "components/role/gpu-compute/component.json",
           "top": "axrole",
-          "parameters": {"lanes": 8, "data_words": 4096}
+          "parameters": {
+            "lanes": 8,
+            "data_words": 4096
+          }
         }
       }
     }
@@ -103,14 +127,30 @@
       "implementation": "org.atomix.implementation.saxpy-native-c",
       "target": "org.atomix.target.host-cpu",
       "parameters": {},
-      "work": {"unit": "org.atomix.output-element", "count": 17}
+      "work": {
+        "unit": "org.atomix.output-element",
+        "count": 17
+      }
     },
     {
       "id": "org.atomix.candidate.saxpy-simt-rtl",
       "implementation": "org.atomix.implementation.saxpy-simt-kernel",
       "target": "org.atomix.target.role-gpu-compute-sim",
       "parameters": {},
-      "work": {"unit": "org.atomix.output-element", "count": 17}
+      "work": {
+        "unit": "org.atomix.output-element",
+        "count": 17
+      },
+      "sweep": {
+        "target_parameters": {
+          "lanes": [
+            1,
+            2,
+            4,
+            8
+          ]
+        }
+      }
     }
   ],
   "metrics": [
@@ -236,7 +276,11 @@
       }
     }
   ],
-  "budget": {"max_candidates": 2, "per_candidate_seconds": 900, "repetitions": 5},
+  "budget": {
+    "max_candidates": 5,
+    "per_candidate_seconds": 900,
+    "repetitions": 5
+  },
   "policy": {
     "correctness": "org.atomix.hard-gate",
     "missing_measurement": "org.atomix.unavailable-not-zero",

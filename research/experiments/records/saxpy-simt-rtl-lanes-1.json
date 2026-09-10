@@ -5,51 +5,51 @@
     "minor": 0
   },
   "kind": "experiment-record",
-  "id": "org.atomix.experiment-record.saxpy-native",
+  "id": "org.atomix.experiment-record.saxpy-simt-rtl-lanes-1",
   "revision": 1,
-  "summary": "saxpy-native: 4 oracle cases passed on org.atomix.target.host-cpu",
+  "summary": "saxpy-simt-rtl-lanes-1: 4 oracle cases passed on org.atomix.target.role-gpu-compute-sim",
   "claim": "org.atomix.observation",
   "plan": {
     "id": "org.atomix.experiment.saxpy-native-vs-rtl",
     "revision": 2
   },
-  "candidate": "org.atomix.candidate.saxpy-native",
+  "candidate": "org.atomix.candidate.saxpy-simt-rtl-lanes-1",
   "status": "org.atomix.pass",
   "identity": {
     "implementation": {
-      "id": "org.atomix.implementation.saxpy-native-c",
-      "artifact_sha256": "e8a062c4ae806e2721bdae30f54c222846bc2568ca6477d20f609acaa792bf4e",
-      "build_sha256": "bf0b07c56bfe5afc0da9f93fff17d9dd13fac320b08d382ddd3377f93f374c4e",
+      "id": "org.atomix.implementation.saxpy-simt-kernel",
+      "artifact_sha256": "74de93b49115162a21ccb3cc28dc010e97f160be3302ab2419112899d8df1841",
+      "build_sha256": "88b6f7571134ca2281f6fcd50c641ca20a1738a7e6eb4482651c457b3876e6b2",
       "tools": {
-        "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+        "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b"
       }
     },
     "target": {
-      "id": "org.atomix.target.host-cpu",
-      "class": "org.atomix.native-host",
-      "adapter": "org.atomix.adapter.native-cpu",
-      "build_sha256": null,
-      "profile_sha256": null
+      "id": "org.atomix.target.role-gpu-compute-sim",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-role-simulator",
+      "build_sha256": "07d698a28261454ded7529f4a2d58a2a8dad476b0485068aeb22fe706e427019",
+      "profile_sha256": "ef0263172982de44605ee9889e356c1eea8d8847e993e803a395a682ac8c99a3"
     }
   },
   "execution": {
-    "repetitions": 5,
+    "repetitions": 1,
     "limit_seconds": 900,
-    "elapsed_seconds": 0.006174,
+    "elapsed_seconds": 0.01799,
     "termination": "org.atomix.completed"
   },
   "source": {
     "commit": "aeb3cca06cd712c2f8b67effe602403eaa66303b",
     "dirty": true,
-    "diff_sha256": "f1ee00436b8080734354b9f1b1bfe83055a91dcbade12a4b86fc59002e41bae4"
+    "diff_sha256": "28d0b30974605224760bf51f383a49f3fb9fecb9061a0cc18b3f5b470a589deb"
   },
   "environment": {
-    "evidence_level": "org.atomix.native-execution",
+    "evidence_level": "org.atomix.simulation",
     "timestamp_utc": "2026-09-10T09:06:32Z",
     "board": null,
-    "device": "x86_64",
+    "device": null,
     "tools": {
-      "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0"
+      "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b"
     }
   },
   "correctness": {
@@ -66,73 +66,80 @@
       "method": "logical work of the executed cases, from the workload definition"
     },
     "org.atomix.metric.repetitions": {
-      "value": 5,
+      "value": 1,
       "unit": "org.atomix.unit.count",
       "status": "org.atomix.measured",
       "method": "timed executions of each case"
     },
     "org.atomix.metric.artifact-bytes": {
-      "value": 16504,
+      "value": 144,
       "unit": "org.atomix.unit.byte",
       "status": "org.atomix.measured",
-      "method": "host executable, hashed as e8a062c4ae80"
+      "method": "SIMT kernel instruction words, hashed as 74de93b49115"
     },
     "org.atomix.metric.execute-cycles": {
-      "value": null,
+      "value": 505,
       "unit": "org.atomix.unit.cycle",
-      "status": "org.atomix.inapplicable",
-      "method": "org.atomix.native-host has no such quantity"
+      "status": "org.atomix.measured",
+      "method": "model cycles from job start to observed completion, summed over cases"
     },
     "org.atomix.metric.total-cycles": {
-      "value": null,
+      "value": 617,
       "unit": "org.atomix.unit.cycle",
-      "status": "org.atomix.inapplicable",
-      "method": "org.atomix.native-host has no such quantity"
+      "status": "org.atomix.measured",
+      "method": "model cycles including staging and checked readback, summed over cases"
     },
     "org.atomix.metric.host-elapsed-median": {
-      "value": 171,
-      "unit": "org.atomix.unit.nanosecond",
-      "status": "org.atomix.measured",
-      "method": "CLOCK_MONOTONIC around the kernel only, 5 repetitions of the whole case set"
-    },
-    "org.atomix.metric.host-elapsed-minimum": {
-      "value": 149,
-      "unit": "org.atomix.unit.nanosecond",
-      "status": "org.atomix.measured",
-      "method": "CLOCK_MONOTONIC around the kernel only, 5 repetitions of the whole case set"
-    },
-    "org.atomix.metric.host-elapsed-maximum": {
-      "value": 621,
-      "unit": "org.atomix.unit.nanosecond",
-      "status": "org.atomix.measured",
-      "method": "CLOCK_MONOTONIC around the kernel only, 5 repetitions of the whole case set"
-    },
-    "org.atomix.metric.simulator-host-elapsed-median": {
       "value": null,
       "unit": "org.atomix.unit.nanosecond",
       "status": "org.atomix.inapplicable",
-      "method": "org.atomix.native-host has no such quantity"
+      "method": "org.atomix.rtl-simulator has no such quantity"
+    },
+    "org.atomix.metric.host-elapsed-minimum": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.rtl-simulator has no such quantity"
+    },
+    "org.atomix.metric.host-elapsed-maximum": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.rtl-simulator has no such quantity"
+    },
+    "org.atomix.metric.simulator-host-elapsed-median": {
+      "value": 4342524.0,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "wall time of the simulator process per case; a cost of the tool, not of the design"
     },
     "org.atomix.metric.lut-used": {
       "value": null,
       "unit": "org.atomix.unit.count",
       "status": "org.atomix.inapplicable",
-      "method": "org.atomix.native-host has no such quantity"
+      "method": "org.atomix.rtl-simulator has no such quantity"
     },
     "org.atomix.metric.lut-available": {
       "value": null,
       "unit": "org.atomix.unit.count",
       "status": "org.atomix.inapplicable",
-      "method": "org.atomix.native-host has no such quantity"
+      "method": "org.atomix.rtl-simulator has no such quantity"
     }
   },
   "extensions": {
     "org.atomix.target-limits": {
-      "max_items": 1048576
+      "max_items": 1365,
+      "immediate_minimum": -65536,
+      "immediate_maximum": 65535,
+      "program_words": 64,
+      "data_words": 4096
+    },
+    "org.atomix.target-parameters": {
+      "lanes": 1
     },
     "org.atomix.reuse": {
-      "fingerprint": "135dea36c67be23aee1f6f25f4df67892dc48debd1fd53954737206a9ed442ac",
-      "key": "836c04d88e5924b1829432b0a540189d8738b06078d363dda7a693c908b35152"
+      "fingerprint": "377848890b4762247477ee634ad6954d8653e5f9cbf7714362544ad653f82543",
+      "key": "3ca5ab8f45794bce3c825c5b304428d7cc62e1ba6e9e1e8801d33d261ef96ca0"
     },
     "org.atomix.case-outcomes": {
       "signed-and-tail": {
@@ -145,9 +152,13 @@
             65
           ]
         },
-        "cycles": {},
+        "cycles": {
+          "execute": 148,
+          "total": 179
+        },
         "detail": {
-          "process_elapsed_seconds": 0.0016521750367246568
+          "simulator_elapsed_ns": 4346226,
+          "program_words": 9
         }
       },
       "int32-wrap": {
@@ -159,9 +170,13 @@
             2147483644
           ]
         },
-        "cycles": {},
+        "cycles": {
+          "execute": 119,
+          "total": 146
+        },
         "detail": {
-          "process_elapsed_seconds": 0.0014823349774815142
+          "simulator_elapsed_ns": 4338822,
+          "program_words": 9
         }
       },
       "single-element": {
@@ -170,9 +185,13 @@
             2147483644
           ]
         },
-        "cycles": {},
+        "cycles": {
+          "execute": 32,
+          "total": 47
+        },
         "detail": {
-          "process_elapsed_seconds": 0.001434530015103519
+          "simulator_elapsed_ns": 3977123,
+          "program_words": 9
         }
       },
       "simt-lane-tail": {
@@ -187,9 +206,13 @@
             14
           ]
         },
-        "cycles": {},
+        "cycles": {
+          "execute": 206,
+          "total": 245
+        },
         "detail": {
-          "process_elapsed_seconds": 0.0016054279985837638
+          "simulator_elapsed_ns": 5328274,
+          "program_words": 9
         }
       }
     }

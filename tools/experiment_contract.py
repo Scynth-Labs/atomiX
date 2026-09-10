@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import itertools
 import sys
 from pathlib import Path
 from typing import Any
@@ -150,12 +151,80 @@ def validate_target(path: Path, value: Any, index: int) -> dict[str, Any]:
     return target
 
 
+def validate_sweep(path: Path, value: Any, name: str) -> int:
+    """A sweep is a finite, explicitly enumerated set of values.
+
+    Ranges and step counts are deliberately absent. A plan that cannot say how
+    many candidates it will produce cannot be bounded before it starts, and an
+    unbounded sweep is how an experiment turns into an accident.
+    """
+    sweep = pc.object_value(path, value, name)
+    pc.exact_keys(path, sweep, name, {"target_parameters"})
+    parameters = pc.object_value(
+        path, sweep["target_parameters"], f"{name}.target_parameters"
+    )
+    if not parameters:
+        raise pc.error(path, f"{name}.target_parameters must name at least one parameter")
+    combinations = 1
+    for parameter, values in parameters.items():
+        if not pc.LOCAL_NAME.fullmatch(parameter):
+            raise pc.error(path, f"{name} key {parameter!r} is not a local identifier")
+        listed = pc.list_value(path, values, f"{name}.target_parameters.{parameter}")
+        if not listed:
+            raise pc.error(path, f"{name}.target_parameters.{parameter} must not be empty")
+        if not all(isinstance(item, int) and not isinstance(item, bool)
+                   for item in listed):
+            raise pc.error(
+                path, f"{name}.target_parameters.{parameter} must be integers; a "
+                "component parameter is a build-time integer"
+            )
+        if len(listed) != len(set(listed)):
+            raise pc.error(
+                path, f"{name}.target_parameters.{parameter} repeats a value"
+            )
+        combinations *= len(listed)
+    return combinations
+
+
+def sweep_candidates(candidate: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expand one declared candidate into the candidates a run will attempt.
+
+    A candidate without a sweep expands to itself, so every consumer works with
+    one list and nothing has to remember which form it was handed.
+    """
+    sweep = candidate.get("sweep")
+    if not sweep:
+        derived = dict(candidate)
+        derived["target_parameters"] = {}
+        return [derived]
+    names = sorted(sweep["target_parameters"])
+    expanded = []
+    for values in itertools.product(*(sweep["target_parameters"][n] for n in names)):
+        assignment = dict(zip(names, values))
+        suffix = "-".join(f"{name}-{value}" for name, value in assignment.items())
+        derived = dict(candidate)
+        derived.pop("sweep", None)
+        derived["id"] = f"{candidate['id']}-{suffix}"
+        derived["target_parameters"] = assignment
+        expanded.append(derived)
+    return expanded
+
+
+def plan_candidates(plan: dict[str, Any]) -> list[dict[str, Any]]:
+    """Every candidate a run of this plan will attempt, sweeps expanded."""
+    result: list[dict[str, Any]] = []
+    for candidate in plan["candidates"]:
+        result.extend(sweep_candidates(candidate))
+    return result
+
+
 def validate_candidate(path: Path, value: Any, index: int) -> dict[str, Any]:
     name = f"candidates[{index}]"
     candidate = pc.object_value(path, value, name)
     pc.exact_keys(
         path, candidate, name,
         {"id", "implementation", "target", "parameters", "work"},
+        {"sweep"},
     )
     pc.namespaced(path, candidate["id"], f"{name}.id")
     pc.namespaced(path, candidate["implementation"], f"{name}.implementation")
@@ -167,6 +236,8 @@ def validate_candidate(path: Path, value: Any, index: int) -> dict[str, Any]:
     pc.exact_keys(path, work, f"{name}.work", {"unit", "count"})
     pc.namespaced(path, work["unit"], f"{name}.work.unit")
     positive_int(path, work["count"], f"{name}.work.count")
+    if "sweep" in candidate:
+        validate_sweep(path, candidate["sweep"], f"{name}.sweep")
     return candidate
 
 
@@ -331,10 +402,18 @@ def validate_plan(path: Path, document: dict[str, Any]) -> None:
     max_candidates = positive_int(path, budget["max_candidates"], "budget.max_candidates")
     positive_int(path, budget["per_candidate_seconds"], "budget.per_candidate_seconds")
     positive_int(path, budget["repetitions"], "budget.repetitions")
-    if max_candidates < len(candidates):
+    # The bound is checked against the expanded space, not the written list: a
+    # plan with one swept candidate and a budget of one is a plan that has not
+    # decided what it is prepared to spend.
+    attempted = sum(
+        validate_sweep(path, candidate["sweep"], f"candidates[{index}].sweep")
+        if "sweep" in candidate else 1
+        for index, candidate in enumerate(candidates)
+    )
+    if max_candidates < attempted:
         raise pc.error(
             path, f"budget.max_candidates ({max_candidates}) is below the "
-            f"{len(candidates)} candidates the plan declares"
+            f"{attempted} candidates the plan's sweeps expand to"
         )
 
     policy = pc.object_value(path, document["policy"], "policy")
@@ -500,9 +579,79 @@ def validate_record(path: Path, document: dict[str, Any]) -> None:
         raise pc.error(path, "a template record cannot carry a measured value")
 
 
+DISPOSITION = {
+    "org.atomix.attempted", "org.atomix.reused", "org.atomix.not-attempted",
+}
+
+
+def validate_run_state(path: Path, document: dict[str, Any]) -> None:
+    """A run's own index: what was attempted, what was reused, what never ran.
+
+    Without it, an interrupted sweep is indistinguishable from a complete one
+    that happened to have fewer candidates -- and the difference between "this
+    configuration lost" and "this configuration was never tried" is the whole
+    point of keeping records.
+    """
+    required = {
+        "schema", "kind", "id", "revision", "summary", "plan", "budget",
+        "candidates", "extensions",
+    }
+    pc.exact_keys(path, document, "experiment run state", required)
+    if document["kind"] != "experiment-run-state":
+        raise pc.error(path, "kind must be 'experiment-run-state'")
+    pc.common(path, document, "org.atomix.experiment-run-state")
+    cc.document_reference(path, document["plan"], "plan")
+
+    budget = pc.object_value(path, document["budget"], "budget")
+    pc.exact_keys(
+        path, budget, "budget",
+        {"max_candidates", "per_candidate_seconds", "repetitions", "run_seconds"},
+    )
+    positive_int(path, budget["max_candidates"], "budget.max_candidates")
+    positive_int(path, budget["per_candidate_seconds"], "budget.per_candidate_seconds")
+    positive_int(path, budget["repetitions"], "budget.repetitions")
+    if budget["run_seconds"] is not None:
+        positive_int(path, budget["run_seconds"], "budget.run_seconds")
+
+    candidates = pc.object_value(path, document["candidates"], "candidates")
+    if not candidates:
+        raise pc.error(path, "candidates must not be empty")
+    for candidate_id, value in candidates.items():
+        name = f"candidates.{candidate_id}"
+        pc.namespaced(path, candidate_id, "candidate key")
+        entry = pc.object_value(path, value, name)
+        pc.exact_keys(
+            path, entry, name, {"status", "disposition", "record", "timestamp_utc"}
+        )
+        status = pc.namespaced(path, entry["status"], f"{name}.status")
+        if status not in RECORD_STATUS:
+            raise pc.error(path, f"{name}.status must be one of {sorted(RECORD_STATUS)}")
+        disposition = pc.namespaced(path, entry["disposition"], f"{name}.disposition")
+        if disposition not in DISPOSITION:
+            raise pc.error(path, f"{name}.disposition must be one of {sorted(DISPOSITION)}")
+        if disposition == "org.atomix.not-attempted" and status != "org.atomix.not-run":
+            raise pc.error(
+                path, f"{name} was never attempted, so its status must be not-run"
+            )
+        if entry["record"] is not None and not isinstance(entry["record"], str):
+            raise pc.error(path, f"{name}.record must be null or a file name")
+        if entry["timestamp_utc"] is not None and \
+                not isinstance(entry["timestamp_utc"], str):
+            raise pc.error(path, f"{name}.timestamp_utc must be null or a string")
+
+
+def validate_run_state_against_plan(path: Path, state: dict[str, Any],
+                                    plan: dict[str, Any]) -> None:
+    known = {candidate["id"] for candidate in plan_candidates(plan)}
+    unknown = state["candidates"].keys() - known
+    if unknown:
+        raise pc.error(path, f"run state names candidates the plan has no room for: "
+                             f"{sorted(unknown)!r}")
+
+
 def validate_record_against_plan(path: Path, record: dict[str, Any],
                                  plan: dict[str, Any]) -> None:
-    candidates = {candidate["id"]: candidate for candidate in plan["candidates"]}
+    candidates = {candidate["id"]: candidate for candidate in plan_candidates(plan)}
     candidate = candidates.get(record["candidate"])
     if candidate is None:
         raise pc.error(path, f"unknown plan candidate {record['candidate']!r}")
@@ -611,6 +760,7 @@ def check(paths: list[Path], personalities: Path) -> int:
         raise pc.ContractError("no experiment JSON documents found")
     plans: dict[tuple[str, int], tuple[Path, dict[str, Any]]] = {}
     records: list[tuple[Path, dict[str, Any]]] = []
+    states: list[tuple[Path, dict[str, Any]]] = []
     identities: dict[tuple[str, int], Path] = {}
     for path in files:
         document = pc.load_document(path)
@@ -621,6 +771,9 @@ def check(paths: list[Path], personalities: Path) -> int:
         elif schema == "org.atomix.experiment-record":
             validate_record(path, document)
             records.append((path, document))
+        elif schema == "org.atomix.experiment-run-state":
+            validate_run_state(path, document)
+            states.append((path, document))
         else:
             raise pc.error(path, f"unsupported experiment schema {schema!r}")
         identity = (document["id"], document["revision"])
@@ -641,9 +794,14 @@ def check(paths: list[Path], personalities: Path) -> int:
             templates += 1
         else:
             observations += 1
+    for path, state in states:
+        reference = (state["plan"]["id"], state["plan"]["revision"])
+        if reference not in plans:
+            raise pc.error(path, f"unknown experiment plan {reference!r}")
+        validate_run_state_against_plan(path, state, plans[reference][1])
     print(
         f"experiment contract: PASS ({len(plans)} plans, {templates} templates, "
-        f"{observations} records)"
+        f"{observations} records, {len(states)} run states)"
     )
     return 0
 
@@ -814,6 +972,31 @@ def self_test() -> int:
         lambda: validate_record(Path("<timeout-self-test>"), timed_out),
     )
 
+    # A sweep is finite and its size is known before it runs.
+    swept = copy.deepcopy(plan)
+    expanded = plan_candidates(swept)
+    if len(expanded) != swept["budget"]["max_candidates"]:
+        raise pc.ContractError(
+            f"self-test expected the shipped sweep to expand to "
+            f"{swept['budget']['max_candidates']} candidates, got {len(expanded)}"
+        )
+    if len({candidate["id"] for candidate in expanded}) != len(expanded):
+        raise pc.ContractError("self-test found duplicate ids in an expanded sweep")
+    over_budget = copy.deepcopy(plan)
+    over_budget["budget"]["max_candidates"] = 2
+    rejects(
+        "a sweep wider than the budget it declares",
+        lambda: validate_plan(Path("<sweep-budget-self-test>"), over_budget),
+    )
+    repeated = copy.deepcopy(plan)
+    for candidate in repeated["candidates"]:
+        if "sweep" in candidate:
+            candidate["sweep"]["target_parameters"]["lanes"] = [8, 8]
+    rejects(
+        "a sweep that repeats a value",
+        lambda: validate_plan(Path("<sweep-repeat-self-test>"), repeated),
+    )
+
     # The R2 comparison documents keep their own schema and validator. This
     # contract refuses them, and theirs still accepts them.
     r2_path = cc.DEFAULT_ROOT / "r2-morph-vs-hard.json"
@@ -826,15 +1009,36 @@ def self_test() -> int:
 
     print(
         "experiment contract: SELF-TEST PASS (open backends, capability and "
-        "revision gates, metric applicability, domain separation, outcome integrity)"
+        "revision gates, metric applicability, domain separation, finite bounded "
+        "sweeps, outcome integrity)"
     )
     return 0
 
 
 def plan_target(plan: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
-    return next(
-        target for target in plan["targets"] if target["id"] == candidate["target"]
+    """The candidate's target, with any swept parameters applied to its profile.
+
+    The sweep changes the machine, so it has to change the profile the adapter
+    is handed -- and therefore the profile hash the record carries. A sweep
+    that only changed a label would produce candidates that are identical on
+    paper and different in fact.
+    """
+    target = next(
+        item for item in plan["targets"] if item["id"] == candidate["target"]
     )
+    overrides = candidate.get("target_parameters") or {}
+    if not overrides:
+        return target
+    if not target.get("profile"):
+        raise pc.error(
+            Path(plan["id"]),
+            f"{candidate['id']} sweeps target parameters, but {target['id']} has no "
+            "profile to apply them to",
+        )
+    derived = copy.deepcopy(target)
+    parameters = derived["profile"]["value"].setdefault("parameters", {})
+    parameters.update(overrides)
+    return derived
 
 
 def record_target_identity(plan: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:

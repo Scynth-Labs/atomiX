@@ -1,11 +1,18 @@
 {
-  "schema": {"id": "org.atomix.experiment-record", "major": 1, "minor": 0},
+  "schema": {
+    "id": "org.atomix.experiment-record",
+    "major": 1,
+    "minor": 0
+  },
   "kind": "experiment-record",
   "id": "org.atomix.experiment-record.template",
   "revision": 1,
   "summary": "Every field a saxpy native-host observation must fill; explicitly not a result",
   "claim": "org.atomix.template",
-  "plan": {"id": "org.atomix.experiment.saxpy-native-vs-rtl", "revision": 1},
+  "plan": {
+    "id": "org.atomix.experiment.saxpy-native-vs-rtl",
+    "revision": 2
+  },
   "candidate": "org.atomix.candidate.saxpy-native",
   "status": "org.atomix.not-run",
   "identity": {
@@ -29,7 +36,11 @@
     "elapsed_seconds": 0,
     "termination": "org.atomix.not-run"
   },
-  "source": {"commit": null, "dirty": null, "diff_sha256": null},
+  "source": {
+    "commit": null,
+    "dirty": null,
+    "diff_sha256": null
+  },
   "environment": {
     "evidence_level": "org.atomix.not-run",
     "timestamp_utc": null,
@@ -44,17 +55,72 @@
     "method": "independent built-in oracle in tools/personality_contract.py"
   },
   "measurements": {
-    "org.atomix.metric.work-items": {"value": null, "unit": "org.atomix.unit.item", "status": "org.atomix.unavailable", "method": "declared logical work count"},
-    "org.atomix.metric.repetitions": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.unavailable", "method": "completed timed executions"},
-    "org.atomix.metric.artifact-bytes": {"value": null, "unit": "org.atomix.unit.byte", "status": "org.atomix.unavailable", "method": "size of the hashed artifact"},
-    "org.atomix.metric.host-elapsed-median": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "CLOCK_MONOTONIC around the kernel only"},
-    "org.atomix.metric.host-elapsed-minimum": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "CLOCK_MONOTONIC around the kernel only"},
-    "org.atomix.metric.host-elapsed-maximum": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.unavailable", "method": "CLOCK_MONOTONIC around the kernel only"},
-    "org.atomix.metric.execute-cycles": {"value": null, "unit": "org.atomix.unit.cycle", "status": "org.atomix.inapplicable", "method": "a host process has no model cycle count"},
-    "org.atomix.metric.total-cycles": {"value": null, "unit": "org.atomix.unit.cycle", "status": "org.atomix.inapplicable", "method": "a host process has no model cycle count"},
-    "org.atomix.metric.simulator-host-elapsed-median": {"value": null, "unit": "org.atomix.unit.nanosecond", "status": "org.atomix.inapplicable", "method": "no simulator is involved"},
-    "org.atomix.metric.lut-used": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.inapplicable", "method": "a host process occupies no device resources"},
-    "org.atomix.metric.lut-available": {"value": null, "unit": "org.atomix.unit.count", "status": "org.atomix.inapplicable", "method": "a host process occupies no device resources"}
+    "org.atomix.metric.work-items": {
+      "value": null,
+      "unit": "org.atomix.unit.item",
+      "status": "org.atomix.unavailable",
+      "method": "declared logical work count"
+    },
+    "org.atomix.metric.repetitions": {
+      "value": null,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.unavailable",
+      "method": "completed timed executions"
+    },
+    "org.atomix.metric.artifact-bytes": {
+      "value": null,
+      "unit": "org.atomix.unit.byte",
+      "status": "org.atomix.unavailable",
+      "method": "size of the hashed artifact"
+    },
+    "org.atomix.metric.host-elapsed-median": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.unavailable",
+      "method": "CLOCK_MONOTONIC around the kernel only"
+    },
+    "org.atomix.metric.host-elapsed-minimum": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.unavailable",
+      "method": "CLOCK_MONOTONIC around the kernel only"
+    },
+    "org.atomix.metric.host-elapsed-maximum": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.unavailable",
+      "method": "CLOCK_MONOTONIC around the kernel only"
+    },
+    "org.atomix.metric.execute-cycles": {
+      "value": null,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.inapplicable",
+      "method": "a host process has no model cycle count"
+    },
+    "org.atomix.metric.total-cycles": {
+      "value": null,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.inapplicable",
+      "method": "a host process has no model cycle count"
+    },
+    "org.atomix.metric.simulator-host-elapsed-median": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "no simulator is involved"
+    },
+    "org.atomix.metric.lut-used": {
+      "value": null,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.inapplicable",
+      "method": "a host process occupies no device resources"
+    },
+    "org.atomix.metric.lut-available": {
+      "value": null,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.inapplicable",
+      "method": "a host process occupies no device resources"
+    }
   },
   "extensions": {}
 }

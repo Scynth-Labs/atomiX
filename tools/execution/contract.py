@@ -280,6 +280,26 @@ class Adapter:
                 cancel_after: float | None = None) -> Execution:
         raise NotImplementedError
 
+    def fingerprint(self, implementation: dict[str, Any], target: dict[str, Any],
+                    cases: list[dict[str, Any]]) -> dict[str, Any] | None:
+        """Identities knowable before anything is built, or None if they are not.
+
+        This is what lets a sweep skip work it has already done without first
+        redoing the expensive half. An adapter that cannot enumerate its build
+        inputs cheaply returns None and is prepared again; the run then falls
+        back to comparing the artifact hashes it produced, which is slower but
+        never wrong.
+        """
+        return None
+
+    def check_combination(self, target: dict[str, Any]) -> None:
+        """Refuse a swept parameter combination before it is built.
+
+        The default calls describe(), which is where an adapter already
+        validates the profile it was handed.
+        """
+        self.describe(target)
+
     def check_compatibility(self, description: Description,
                             implementation: dict[str, Any],
                             target: dict[str, Any]) -> None:

@@ -31,12 +31,12 @@ explores software and hardware implementations, and shares a reproducible design
 decision. Native software, model execution, FPGA, and eventual silicon use their
 own [execution-target contracts](execution-targets.md).
 The [priority boards](boards/README.md) own execution order, dependencies,
-state, and ownership. AX-01 and AX-10 are closed: an experiment plan is a
-versioned input, and one workload runs on a host CPU and on RTL through a
-single adapter boundary. AX-02 (bounded, resumable sweeps) and AX-03
-(explainable comparison and replay) are next on the
-[delivery board](boards/delivery.md). Complete the experiment alpha before
-widening its architecture catalog.
+state, and ownership. AX-01, AX-02, and AX-10 are closed: an experiment plan
+is a versioned input, one workload runs on a host CPU and on RTL through a
+single adapter boundary, and a bounded sweep can be interrupted and resumed
+without losing what it already learned. AX-03 (explainable comparison and
+replay) is next on the [delivery board](boards/delivery.md). Complete the
+experiment alpha before widening its architecture catalog.
 
 The platform gates below are new work, initially unchecked. Existing components,
 benchmarks, browser machines, and evidence tools are their starting points;
@@ -82,7 +82,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-02"></a>
 
-- [ ] **AX-02 — Bounded, resumable design-space execution.** Execute an AX-01
+- [x] **AX-02 — Bounded, resumable design-space execution.** Execute an AX-01
   plan through AX-10 adapters using their owning resolver/build/run interfaces.
   Enumerate a finite declared parameter space first; reject invalid combinations
   before building.
@@ -96,6 +96,16 @@ implemented; the targets for the underlying tools do not prove a future feature.
   excluded from ranking. Exercise native CPU and RTL paths, a non-default
   parameter, and an evaluation bound.
   Generated sweep profiles and build trees stay outside tracked source.
+  Evidence: `make experiment-sweep-check`, which proves a sweep wider than its
+  budget is refused, an out-of-range point is blocked before its model is
+  built, an evaluation bound records the untried candidates as not-run, an
+  interrupt leaves a valid state file that resume honours without re-attempting
+  settled outcomes, a changed compiler option makes a cached result stale, and
+  a wrong answer keeps its measurements while failing to rank. The lane sweep
+  in [`saxpy-native-vs-rtl.json`](../research/experiments/saxpy-native-vs-rtl.json)
+  is the worked example: 505, 332, 240, and 212 model cycles at 1, 2, 4, and 8
+  lanes, with generated profiles held in memory and build trees under the
+  ignored `build/experiments/`.
 
 <a id="ax-03"></a>
 
