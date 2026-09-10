@@ -363,9 +363,11 @@ def gate_budget(walked: dict[str, Any], manifest: dict[str, Any],
 
 def evaluate(delta: bytes, manifest: dict[str, Any],
              reference_digest: str | None = None,
-             full_image_bytes: int | None = None) -> dict[str, Any]:
+             full_image_bytes: int | None = None,
+             device_geometry: dict[str, int] | None = None) -> dict[str, Any]:
     """Run every gate in a fixed order and derive the load authorisation."""
-    geo = geometry(manifest["device"])
+    geo = (device_geometry if device_geometry is not None
+           else geometry(manifest["device"]))
     idcode = int(manifest["idcode"], 0)
     checks: list[dict[str, Any]] = []
 
@@ -507,7 +509,11 @@ def build_delta(addresses: list[int], frame_bytes: int, idcode: int,
 
 def self_test() -> int:
     device = "LFE5U-45F"
-    geo = geometry(device)
+    # This stream is synthetic, so its geometry is too.  The production path
+    # always resolves the selected device from Trellis; keeping that external
+    # database out of the self-test lets every CI runner exercise the seven
+    # policy gates and their rejection paths without an FPGA toolchain.
+    geo = {"frames": 2048, "frame_bytes": 16}
     idcode = 0x41112043
     inside = list(range(1000, 1016))
     manifest = {
@@ -527,7 +533,7 @@ def self_test() -> int:
 
     def verdict(delta: bytes, *, reference=good_reference,
                 full_image=None, region=manifest) -> dict[str, Any]:
-        return evaluate(delta, region, reference, full_image)
+        return evaluate(delta, region, reference, full_image, geo)
 
     def failing(report: dict[str, Any]) -> set[str]:
         return {item["id"] for item in report["checks"] if item["status"] == FAIL}

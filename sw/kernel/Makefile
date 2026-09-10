@@ -159,11 +159,37 @@ USER_CFLAGS := -march=$(RISCV_ARCH) -mabi=ilp32 -mcmodel=medany -mno-relax \
                -I$(COMPONENT_LIBC_INCLUDE) $(AXOS_CAPACITIES) \
                $(patsubst +define+%,-D%,$(COMPONENT_DEFINES))
 
+# Which build this is.  Everything here changes bytes emitted into either the
+# kernel or its separately compiled user programs without changing a source
+# file: the selected profile and defines, personalities, memory envelope,
+# compiler, compiler runtime, and binary tools.  The outputs share paths under
+# build/, so every one of them depends on this stamp.
+#
+# The rule runs every time and rewrites the file only when the identity
+# actually changed, forcing a rebuild exactly when one is needed.  `export`
+# hands the value to the recipe through the environment, which is the only way
+# to pass CPPFLAGS' embedded quotes intact.
+IDENTITY_STAMP := $(BUILD_DIR)/kernel-identity.stamp
+KERNEL_IDENTITY := profile=$(abspath $(KERNEL_CONFIG)) mode=$(KERNEL_MODE) \
+  storage=$(STORAGE) hostlink=$(HOSTLINK) fs_block=$(FS_BLOCK) \
+  ram_bytes=$(RAM_BYTES) resident=$(RESIDENT_BUDGET) cc=$(CC) \
+  objcopy=$(OBJCOPY) strip=$(RISCV_STRIP) rtlib=$(RISCV_RTLIB) \
+  arch=$(RISCV_ARCH) cppflags=$(CPPFLAGS) cflags=$(CFLAGS) \
+  user_cflags=$(USER_CFLAGS)
+export KERNEL_IDENTITY
+
+$(IDENTITY_STAMP): FORCE | $(BUILD_DIR)
+	@$(PYTHON) kernel_identity.py $@
+
+FORCE:
+.PHONY: FORCE
+
 # The capacities reach these programs as -D, so the resolved profile is a
-# real prerequisite: without it a stale binary keeps the previous
-# profile's limits and disagrees with the kernel it is testing.
+# real prerequisite, and the identity stamp covers tool selection. Without
+# both, a stale binary keeps the previous profile's limits or compiler and
+# disagrees with the kernel it is testing.
 $(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
-             $(KERNEL_COMPONENT_MK)
+             $(KERNEL_COMPONENT_MK) $(IDENTITY_STAMP)
 	mkdir -p $(@D)
 	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
 	  userprog/hello.c $(COMPONENT_LIBC_SOURCES) $(RISCV_RTLIB)
@@ -174,7 +200,7 @@ $(USER_ELF): userprog/hello.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
 # shipped image nothing.
 TORTURE_ELF := $(USER_BUILD)/torture.elf
 $(TORTURE_ELF): userprog/torture.c userprog/user.ld $(COMPONENT_LIBC_SOURCES) \
-                $(KERNEL_COMPONENT_MK)
+                $(KERNEL_COMPONENT_MK) $(IDENTITY_STAMP)
 	mkdir -p $(@D)
 	$(CC) $(USER_CFLAGS) -Wl,-T,userprog/user.ld -o $@ \
 	  userprog/torture.c $(COMPONENT_LIBC_SOURCES) $(RISCV_RTLIB)
@@ -208,33 +234,6 @@ endif
 ifeq ($(HOSTLINK),1)
 SOURCES += hostlink.c
 endif
-
-# Which build this is.  Everything here changes the code the compiler emits,
-# and all of it can change without a single source file changing: the selected
-# kernel profile and every define it resolves to, the storage and host-link
-# personalities, the block size, the linked RAM envelope, and the compiler
-# itself.  The outputs are one shared set of paths under build/, so without
-# this a switch between two profiles left the previous profile's kernel in
-# place and reported success -- `make images KERNEL_CONFIG=A` then `=B` was
-# measured producing byte-identical ELFs, because the ELF's only configuration
-# prerequisite was a per-profile .mk that was already older than it.
-#
-# The stamp rule runs every time and rewrites the file only when the identity
-# actually changed, so it forces a rebuild exactly when one is needed and never
-# otherwise.  `export` hands the value to the recipe through the environment,
-# which is the only way to pass CPPFLAGS' embedded quotes intact.
-IDENTITY_STAMP := $(BUILD_DIR)/kernel-identity.stamp
-KERNEL_IDENTITY := profile=$(abspath $(KERNEL_CONFIG)) mode=$(KERNEL_MODE) \
-  storage=$(STORAGE) hostlink=$(HOSTLINK) fs_block=$(FS_BLOCK) \
-  ram_bytes=$(RAM_BYTES) resident=$(RESIDENT_BUDGET) cc=$(CC) \
-  arch=$(RISCV_ARCH) cppflags=$(CPPFLAGS) cflags=$(CFLAGS)
-export KERNEL_IDENTITY
-
-$(IDENTITY_STAMP): FORCE | $(BUILD_DIR)
-	@$(PYTHON) kernel_identity.py $@
-
-FORCE:
-.PHONY: FORCE
 
 all: $(ELF)
 images: $(BIN) $(HEX)
@@ -483,7 +482,12 @@ check-sdboot-exec: boot-disk
 # because an image that is merely different from the last one is not
 # necessarily the right one.  It costs twelve kernel builds; nothing else
 # proves that selecting a profile changes what runs.
+# The identity check boots each build on the ISS, so it needs the ISS -- the
+# same first line every other check here that runs one begins with. Without it
+# the check depended on some earlier target having happened to build it, which
+# is true on a development tree and false on a fresh runner.
 check-build-identity:
+	$(MAKE) -C ../../sim/axsim axsim
 	$(PYTHON) check_build_identity.py
 
 kernel-config: $(KERNEL_COMPONENT_MK)

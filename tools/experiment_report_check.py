@@ -145,6 +145,11 @@ def check_export_and_reproduce(root: Path) -> None:
                    "--records", str(root / "repro" / "records"))
     check("the bundle reproduces from a clean run", again.returncode == 0,
           again.stdout.strip().splitlines()[-1] if again.stdout else "")
+    fresh_record = root / "repro" / "records" / "saxpy-simt-rtl-lanes-4.json"
+    fresh_tools = None
+    if again.returncode == 0 and fresh_record.is_file():
+        fresh = pc.load_document(fresh_record)
+        fresh_tools = fresh["identity"]["implementation"]["tools"]
 
     changed = root / "changed.json"
     mutated = pc.load_document(bundle)
@@ -178,11 +183,18 @@ def check_export_and_reproduce(root: Path) -> None:
     mutated = pc.load_document(bundle)
     mutated["reproduce"]["expects"]["identity"]["implementation"]["artifact_sha256"] = \
         "1" * 64
+    # The committed record may have been produced by a different Verilator
+    # from this runner.  Use the identity of the clean reproduction above so
+    # this case really does hold the toolchain constant everywhere it runs.
+    if fresh_tools is not None:
+        mutated["reproduce"]["expects"]["identity"]["implementation"]["tools"] = \
+            fresh_tools
     unexplained.write_text(json.dumps(mutated, indent=2) + "\n")
     refused = report("reproduce", str(unexplained), "--work", str(root / "repro"),
                      "--records", str(root / "repro" / "records"))
     check("the same toolchain producing different bytes is refused",
-          refused.returncode != 0 and "tool identities are identical" in refused.stdout,
+          fresh_tools is not None and refused.returncode != 0 and
+          "tool identities are identical" in refused.stdout,
           refused.stdout.strip().splitlines()[-1] if refused.stdout else "")
 
     wrong_level = root / "wrong-level.json"

@@ -14,6 +14,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 ROLE_INPUT = ROOT / "sw/kernel/role_input.txt"
 CONFIG = ROOT / "configs/sim-role-loopback.json"
+# The complete recovery sequence measures 508,755 cycles with the current
+# five-stage core. Keep a bounded hang detector, with enough headroom for small
+# implementation changes; the former 500,000-cycle limit stopped just after
+# the program printed its result and before control returned to the shell.
+MAX_CYCLES = 600_000
 # The middle run is the recovery case: it submits a job and exits without
 # collecting the result, so the kernel has to discard the completion when the
 # task is torn down. The run after it is the assertion -- its submit would be
@@ -38,7 +43,7 @@ def main() -> None:
     command = [
         "make", "-s", "--no-print-directory", "-C", str(ROOT / "sim/soc"),
         "run", f"RAM_INIT_FILE={image}", "RESET_PC=0x80000000",
-        f"COMPONENT_CONFIG={CONFIG}", "MAX_CYCLES=500000",
+        f"COMPONENT_CONFIG={CONFIG}", f"MAX_CYCLES={MAX_CYCLES}",
         f"UART_INPUT_FILE={ROLE_INPUT}", "BUILD_ID=role-driver",
     ]
     try:

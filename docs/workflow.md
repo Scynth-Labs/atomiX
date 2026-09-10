@@ -376,6 +376,11 @@ make pr-gate-check               # partial-bitstream load gate: 7 gates, 12 reje
 make diagram-check               # every mermaid diagram is well formed
 ```
 
+`pr-gate-check` always runs its synthetic 12-case policy regression. To gate a
+real partial image, pass `DELTA`, `REFERENCE`, and `TRELLIS_DB` pointing at the
+prjtrellis database; that device-geometry run is FPGA-tool evidence and is not
+performed by ordinary CI.
+
 `diagram-check` runs in `ci-quick`. Diagrams are documentation that breaks
 silently -- a mermaid block with a typo renders as an error box on GitHub and no
 ordinary build looks at it. The structural check needs no toolchain and no

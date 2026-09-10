@@ -60,7 +60,7 @@ def main() -> None:
         "aXos> echo 1 2 3 4 5 6 7 8 9 10 11 12\n"
         "sh: too many arguments\n",
         "aXos> exec missing.elf\nexec: no such program\n",
-        "aXos> run hello.elf bad\nrun: exit 35\n",
+        "aXos> run hello.elf bad\nrun: exit 39\n",
         "aXos> ps\nPID PPID STATE NAME\n"
         "0 0 running [kernel/shell]\n",
         "aXos> shutdown\n",

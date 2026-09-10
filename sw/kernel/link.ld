@@ -44,13 +44,18 @@ SECTIONS {
     *(.noinit*)
   } > RAM
 
-  /* Reserve one page for the initial M/S/trap stack. The allocator owns only
-   * pages below this boundary, never the live bootstrap stack. */
+  /* Reserve one page for the initial M/S and supervisor-trap stacks. The
+   * allocator owns only pages below this boundary, never either live stack. */
   __stack_bottom = ORIGIN(RAM) + LENGTH(RAM) - 4K;
-  /* supervisor_trap_entry subtracts one 128-byte frame before storing. Put
-   * that frame at the bottom of the reserved page, not below its boundary. */
-  __trap_stack_top = __stack_bottom + 128;
   __stack_top = ORIGIN(RAM) + LENGTH(RAM);
+  /* Both stacks descend, so divide the reserved page between them. The normal
+   * supervisor stack owns the upper three quarters: role_execute's bounded
+   * staging arrays alone need just over 2 KiB. A trap first subtracts its
+   * 128-byte frame from the lower quarter's top; the C handler then grows
+   * farther down through that quarter. Putting the frame itself at
+   * __stack_bottom left the handler nowhere to grow and let schedule() write
+   * into an allocator-owned page during a supervisor timer interrupt. */
+  __trap_stack_top = __stack_bottom + ((__stack_top - __stack_bottom) / 4);
   _end = .;
 
   ASSERT(SIZEOF(.usertext) <= 4K,

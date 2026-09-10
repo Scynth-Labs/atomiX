@@ -247,6 +247,12 @@ and the detailed atomiX [partial-reconfiguration plan](partial-reconfig.md).
   `research/partial-reconfig/ulx3s-45f-role-window.json`, and
   `research/partial-reconfig/ulx3s-45f-delta-verdict.json`.
 
+  The command's 12 rejection cases use a synthetic geometry, so all seven
+  policy gates run in CI without an FPGA toolchain. Gating a real `DELTA`
+  remains device evidence: it resolves the selected device through Trellis's
+  `devices.json`, and `TRELLIS_DB` must name that database. A green CI
+  self-test is therefore not a claim that any candidate delta passed.
+
   The allowed region is **measured, not declared**, which is what keeps the
   gate from being circular.  Emptying every tile of a rectangle in a routed
   `.config` and packing that copy as a delta makes `ecppack` name the frames

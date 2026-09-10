@@ -134,7 +134,11 @@ implemented; the targets for the underlying tools do not prove a future feature.
   applicable rather than absent, an area bound with no evidence qualifies
   nobody, a failed candidate is named as excluded and enters no table, a
   candidate the bound never reached is named as never attempted, and a bundle
-  is refused when an input hash or the evidence level has changed.
+  is refused when an input hash or the evidence level has changed. Artifact
+  bytes may differ when the recorded and reproducing toolchains differ, but
+  are refused when their tool identities match; the regression takes that
+  identity from its own fresh rebuild rather than assuming the runner matches
+  the toolchain that produced the committed record.
 
 <a id="ax-04"></a>
 
@@ -675,6 +679,17 @@ until something changed the configuration.
   `make -C sw/kernel check-shell` and `make -C sw/kernel check-boot`
   (the latter on ISS, QEMU, and RTL).
 
+- [x] **Keep the bootstrap and supervisor-trap stacks inside their reserved
+  page.** Both stacks descend, but the trap frame was placed at the page's
+  lower boundary. The C trap handler therefore had no stack space of its own:
+  its first nested `schedule()` call crossed into an allocator-owned page. A
+  sequential early-exit then normal exec exposed the corruption when that page
+  was reused for user text (`0x10000000` replaced the instruction at
+  `0x40000fdc`). The linker now divides the already-reserved page between the
+  normal supervisor stack above and the trap stack below, without changing the
+  RAM envelope or any evolution-tier fit. `check-shell` retains the exact
+  early-exit → exec → run sequence as the regression.
+
 - [x] **Build identity across configuration switches.** The audit found the
   defect it was looking for. The kernel's outputs live at one set of paths
   under `build/` whatever profile and personality produced them, and the ELF's
@@ -689,10 +704,12 @@ until something changed the configuration.
 
   Fixed by a build-identity stamp — profile path, kernel mode, storage and
   host-link personalities, block size, linked RAM envelope, compiler,
-  architecture, and every resolved define — rewritten only when its content
-  changes, so it forces a rebuild exactly when one is needed and never
-  otherwise. Headers are now `$(wildcard include/*.h)`; `boot-disk` forwards
-  the profile.
+  architecture, compiler runtime, binary tools, and every resolved define —
+  rewritten only when its content changes, so it forces a rebuild exactly when
+  one is needed and never otherwise. The separately compiled user programs
+  depend on it too: an LLVM → GCC round trip exposed a clang-built user ELF
+  being embedded into a rebuilt GCC kernel until that dependency was added.
+  Headers are now `$(wildcard include/*.h)`; `boot-disk` forwards the profile.
 
   `make -C sw/kernel check-build-identity` is the regression, and it is an
   A → B → A → C → A walk: six profiles and personalities, each built into a
@@ -924,6 +941,10 @@ thought of".  These three answer the other question.
   `--rtlib=libgcc` is the default on most Linux targets for the same reason.
   LLVM's `compiler-rt` is preferred when present; on Ubuntu 22.04 the clang
   package ships none for bare `riscv32`, so the build falls back to GCC's.
+  The top-level LLVM aggregate also discards Makefile-derived GCC tool values
+  before entering its recursive builds; otherwise exported defaults look like
+  caller overrides to the child make and `TOOLCHAIN=llvm` still invokes GCC.
+  Explicit command-line and environment overrides remain untouched.
 
   Stated because it will otherwise be rediscovered: **clang 14 emits about 45%
   more text than GCC 10 here** -- 68,791 bytes against 47,220 for the default

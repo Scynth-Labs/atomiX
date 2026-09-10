@@ -310,10 +310,19 @@ static-analysis:
 # for the ABI tests to allocate. See mk/toolchain.mk.
 LLVM_RAM_BYTES ?= 262144
 CLANG ?= clang
+# This top-level Makefile has already resolved and exported the default GCC
+# tools by the time this recipe starts.  A recursive make given TOOLCHAIN=llvm
+# would otherwise treat those inherited values as overrides and keep compiling
+# with GCC.  Remove only values that came from this Makefile; a caller's
+# command-line or environment override remains authoritative.
+LLVM_INHERITED_DEFAULTS = $(foreach variable,\
+  RISCV_CC RISCV_OBJCOPY RISCV_STRIP RISCV_RTLIB RISCV_ARCH RISCV_ARCH_I HOST_CXX,\
+  $(if $(filter file,$(origin $(variable))),-u $(variable)))
 toolchain-llvm:
 	$(MAKE) -C sim/axsim clean
-	$(MAKE) -C sim/axsim test TOOLCHAIN=llvm
-	$(MAKE) -C sw/kernel check-shell TOOLCHAIN=llvm RAM_BYTES=$(LLVM_RAM_BYTES)
+	env $(LLVM_INHERITED_DEFAULTS) $(MAKE) -C sim/axsim test TOOLCHAIN=llvm
+	env $(LLVM_INHERITED_DEFAULTS) $(MAKE) -C sw/kernel check-shell \
+	  TOOLCHAIN=llvm RAM_BYTES=$(LLVM_RAM_BYTES)
 
 # Coverage-guided regression testing of kernel binary-format parsers.
 # FUZZ_TIMEOUT bounds the CI run; `make -C sim/fuzz explore` is the unbounded
@@ -342,14 +351,15 @@ ecp5-frame-check:
 	  echo "  $(TRELLIS_DB) -- set TRELLIS_DB to cross-check the geometry)"; \
 	fi
 
-# R1 stage-3 load gate. The self-test needs no build output, so it runs on a
-# machine with no FPGA toolchain; point DELTA/REFERENCE at a `pr-delta` build
-# to gate a real candidate as well.
+# R1 stage-3 load gate. The self-test owns a synthetic geometry and needs no
+# build output or FPGA toolchain. Point DELTA/REFERENCE at a `pr-delta` build
+# to gate a real candidate against the selected device's Trellis geometry.
 PR_REGION ?= research/partial-reconfig/ulx3s-45f-role-window.json
 pr-gate-check:
 	$(PYTHON) tools/pr_verify_delta.py self-test
 	@if [ -n "$(DELTA)" ]; then \
-	  $(PYTHON) tools/pr_verify_delta.py verify "$(DELTA)" \
+	  TRELLIS_DB="$(TRELLIS_DB)" \
+	    $(PYTHON) tools/pr_verify_delta.py verify "$(DELTA)" \
 	    --region $(PR_REGION) \
 	    $(if $(REFERENCE),--reference "$(REFERENCE)") \
 	    $(if $(FULL_IMAGE),--full-image "$(FULL_IMAGE)"); \
