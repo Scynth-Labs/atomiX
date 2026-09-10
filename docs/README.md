@@ -10,6 +10,9 @@ verifiable, and replaceable.
   targets, and work deliberately deferred.
 - [boards/](boards/README.md) — delivery, execution targets, research, and lab priorities with
   dependencies, first slices, and a task template.
+- [experiment-alpha.md](experiment-alpha.md) — the M0 walkthrough: run one
+  workload natively, then on RTL, and reproduce someone else's result. Start
+  here if you want to use the platform rather than build it.
 - [workflow.md](workflow.md) — the single, maintained build, test, and deploy
   command reference (profile selection, all checks, formal, and the FPGA flow).
 - [verification.md](verification.md) — shared CI/nightly suite manifest,

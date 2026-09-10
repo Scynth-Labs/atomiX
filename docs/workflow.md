@@ -501,6 +501,9 @@ achieved hardware clock as the final frequency.
 
 ### 3.4c Experiments: one workload, several implementations and targets
 
+New to this? [`docs/experiment-alpha.md`](experiment-alpha.md) is the
+walkthrough; this section is the command inventory behind it.
+
 A benchmark answers a question this repository already chose.  An experiment
 plan is a question a *user* brings: one workload and its oracle, the
 implementations that claim to satisfy it, the targets that can host them, and

@@ -217,6 +217,16 @@ def check_reuse_and_staleness(root: Path) -> None:
                 implementation["build"]["value"]["flags"] = \
                     ["-O1" if flag == "-O2" else flag for flag in flags]
 
+    # A different repetition count is a different measurement, even though the
+    # binary it runs is byte-identical.
+    more = run(PLAN, records, work, "--only", "saxpy-native", "--repetitions", "9")
+    check("a changed repetition count is not reused",
+          "wrote" in more.stdout and "reused" not in more.stdout,
+          more.stdout.strip().splitlines()[0] if more.stdout else "")
+    same = run(PLAN, records, work, "--only", "saxpy-native", "--repetitions", "9")
+    check("repeating that same request is reused", "reused" in same.stdout,
+          same.stdout.strip().splitlines()[0] if same.stdout else "")
+
     changed = variant(directory, "optimise-less", optimise_less)
     stale = run(changed, records, work, "--only", "saxpy-native")
     check("a changed compiler option makes the result stale",

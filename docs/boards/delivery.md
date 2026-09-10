@@ -39,7 +39,9 @@ that description alone, refusing a changed input or a mismatched evidence
 level.
 
 AX-04 is what remains of M0, and it is the one card its implementer cannot
-close. The walkthroughs can be written and tested locally -- a native-only path
+close. Its walkthroughs are written and tested:
+[experiment-alpha.md](../experiment-alpha.md) has both paths with measured
+local timings. The walkthroughs can be written and tested locally -- a native-only path
 needing no RISC-V or RTL toolchain, and the paired native/RTL path with its
 prerequisites -- but the gate needs two people other than the implementer to
 run them, change a declared choice, and say what the evidence does not support.
@@ -105,3 +107,6 @@ when implemented. A missing browser that causes a skip cannot close AX-08.
   ranks within a measurement domain and states in its own output that no ratio
   across domains means anything; a single number would have been easier to read
   and would have been the most misleading thing here.
+- 2026-09-10: wrote AX-04's walkthroughs and left the card open. Testing them
+  here is preparation; the gate is two other people, and no amount of local
+  polish substitutes for that.

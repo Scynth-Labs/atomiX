@@ -363,8 +363,23 @@ def run_candidate(plan: dict[str, Any], candidate: dict[str, Any],
 
     # Cheap reuse first: if the adapter can identify its build inputs without
     # building them, an unchanged sweep point costs nothing at all.
+    #
+    # The adapter's fingerprint covers what it would build, which is only half
+    # of what a result depends on. The run inputs are folded in here, because a
+    # binary that hashes the same executed over a different case set or a
+    # different repetition count is a different result -- and reusing across
+    # that was a real bug, not a hypothetical one.
     fingerprint = adapter.fingerprint(implementation, target, cases)
-    digest = sha256_json(fingerprint) if fingerprint is not None else None
+    digest = sha256_json({
+        "build": fingerprint,
+        "run": {
+            "workload": [plan["workload"]["id"], plan["workload"]["revision"],
+                         plan["workload"]["parameters"]],
+            "cases": [case["name"] for case in cases],
+            "repetitions": repetitions,
+            "candidate": candidate["id"],
+        },
+    }) if fingerprint is not None else None
     if reuse and reusable(previous, "fingerprint", digest):
         return previous, "org.atomix.reused"
 

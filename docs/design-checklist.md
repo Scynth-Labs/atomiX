@@ -150,6 +150,12 @@ implemented; the targets for the underlying tools do not prove a future feature.
   met and blocking friction is fixed, or document a deliberate revised target
   and its reason before repeating. Lack of participants leaves this gate open;
   an implementer's walkthrough is preparation, not independent reproduction.
+  Prepared: [experiment-alpha.md](experiment-alpha.md) gives the native-only and
+  native/RTL walkthroughs with measured local timings, the declared choice to
+  change on each path, and what each participant should record. The gate stays
+  open until two people other than its implementer have run one and reported
+  their setup, build, and interaction times, their failures, and the help they
+  needed.
 
 <a id="ax-05"></a>
 

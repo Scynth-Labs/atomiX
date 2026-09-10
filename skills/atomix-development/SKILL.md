@@ -169,6 +169,19 @@ Use `python3 tools/verify.py list` to select broader suites. Run
 `make nightly-integrated` for broad local reproduction when cost is justified;
 otherwise leave it to scheduled CI.
 
+### A new command is not finished until its failures have somewhere to surface
+
+Adding a `make` target and documenting it in `docs/workflow.md` fails
+`make verification-check` until it also has an entry in
+`tests/coverage-map.json` saying where its failures show up: a suite stage that
+actually runs it, an aggregate that lists it, or an explicit `manual` entry
+naming its prerequisite and the stage that covers the same ground. A stage
+named there must genuinely run the target -- `tools/coverage_map.py` reads the
+stage's command rather than trusting the claim -- and a stage added to a CI
+suite must also appear in `nightly-integrated`. Run `make verification-check`
+before considering a new command done; it is cheap and it is the gate that
+notices.
+
 ## Record and hand off
 
 - Update the relevant checklist and maintained design document in the same

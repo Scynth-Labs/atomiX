@@ -56,10 +56,19 @@ native CPU execution, simulation/emulation, GPU or other accelerator backends,
 FPGA, and staged ASIC research. RISC-V is the reference ISA; the workload
 contract can describe implementations using other ISAs and runtimes.
 
-The [roadmap](docs/roadmap.md) and [priority boards](docs/boards/README.md) start
-with native CPU and RTL adapters, then an external-component SDK and a
-reproducible preview release. These are planned outcomes; the evidence below
-describes what runs today.
+That platform now runs its first loop. An experiment plan names a workload, its
+oracle, the implementations that claim to satisfy it, and the targets that can
+host them; `make experiment-run` executes it through native-host and RTL
+adapters, and `make experiment-report` compares what came back without ever
+ranking across measurement domains. Two fixtures ship: one `cpu_perf` image on
+three cores (70,650 / 42,978 / 25,729 cycles at one payload hash and three
+machine hashes), and one SAXPY workload implemented twice — a host C executable
+and a SIMT kernel swept over 1, 2, 4, and 8 lanes (505 / 332 / 240 / 212 model
+cycles). [Start here](docs/experiment-alpha.md) to run either.
+
+The [roadmap](docs/roadmap.md) and [priority boards](docs/boards/README.md)
+continue with an external-component SDK and a reproducible preview release.
+Those are planned outcomes; the evidence below describes what runs today.
 
 ## Where this sits
 
