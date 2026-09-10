@@ -2,20 +2,22 @@
 
 Start with the [platform roadmap](../roadmap.md). These boards turn its outcomes
 into a pull queue; the checklists retain the detailed acceptance criteria and
-historical evidence. Initial triage: 2026-09-10. No implementation is assigned
-or claimed complete by this planning change.
+historical evidence. Initial triage: 2026-09-10; AX-01, AX-02, AX-03, and
+AX-10 closed the same day. No row here is assigned to a person.
 
 | Board | Purpose | First pull |
 |---|---|---|
-| [Delivery](delivery.md) | Usable experiments, component SDK, reproducible release | AX-01: define the first workload-driven experiment |
-| [Execution targets](targets.md) | Native execution, compiler/runtime work, emulators, accelerators, and ASIC feasibility | AX-10 after AX-01; RX-08 audit can start independently |
+| [Delivery](delivery.md) | Usable experiments, component SDK, reproducible release | AX-04: two independent reproductions of the experiment alpha |
+| [Execution targets](targets.md) | Native execution, compiler/runtime work, emulators, accelerators, and ASIC feasibility | AX-12: wrap aXsim and QEMU in the AX-10 contract; RX-08 audit can start independently |
 | [Research](research.md) | Test optimization and adaptation value; retire technical uncertainty | RX-04: distinguish unavailable telemetry from observed zero |
 | [Hardware](hardware.md) | Earn repeatable claims on the available Tang Primer 25K Dock | HW-01: consolidate and repeat the exact runtime-image evidence |
 
-AX-01 is the default next task for a single developer. Independent research and
-lab rows are options when the appropriate capacity or equipment is available;
-separate boards do not imply concurrent commitments. M0 follows AX-01 → AX-10
-→ AX-02 → AX-03 → AX-04 across delivery and execution targets.
+M0 ran AX-01 → AX-10 → AX-02 → AX-03, all closed, and now waits on AX-04. That
+last card is the default next task, and it is the one a single developer cannot
+finish alone: it needs two people other than the implementer to run
+[the walkthrough](../experiment-alpha.md) and report what happened. Independent
+research and lab rows are options when the appropriate capacity or equipment is
+available; separate boards do not imply concurrent commitments.
 
 ## Priority and state
 

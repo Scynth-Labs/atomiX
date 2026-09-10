@@ -169,6 +169,37 @@ def check_export_and_reproduce(root: Path) -> None:
           mismatched.stdout.strip().splitlines()[-1] if mismatched.stdout else "")
 
 
+def check_documented_numbers_match_the_records() -> None:
+    """Prose that quotes a measurement must quote the one on disk.
+
+    Numbers in documentation rot silently: the records get regenerated, the
+    sentence stays, and nothing fails. These are the figures the walkthrough
+    and the README use to describe what a reader will see, so they are checked
+    against the records they came from.
+    """
+    quoted = {}
+    for path in sorted(RECORDS.glob("*.json")):
+        record = pc.load_document(path)
+        if record.get("kind") != "experiment-record":
+            continue
+        value = record["measurements"].get("org.atomix.metric.execute-cycles", {})
+        if value.get("status") == "org.atomix.measured":
+            quoted[record["candidate"].split(".")[-1]] = f"{value['value']:,.0f}"
+
+    documents = {
+        name: (ROOT / name).read_text()
+        for name in ("docs/experiment-alpha.md", "README.md",
+                     "docs/design-checklist.md")
+    }
+    missing = []
+    for candidate, number in sorted(quoted.items()):
+        for name, text in documents.items():
+            if candidate.split("-lanes-")[0] in text and number not in text:
+                missing.append(f"{name} discusses {candidate} but not {number}")
+    check("documented cycle counts match the records", not missing,
+          "; ".join(missing[:2]))
+
+
 def main() -> int:
     print("experiment report:")
     root = Path(tempfile.mkdtemp(prefix="ax-report-"))
@@ -178,6 +209,7 @@ def main() -> int:
         check_missing_evidence_never_qualifies()
         check_failed_and_untried_are_named(root)
         check_export_and_reproduce(root)
+        check_documented_numbers_match_the_records()
     finally:
         shutil.rmtree(root, ignore_errors=True)
         shutil.rmtree(ROOT / "build" / "experiments" / "report-check",
