@@ -594,6 +594,34 @@ and a bundle claiming a different evidence level is refused outright.
 make experiment-report-check     # what the report must refuse to do
 ```
 
+Publish the records as a browsable site:
+
+```bash
+make experiment-pages            # renders build/pages from the committed records
+make experiment-pages-check      # the generator is deterministic, and the pages keep their caveats
+python3 -m http.server -d build/pages 8000    # read it locally
+```
+
+The site is generated, never committed: one page per experiment, every result
+one click from the record JSON that produced it, every artifact and machine
+hash shown, and the commands to check it locally on the page itself. It carries
+the same rules the local report does, because it imports them — a page that
+ranks two measurement domains has to say they do not compare, and
+`experiment-pages-check` fails if it does not.
+
+[`.github/workflows/pages.yml`](../.github/workflows/pages.yml) builds and
+deploys it to GitHub Pages on pushes that touch the records or the tools that
+read them. That workflow validates the records first, re-derives the native
+result on the runner so at least one published number has been reproduced on a
+different machine, and requires the site to be exactly what the records
+generate. It needs no Verilator, no RISC-V toolchain, and no board — publishing
+must not be able to change what is published.
+
+Deployment needs one manual setting per repository: **Settings → Pages → Build
+and deployment → Source: GitHub Actions**. Until that is set the build job
+still runs every check; only the deploy step fails. Once enabled the site is at
+`https://scynth-labs.github.io/atomiX/`.
+
 `make adapter-check` proves what a passing run never shows: the native leg
 builds and runs with every RISC-V, Verilator, and FPGA tool shadowed by a
 failing stub, an absent tool blocks instead of silently selecting another

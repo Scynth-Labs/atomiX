@@ -39,6 +39,13 @@ from execution.contract import ROOT, sha256_file, sha256_json
 DEFAULT_RECORDS = ROOT / "research" / "experiments" / "records"
 CONSTRAINT = re.compile(r"^([A-Za-z0-9_.\-]+)\s*(<=|>=|<|>)\s*([0-9.]+)$")
 
+WORK_ITEMS = "org.atomix.metric.work-items"
+REPETITIONS = "org.atomix.metric.repetitions"
+# Values that follow from the toolchain rather than from the experiment's
+# declared inputs. They are compared, but a difference is only a failure when
+# the tools were identical.
+TOOLCHAIN_METRICS = {"org.atomix.metric.artifact-bytes"}
+
 DOMAIN_TITLES = {
     "org.atomix.domain.model-cycles":
         "Model cycles (deterministic; a property of the design, not of any clock)",
@@ -389,13 +396,26 @@ def bundle_for(plan: dict[str, Any], workload: dict[str, Any],
         item for item in plan["implementations"]
         if item["id"] == candidate["implementation"]
     )
+    # What must reproduce anywhere, and what only reproduces on the same
+    # toolchain. Model cycles and the declared work follow from the inputs, so
+    # a different host must still get them. The artifact's size follows from
+    # the compiler that built it, which is exactly what a reader reproducing
+    # this on their own machine does not have.
+    def measured_value(metric_id: str) -> Any:
+        entry = record["measurements"].get(metric_id, {})
+        return entry["value"] if entry.get("status") == "org.atomix.measured" else None
+
     deterministic = {
-        metric["id"]: record["measurements"][metric["id"]]["value"]
+        metric["id"]: measured_value(metric["id"])
         for metric in plan["metrics"]
-        if metric["domain"] in {"org.atomix.domain.model-cycles",
-                                "org.atomix.domain.context"} and
-        record["measurements"].get(metric["id"], {}).get("status") ==
-        "org.atomix.measured"
+        if (metric["domain"] == "org.atomix.domain.model-cycles" or
+            metric["id"] in {WORK_ITEMS, REPETITIONS}) and
+        measured_value(metric["id"]) is not None
+    }
+    toolchain_dependent = {
+        metric["id"]: measured_value(metric["id"])
+        for metric in plan["metrics"]
+        if metric["id"] in TOOLCHAIN_METRICS and measured_value(metric["id"]) is not None
     }
     sources = input_files(implementation, ec.plan_target(plan, candidate))
     return {
@@ -427,6 +447,7 @@ def bundle_for(plan: dict[str, Any], workload: dict[str, Any],
                 "evidence_level": record["environment"]["evidence_level"],
                 "identity": record["identity"],
                 "deterministic": deterministic,
+                "toolchain_dependent": toolchain_dependent,
             },
         },
         "extensions": {},
@@ -505,14 +526,40 @@ def reproduce(path: Path, work: Path, records: Path) -> int:
               f"records {expects['evidence_level']}; they are not interchangeable")
         return 1
 
+    # A rebuilt artifact is not automatically a broken one. Someone reproducing
+    # this on their own machine has a different compiler, and a different
+    # compiler makes different bytes from identical source -- which is a fact
+    # worth reporting, not a reason to reject their reproduction. The declared
+    # inputs above are what must be identical. But if the tool identities match
+    # and the bytes still differ, something changed that nothing here declared,
+    # and that is a failure.
+    same_tools = expects["identity"]["implementation"]["tools"] == \
+        fresh["identity"]["implementation"]["tools"]
+    rebuilt = []
     for section, field in (("implementation", "artifact_sha256"),
                            ("target", "build_sha256")):
         before = expects["identity"][section][field]
         after = fresh["identity"][section][field]
+        matched = before == after
         print(f"  {section + '.' + field:<44} {short_digest(before)} "
-              f"{'==' if before == after else '!='} {short_digest(after)}")
-        if before != after:
-            problems.append(f"{section} {field} differs from the bundle")
+              f"{'==' if matched else '!='} {short_digest(after)}")
+        if matched:
+            continue
+        if same_tools:
+            problems.append(
+                f"{section} {field} differs although the tool identities are "
+                "identical; the declared inputs do not explain the change"
+            )
+        else:
+            rebuilt.append(f"{section} {field}")
+    if rebuilt:
+        print(f"\n  Rebuilt to different bytes ({', '.join(rebuilt)}), which is "
+              "expected on\n  another toolchain. The bundle was built with:")
+        for name, version in sorted(expects["identity"]["implementation"]["tools"].items()):
+            print(f"    {name:<12} {version}")
+        print("  and this run used:")
+        for name, version in sorted(fresh["identity"]["implementation"]["tools"].items()):
+            print(f"    {name:<12} {version}")
 
     before = expects["oracle_output_sha256"]
     after = fresh["correctness"]["output_sha256"]
@@ -531,6 +578,19 @@ def reproduce(path: Path, work: Path, records: Path) -> int:
               f"{actual if actual is None else format(actual, ',.0f'):>12}")
         if actual != value:
             problems.append(f"{short(metric_id)} is deterministic but differs")
+    for metric_id, value in sorted(expects.get("toolchain_dependent", {}).items()):
+        actual = measured(fresh, metric_id)
+        matched = actual == value
+        note = "" if matched or not same_tools else "   (same tools, so unexplained)"
+        print(f"  {short(metric_id):<44} {value:>12,.0f} "
+              f"{'==' if matched else '!='} "
+              f"{actual if actual is None else format(actual, ',.0f'):>12}"
+              f"{note}")
+        if not matched and same_tools:
+            problems.append(
+                f"{short(metric_id)} differs although the tool identities are "
+                "identical"
+            )
 
     if problems:
         print("\nexperiment reproduce: FAIL")

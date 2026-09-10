@@ -1,0 +1,84 @@
+# Publish the experiment records as a browsable site.
+#
+# The site is generated from the record files in the repository and nothing
+# else, so this workflow needs no Verilator, no RISC-V toolchain, and no board
+# -- only Python and a C compiler. That is deliberate: publishing must not be
+# able to change what is published. The records are validated before the site
+# is built, the site is required to be exactly what those records generate, and
+# the native leg is re-derived on the runner so that at least one result on the
+# page has been reproduced on a machine other than the one that recorded it.
+#
+# The heavier verification lives where it belongs: ci.yml runs the RTL adapters
+# and the sweep and report gates in the ci-integration suite.
+#
+# Enabling this needs one manual step per repository: Settings -> Pages ->
+# Build and deployment -> Source: GitHub Actions. Until that is set, the deploy
+# job fails and the build job still checks everything above.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'research/experiments/**'
+      - 'research/personalities/workloads/**'
+      - 'sw/native/**'
+      - 'tools/experiment_*.py'
+      - 'tools/execution/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A queued deployment should not be cancelled halfway: a half-published site is
+# worse than a slightly stale one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and verify the site
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate the records the site is built from
+        run: make experiment-check
+
+      # A result nobody else can reproduce is a claim, not evidence. The native
+      # leg needs only the compiler this runner already has, so it is re-derived
+      # here: the declared inputs must still hash the same, and the oracle
+      # outputs and deterministic values must match the committed record. A
+      # different compiler producing different bytes is reported, not failed.
+      - name: Re-derive the native result on this runner
+        run: |
+          make experiment-export CANDIDATE=saxpy-native \
+            EXPERIMENT_BUNDLE=build/experiments/native.json
+          make experiment-reproduce EXPERIMENT_BUNDLE=build/experiments/native.json
+
+      - name: Build the site
+        run: make experiment-pages
+
+      - name: Require the site to match its records
+        run: make experiment-pages-check
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/pages
+
+  deploy:
+    name: Deploy to GitHub Pages
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

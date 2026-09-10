@@ -320,6 +320,40 @@ def check_non_default_limit_is_recorded(workdir: Path) -> None:
           "" if honoured else str(record["execution"]))
 
 
+def check_runs_without_git(root: Path) -> None:
+    """A source archive with no git metadata still produces a valid record.
+
+    Someone checking a published result is as likely to download a zip as to
+    clone, and that run's outputs are just as real. What it must not do is
+    invent a commit: the record says the source identity is absent, and every
+    reader can tell that apart from a run pinned to a commit.
+    """
+    tree = root / "no-git"
+    for name in ("tools", "sw/native", "research/experiments",
+                 "research/personalities"):
+        shutil.copytree(ROOT / name, tree / name,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    completed = subprocess.run(
+        [sys.executable, str(tree / "tools" / "experiment_run.py"),
+         str(tree / "research" / "experiments" / "saxpy-native-vs-rtl.json"),
+         "--only", "saxpy-native",
+         "--records", str(tree / "records"), "--work", str(tree / "work")],
+        capture_output=True, text=True, check=False, cwd=tree,
+    )
+    path = tree / "records" / "saxpy-native.json"
+    if not path.is_file():
+        check("a run outside a git checkout still records a result", False,
+              completed.stderr.strip().splitlines()[-1:] or "no record")
+        return
+    record = pc.load_document(path)
+    honest = (
+        record["status"] == "org.atomix.pass" and
+        record["source"] == {"commit": None, "dirty": None, "diff_sha256": None}
+    )
+    check("a run outside a git checkout still records a result", honest,
+          f"source={record['source']}")
+
+
 def main() -> int:
     print("adapter conformance:")
     plan, _, cases = plan_parts()
@@ -333,6 +367,7 @@ def main() -> int:
         check_execution_timeout_is_reported(plan, root)
         check_non_default_limit_is_recorded(root)
         check_stale_artifact_is_rejected(root)
+        check_runs_without_git(root)
     finally:
         shutil.rmtree(root, ignore_errors=True)
     if failures:

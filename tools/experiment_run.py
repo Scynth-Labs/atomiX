@@ -55,11 +55,21 @@ def git(*arguments: str) -> str:
 
 
 def source_identity() -> dict[str, Any]:
+    """Identify the tree this run came from, or say plainly that it cannot.
+
+    An experiment can be run from a source archive with no git metadata --
+    someone checking a published result by downloading a zip. That run is
+    real, so it is not refused; what it must not do is invent a commit. A
+    wholly absent identity is recorded instead, and every reader can tell the
+    difference between "this came from commit abc123" and "nobody knows".
+    """
     commit = git("rev-parse", "HEAD")
+    if not commit:
+        return {"commit": None, "dirty": None, "diff_sha256": None}
     dirty = bool(git("status", "--porcelain"))
     diff = git("diff", "HEAD") if dirty else ""
     return {
-        "commit": commit or None,
+        "commit": commit,
         "dirty": dirty,
         "diff_sha256": execution.contract.sha256_bytes(diff.encode()) if dirty else None,
     }

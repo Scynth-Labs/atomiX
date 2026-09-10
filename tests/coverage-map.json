@@ -1,0 +1,477 @@
+{
+  "schema": "org.atomix.coverage-map.v1",
+  "note": "Every make command the documentation advertises, and where its failures surface. tools/coverage_map.py checks this rather than trusting it: a stage that claims to run a target must actually run it, an aggregate that claims to cover one must list it, a workflow that claims to run one must contain it, and a newly advertised command with no entry here fails the check.",
+  "entries": {
+    ".:adapter-check": {
+      "kind": "suite",
+      "stage": "experiment-adapters"
+    },
+    ".:bug-report": {
+      "kind": "manual",
+      "prerequisite": "an EXAMPLE= to export from or a RECORD= to replay",
+      "surfaces": "the doc-examples stage, which runs bug-report-check: the same export and replay over a finished session, a failed one, and a payload that is stale or missing"
+    },
+    ".:bug-report-check": {
+      "kind": "via",
+      "aggregate": "example-replay"
+    },
+    ".:comparison-check": {
+      "kind": "suite",
+      "stage": "research-contracts"
+    },
+    ".:component-list": {
+      "kind": "informational",
+      "note": "lists the component catalogue"
+    },
+    ".:component-show": {
+      "kind": "informational",
+      "note": "prints one component's manifest"
+    },
+    ".:component-test": {
+      "kind": "suite",
+      "stage": "component-composition"
+    },
+    ".:config-check": {
+      "kind": "manual",
+      "prerequisite": "a CONFIG= profile path to check",
+      "surfaces": "the system-profiles stage, which runs the same resolver over every profile in configs/"
+    },
+    ".:config-check-all": {
+      "kind": "suite",
+      "stage": "system-profiles"
+    },
+    ".:coverage-map": {
+      "kind": "via",
+      "aggregate": "verification-check"
+    },
+    ".:diagram-check": {
+      "kind": "suite",
+      "stage": "diagrams"
+    },
+    ".:doctor": {
+      "kind": "informational",
+      "note": "reports which host tools are present"
+    },
+    ".:ecp5-frame-check": {
+      "kind": "suite",
+      "stage": "research-contracts"
+    },
+    ".:evidence-views": {
+      "kind": "suite",
+      "stage": "doc-examples"
+    },
+    ".:example-replay": {
+      "kind": "suite",
+      "stage": "doc-examples"
+    },
+    ".:experiment-check": {
+      "kind": "suite",
+      "stage": "research-contracts"
+    },
+    ".:experiment-export": {
+      "kind": "manual",
+      "prerequisite": "a CANDIDATE= with a recorded result",
+      "surfaces": "the experiment-adapters stage, whose experiment-report-check exports a bundle and rebuilds it from that description alone"
+    },
+    ".:experiment-pages": {
+      "kind": "via",
+      "aggregate": "experiment-pages-check"
+    },
+    ".:experiment-pages-check": {
+      "kind": "suite",
+      "stage": "research-contracts"
+    },
+    ".:experiment-replay": {
+      "kind": "manual",
+      "prerequisite": "a RECORD= naming an executed record to reproduce",
+      "surfaces": "the experiment-adapters stage, whose adapter-check replays a recorded candidate through the same code path and requires that a changed artifact hash is rejected"
+    },
+    ".:experiment-report": {
+      "kind": "manual",
+      "prerequisite": "records for the selected EXPERIMENT_PLAN",
+      "surfaces": "the experiment-adapters stage, whose experiment-report-check renders the same plans and requires that domains stay apart, a missing measurement satisfies no bound, and excluded candidates are named"
+    },
+    ".:experiment-report-check": {
+      "kind": "suite",
+      "stage": "experiment-adapters"
+    },
+    ".:experiment-reproduce": {
+      "kind": "manual",
+      "prerequisite": "an EXPERIMENT_BUNDLE= exported by experiment-export",
+      "surfaces": "the experiment-adapters stage, whose experiment-report-check reproduces a bundle and refuses one whose inputs or evidence level changed"
+    },
+    ".:experiment-run": {
+      "kind": "suite",
+      "stage": "experiment-adapters"
+    },
+    ".:experiment-sweep-check": {
+      "kind": "suite",
+      "stage": "experiment-adapters"
+    },
+    ".:formal-coverage": {
+      "kind": "via",
+      "aggregate": "verification-check"
+    },
+    ".:fpga": {
+      "kind": "manual",
+      "prerequisite": "the ECP5/Gowin open toolchain (yosys, nextpnr, packer)",
+      "surfaces": "the synthesis and P&R evidence recorded under research/ and the board guides"
+    },
+    ".:fpga-loader": {
+      "kind": "manual",
+      "prerequisite": "the open FPGA toolchain, and a board to load onto",
+      "surfaces": "the board bring-up procedure in docs/tangprimer25k-bringup.md"
+    },
+    ".:fpga-loader-primer": {
+      "kind": "manual",
+      "prerequisite": "the open Gowin toolchain and a Tang Primer 25K",
+      "surfaces": "docs/tangprimer25k-bringup.md"
+    },
+    ".:fuzz-coverage": {
+      "kind": "manual",
+      "prerequisite": "a long unbounded fuzzing run and coverage instrumentation",
+      "surfaces": "the nightly bounded run in .github/workflows/analysis.yml"
+    },
+    ".:fuzz-loader": {
+      "kind": "suite",
+      "stage": "fuzz-loader"
+    },
+    ".:l3-check": {
+      "kind": "suite",
+      "stage": "l3-search"
+    },
+    ".:live-check": {
+      "kind": "suite",
+      "stage": "live-rtl"
+    },
+    ".:load": {
+      "kind": "manual",
+      "prerequisite": "a connected board and its programmer",
+      "surfaces": "docs/tangprimer25k-bringup.md and docs/ulx3s-bringup.md"
+    },
+    ".:nightly-integrated": {
+      "kind": "informational",
+      "note": "runs the nightly suite; every stage in it is an entry here"
+    },
+    ".:personality-check": {
+      "aggregate": "comparison-check",
+      "kind": "via"
+    },
+    ".:pr-gate-check": {
+      "kind": "suite",
+      "stage": "research-contracts"
+    },
+    ".:primer-runtime-preflight": {
+      "kind": "manual",
+      "prerequisite": "the open Gowin toolchain",
+      "surfaces": "the Primer runtime evidence in docs/design-checklist.md"
+    },
+    ".:requirements": {
+      "kind": "informational",
+      "note": "prints the host requirement tiers"
+    },
+    ".:requirements-check": {
+      "kind": "suite",
+      "stage": "requirements"
+    },
+    ".:sim": {
+      "kind": "informational",
+      "note": "runs one profile interactively for a person to watch"
+    },
+    ".:software": {
+      "kind": "informational",
+      "note": "builds a profile's selected software"
+    },
+    ".:static-analysis": {
+      "kind": "suite",
+      "stage": "static-analysis"
+    },
+    ".:toolchain-llvm": {
+      "kind": "suite",
+      "stage": "toolchain-llvm"
+    },
+    ".:verification-check": {
+      "kind": "suite",
+      "stage": "verification-contract"
+    },
+    ".:verify-smoke": {
+      "kind": "informational",
+      "note": "runs the smoke suite; every stage in it is an entry here"
+    },
+    ".:web-compare": {
+      "kind": "manual",
+      "prerequisite": "emscripten (em++) and a built WebAssembly bundle",
+      "surfaces": "the browser/native comparison records under research/"
+    },
+    ".:web-compare-check": {
+      "kind": "manual",
+      "prerequisite": "emscripten (em++) and a built WebAssembly bundle",
+      "surfaces": "the browser/native comparison records under research/"
+    },
+    ".:web-page-check": {
+      "kind": "manual",
+      "prerequisite": "emscripten (em++) and a built WebAssembly bundle",
+      "surfaces": "the browser evidence recorded in docs/design-checklist.md"
+    },
+    "formal:check": {
+      "kind": "workflow",
+      "workflow": "formal.yml"
+    },
+    "formal:check-all": {
+      "kind": "manual",
+      "prerequisite": "the riscv-formal stack and hours of solver time; the bounded subsets are what run automatically",
+      "surfaces": "the weekly bounded proofs in .github/workflows/formal.yml"
+    },
+    "formal:check-ax2": {
+      "kind": "workflow",
+      "workflow": "formal.yml"
+    },
+    "formal:check-minimal": {
+      "kind": "workflow",
+      "workflow": "formal.yml"
+    },
+    "rtl/fpga:check-tools": {
+      "kind": "manual",
+      "prerequisite": "the open FPGA toolchain, whose versions it reports",
+      "surfaces": "the toolchain versions recorded in every FPGA evidence file"
+    },
+    "rtl/fpga:config": {
+      "kind": "manual",
+      "prerequisite": "nothing; it prints the resolved board profile",
+      "surfaces": "the system-profiles stage, which resolves every profile"
+    },
+    "rtl/fpga:flash": {
+      "kind": "manual",
+      "prerequisite": "a connected board; deliberately unused, see the Primer gate in docs/design-checklist.md",
+      "surfaces": "docs/tangprimer25k-bringup.md"
+    },
+    "rtl/fpga:pr-delta": {
+      "kind": "manual",
+      "prerequisite": "the open ECP5 toolchain and a locked shell build",
+      "surfaces": "the pr-gate-check contract in the research-contracts stage"
+    },
+    "rtl/fpga:program": {
+      "kind": "manual",
+      "prerequisite": "a connected board and its programmer",
+      "surfaces": "the board bring-up guides"
+    },
+    "rtl/fpga:synth": {
+      "kind": "manual",
+      "prerequisite": "the open FPGA toolchain",
+      "surfaces": "the synthesis baselines checked by tools/synth_baseline.py"
+    },
+    "rtl/fpga:toolchain-report": {
+      "kind": "manual",
+      "prerequisite": "the open FPGA toolchain",
+      "surfaces": "the toolchain versions recorded in every FPGA evidence file"
+    },
+    "sim/axsim:axsim": {
+      "kind": "informational",
+      "note": "builds the instruction-set simulator that other checks run"
+    },
+    "sim/axsim:test": {
+      "kind": "suite",
+      "stage": "axsim-directed"
+    },
+    "sim/cosim:test": {
+      "kind": "suite",
+      "stage": "cosim-directed"
+    },
+    "sim/fuzz:explore": {
+      "kind": "manual",
+      "prerequisite": "an unbounded run; the bounded form is make fuzz-loader",
+      "surfaces": ".github/workflows/analysis.yml, which runs the bounded form nightly"
+    },
+    "sim/fuzz:explore-axfs": {
+      "kind": "manual",
+      "prerequisite": "an unbounded run",
+      "surfaces": ".github/workflows/analysis.yml"
+    },
+    "sim/fuzz:explore-axk1-format": {
+      "kind": "manual",
+      "prerequisite": "an unbounded run",
+      "surfaces": ".github/workflows/analysis.yml"
+    },
+    "sim/fuzz:explore-hostlink-format": {
+      "kind": "manual",
+      "prerequisite": "an unbounded run",
+      "surfaces": ".github/workflows/analysis.yml"
+    },
+    "sim/soc:check-runtime-payload": {
+      "kind": "suite",
+      "stage": "runtime-payload"
+    },
+    "sim/testgen:fuzz": {
+      "kind": "suite",
+      "stage": "randomized-fuzz"
+    },
+    "sim/testgen:paging": {
+      "kind": "suite",
+      "stage": "randomized-paging"
+    },
+    "sim/unit:run-gpu-tpu": {
+      "aggregate": "test",
+      "kind": "via"
+    },
+    "sim/unit:run-suite-ax2": {
+      "aggregate": "test",
+      "kind": "via"
+    },
+    "sim/unit:run-suite-gpu1": {
+      "aggregate": "test",
+      "kind": "via"
+    },
+    "sim/unit:test": {
+      "kind": "suite",
+      "stage": "rtl-units"
+    },
+    "sw/baremetal:check-fencei": {
+      "kind": "suite",
+      "stage": "three-platform-baremetal"
+    },
+    "sw/baremetal:check-game2048": {
+      "kind": "suite",
+      "stage": "baremetal-games"
+    },
+    "sw/baremetal:check-gpu": {
+      "kind": "suite",
+      "stage": "baremetal-accelerators"
+    },
+    "sw/baremetal:check-gpu-perf": {
+      "kind": "suite",
+      "stage": "baremetal-accelerators"
+    },
+    "sw/baremetal:check-gpu-tpu": {
+      "kind": "suite",
+      "stage": "baremetal-accelerators"
+    },
+    "sw/baremetal:check-gpu1": {
+      "kind": "suite",
+      "stage": "baremetal-accelerators"
+    },
+    "sw/baremetal:check-hello": {
+      "kind": "suite",
+      "stage": "three-platform-baremetal"
+    },
+    "sw/baremetal:check-preempt": {
+      "kind": "suite",
+      "stage": "three-platform-baremetal"
+    },
+    "sw/baremetal:check-role": {
+      "kind": "suite",
+      "stage": "baremetal-role"
+    },
+    "sw/baremetal:check-sd": {
+      "kind": "suite",
+      "stage": "baremetal-peripherals"
+    },
+    "sw/baremetal:check-snake": {
+      "kind": "suite",
+      "stage": "baremetal-games"
+    },
+    "sw/baremetal:check-snake-loader": {
+      "kind": "suite",
+      "stage": "baremetal-games"
+    },
+    "sw/baremetal:check-spi": {
+      "kind": "suite",
+      "stage": "baremetal-peripherals"
+    },
+    "sw/baremetal:check-suite-ax2": {
+      "kind": "suite",
+      "stage": "architecture-suites"
+    },
+    "sw/baremetal:check-suite-minimal": {
+      "kind": "suite",
+      "stage": "architecture-suites"
+    },
+    "sw/baremetal:check-timer": {
+      "kind": "suite",
+      "stage": "three-platform-baremetal"
+    },
+    "sw/baremetal:check-tpu": {
+      "kind": "suite",
+      "stage": "baremetal-accelerators"
+    },
+    "sw/baremetal:images": {
+      "kind": "informational",
+      "note": "builds the bare-metal payloads the checks below load"
+    },
+    "sw/kernel:check-abi-torture": {
+      "kind": "suite",
+      "stage": "kernel-hardening"
+    },
+    "sw/kernel:check-abi-torture-small": {
+      "kind": "suite",
+      "stage": "kernel-hardening"
+    },
+    "sw/kernel:check-boot": {
+      "aggregate": "kernel-component-test",
+      "kind": "via"
+    },
+    "sw/kernel:check-build-identity": {
+      "kind": "suite",
+      "stage": "kernel-build-identity"
+    },
+    "sw/kernel:check-hostlink": {
+      "kind": "suite",
+      "stage": "kernel-shell"
+    },
+    "sw/kernel:check-hostlink-stream": {
+      "kind": "suite",
+      "stage": "kernel-shell"
+    },
+    "sw/kernel:check-loader-wx": {
+      "kind": "suite",
+      "stage": "kernel-hardening"
+    },
+    "sw/kernel:check-memory": {
+      "kind": "suite",
+      "stage": "kernel-hardening"
+    },
+    "sw/kernel:check-role-driver": {
+      "kind": "suite",
+      "stage": "kernel-shell"
+    },
+    "sw/kernel:check-role-irq": {
+      "kind": "suite",
+      "stage": "kernel-shell"
+    },
+    "sw/kernel:check-sdboot": {
+      "kind": "suite",
+      "stage": "kernel-storage-mutation"
+    },
+    "sw/kernel:check-sdboot-exec": {
+      "kind": "suite",
+      "stage": "kernel-storage-mutation"
+    },
+    "sw/kernel:check-shell": {
+      "kind": "suite",
+      "stage": "kernel-shell"
+    },
+    "sw/kernel:check-storage": {
+      "kind": "suite",
+      "stage": "kernel-storage-ci"
+    },
+    "sw/kernel:check-storage-write": {
+      "kind": "suite",
+      "stage": "kernel-storage-mutation"
+    },
+    "sw/kernel:check-uartboot": {
+      "kind": "suite",
+      "stage": "kernel-primer-ci"
+    },
+    "sw/kernel:images": {
+      "kind": "informational",
+      "note": "builds the kernel images the checks below load"
+    },
+    "sw/kernel:kernel-component-test": {
+      "kind": "suite",
+      "stage": "three-platform-kernel"
+    },
+    "sw/kernel:kernel-config-check-all": {
+      "kind": "suite",
+      "stage": "kernel-profiles"
+    }
+  }
+}

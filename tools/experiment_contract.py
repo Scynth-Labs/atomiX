@@ -432,6 +432,31 @@ def validate_plan(path: Path, document: dict[str, Any]) -> None:
         )
 
 
+def validate_source(path: Path, value: Any, template: bool) -> None:
+    """Where the source came from, including honestly saying nobody knows.
+
+    The comparison contract requires a commit on every observation, which is
+    right for evidence produced inside this repository. An experiment can also
+    be run from a source archive with no git metadata at all -- someone
+    checking a published result by downloading a zip -- and that run's outputs
+    are just as real. Such a record carries a wholly absent source identity
+    rather than a fabricated one, and every reader of it can see the
+    difference. What is refused is a partial identity: a commit without its
+    dirty state, or a dirty tree with no diff hash, is a claim that cannot be
+    checked.
+    """
+    source = pc.object_value(path, value, "source")
+    pc.exact_keys(path, source, "source", {"commit", "dirty", "diff_sha256"})
+    absent = all(item is None for item in source.values())
+    if template:
+        if not absent:
+            raise pc.error(path, "a template source identity must be null")
+        return
+    if absent:
+        return
+    cc.validate_source(path, source, template=False)
+
+
 def validate_identity(path: Path, value: Any, executed: bool) -> dict[str, Any]:
     identity = pc.object_value(path, value, "identity")
     pc.exact_keys(path, identity, "identity", {"implementation", "target"})
@@ -558,7 +583,7 @@ def validate_record(path: Path, document: dict[str, Any]) -> None:
     pc.namespaced(path, document["candidate"], "candidate")
     validate_identity(path, document["identity"], executed)
     validate_execution(path, document["execution"], status)
-    cc.validate_source(path, document["source"], template)
+    validate_source(path, document["source"], template)
     cc.validate_environment(path, document["environment"], template)
     # Correctness follows execution, not the claim: a blocked or timed-out
     # observation genuinely has no oracle result, and must say so rather than
@@ -971,6 +996,22 @@ def self_test() -> int:
         "a timed-out record that reports completion",
         lambda: validate_record(Path("<timeout-self-test>"), timed_out),
     )
+
+    # A run outside a git checkout has no source identity, and says so rather
+    # than inventing one; a half-stated identity is refused either way.
+    unidentified = copy.deepcopy(template)
+    unidentified["claim"] = "org.atomix.observation"
+    unidentified["source"] = {"commit": None, "dirty": None, "diff_sha256": None}
+    validate_source(Path("<unidentified-self-test>"), unidentified["source"], False)
+    for broken in ({"commit": None, "dirty": True, "diff_sha256": None},
+                   {"commit": "0" * 40, "dirty": None, "diff_sha256": None},
+                   {"commit": "0" * 40, "dirty": True, "diff_sha256": None}):
+        rejects(
+            f"a partial source identity {sorted(broken)}",
+            lambda value=broken: validate_source(
+                Path("<partial-source-self-test>"), value, False
+            ),
+        )
 
     # A sweep is finite and its size is known before it runs.
     swept = copy.deepcopy(plan)

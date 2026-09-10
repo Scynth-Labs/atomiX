@@ -133,6 +133,25 @@ rebuilding anything, runs through the ordinary runner rather than a path only
 bundles use, and compares identity, oracle outputs, and the deterministic
 values. A changed input or a mismatched evidence level is refused.
 
+## Publishing the records
+
+```bash
+make experiment-pages
+python3 -m http.server -d build/pages 8000
+```
+
+The site is generated from these files and nothing else, so it can only ever be
+as current as they are, and every page says so. Each result links to the record
+JSON behind it, shows the artifact and machine hashes that produced it, names
+the method behind each measurement, prints the commit each record was taken at,
+and carries the commands to check it locally.
+
+`make experiment-pages-check` regenerates the site and requires it to be
+byte-identical to what is on disk — an edited page is a failure rather than a
+nicer-looking truth — and separately requires that the rendering kept the rules:
+excluded candidates still named, artifact hashes still shown, and a page with
+two measurement domains still saying they do not compare.
+
 ## Adding a plan
 
 Copy a shipped plan, give it a new namespaced ID, and pin the workload revision

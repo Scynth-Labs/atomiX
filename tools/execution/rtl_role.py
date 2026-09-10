@@ -246,6 +246,22 @@ class RtlRoleAdapter(Adapter):
             },
         )
 
+    def warning_flags(self, version: str) -> list[str]:
+        """Mirror the version guard the repository's Makefiles already use.
+
+        Verilator 5 reports component-API package constants as UNUSEDPARAM and
+        makes warnings fatal under -Wall; Verilator 4 does not recognise the
+        warning name and fails on the flag itself. CI runs on 4.038, so
+        hardcoding either answer breaks one of the two hosts.
+        """
+        digits = "".join(
+            character for character in version.split()[1] if character.isdigit() or
+            character == "."
+        ) if len(version.split()) > 1 else ""
+        major = digits.split(".")[0] if digits else ""
+        return ["-Wall", "-Wno-UNUSEDPARAM"] if major.isdigit() and int(major) >= 5 \
+            else ["-Wall"]
+
     def build_model(self, target: dict[str, Any], workdir: Path, *,
                     limit_seconds: float,
                     cancel_after: float | None = None) -> tuple[Path, str]:
@@ -270,7 +286,8 @@ class RtlRoleAdapter(Adapter):
 
         model_dir = workdir / "obj_role_saxpy"
         command = [
-            "verilator", "-Wall", "-Wno-UNUSEDPARAM", "--cc", "-O2",
+            "verilator", *self.warning_flags(tool_version("verilator")),
+            "--cc", "-O2",
             "--top-module", top, "--Mdir", str(model_dir), "--exe", "--build",
             "-CFLAGS", "-std=c++17 -O2", "-o", "tb_role_saxpy",
             *defines, *sources, str(HARNESS),

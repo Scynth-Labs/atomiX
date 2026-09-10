@@ -1,0 +1,84 @@
+{
+  "schema": "org.atomix.doc-examples.v1",
+  "note": "Documentation examples that boot the machine they describe. Each record names the profile, the payload and its identity, the entry the payload is loaded under, the console script, the exact expected transcript, and a cycle bound. tools/example_replay.py replays every one headlessly and requires exact agreement; it also requires each example's command to still appear in the document that shows it, so an example cannot drift from the text around it.",
+  "examples": {
+    "baremetal-hello": {
+      "title": "One image on a selected SoC profile",
+      "document": "docs/workflow.md",
+      "section": "Run one image on a selected SoC profile",
+      "command": "make sim CONFIG=configs/sim-bram.json",
+      "profile": "configs/sim-bram.json",
+      "payload": "sw/baremetal/build/hello.hex",
+      "payload_build": [
+        "make",
+        "-s",
+        "-C",
+        "sw/baremetal",
+        "build/hello.hex"
+      ],
+      "entry": "0x80000000",
+      "input": null,
+      "expected_output": "hello from atomiX\n",
+      "max_cycles": 50000
+    },
+    "runtime-payload-reuse": {
+      "title": "Reusing one model for a different program",
+      "document": "docs/workflow.md",
+      "section": "Open an interactive session on a profile",
+      "command": "\"$MODEL\" --ram-image \"$PWD/sw/baremetal/build/hello.hex\"",
+      "profile": "configs/sim-role-loopback.json",
+      "payload": "sw/baremetal/build/hello.hex",
+      "payload_build": [
+        "make",
+        "-s",
+        "-C",
+        "sw/baremetal",
+        "build/hello.hex"
+      ],
+      "entry": "0x80000000",
+      "input": null,
+      "expected_output": "hello from atomiX\n",
+      "max_cycles": 50000
+    },
+    "baremetal-timer": {
+      "title": "A second program on the same model",
+      "document": "sim/soc/README.md",
+      "section": "runtime payload selection",
+      "command": "\"$MODEL\" --ram-image \"$PWD/sw/baremetal/build/timer.hex\"",
+      "profile": "configs/sim-role-loopback.json",
+      "payload": "sw/baremetal/build/timer.hex",
+      "payload_build": [
+        "make",
+        "-s",
+        "-C",
+        "sw/baremetal",
+        "build/timer.hex"
+      ],
+      "entry": "0x80000000",
+      "input": null,
+      "expected_output": "timer demo: TTT\n",
+      "max_cycles": 200000
+    },
+    "axos-shell": {
+      "title": "A scripted aXos shell session on the BRAM machine",
+      "document": "sim/soc/README.md",
+      "section": "a scripted aXos shell session",
+      "command": "make -C sw/kernel run-rtl UART_INPUT_FILE=\"$PWD/sw/kernel/shell_input.txt\"",
+      "profile": "configs/sim-bram.json",
+      "payload": "sw/kernel/build/axos_boot.hex",
+      "payload_build": [
+        "make",
+        "-s",
+        "-C",
+        "sw/kernel",
+        "images",
+        "STORAGE=0",
+        "HOSTLINK=0"
+      ],
+      "entry": "0x80000000",
+      "input": "sw/kernel/shell_input.txt",
+      "expected_output": "aXos: shell online\naXos> help\ncommands: help clear uname uptime console free ps pwd ls cat stat hexdump touch cp mv rm write echo fork exec run role shutdown exit\naXos> ls\nmotd\nreadme\naXos> cat motd\nWelcome to aXos.\naXos> echo atomiX\natomiX\naXos> exit\n",
+      "max_cycles": 200000
+    }
+  }
+}

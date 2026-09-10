@@ -42,8 +42,14 @@ __pycache__/
 # with "no JSON contract documents found" while the files sat on the author's
 # disk. Cover the whole tree so a new research subdirectory cannot repeat it.
 !research/**/*.json
-# Verification manifests are source inputs, not generated tool output.
-!tests/verification-suites.json
+# Verification manifests are source inputs, not generated tool output. Cover
+# the whole directory rather than naming files: tests/coverage-map.json and
+# tests/examples.json were each read unconditionally by a checked-in tool while
+# being invisible to Git, so `make verification-check` and `make example-replay`
+# failed on every fresh checkout and passed on the author's disk -- the same way
+# research/ failed before the rule above was broadened. Nothing generated is
+# written here; build products go to build/.
+!tests/*.json
 *.asc
 *.bit
 *.svf

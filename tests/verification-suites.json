@@ -100,11 +100,12 @@
       ]
     },
     "research-contracts": {
-      "label": "Personality, comparison, experiment, ECP5 frame, and partial-image delta research contracts",
+      "label": "Personality, comparison, experiment, published-page, ECP5 frame, and partial-image delta research contracts",
       "command": [
         "make",
         "comparison-check",
         "experiment-check",
+        "experiment-pages-check",
         "ecp5-frame-check",
         "pr-gate-check"
       ],

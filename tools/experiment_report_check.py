@@ -157,6 +157,34 @@ def check_export_and_reproduce(root: Path) -> None:
           stale.returncode != 0 and "has changed" in stale.stdout,
           stale.stdout.strip().splitlines()[-1] if stale.stdout else "")
 
+    # A different toolchain making different bytes from identical source is a
+    # successful reproduction with a fact worth reporting, not a rejection.
+    other_toolchain = root / "other-toolchain.json"
+    mutated = pc.load_document(bundle)
+    mutated["reproduce"]["expects"]["identity"]["implementation"]["artifact_sha256"] = \
+        "1" * 64
+    mutated["reproduce"]["expects"]["identity"]["implementation"]["tools"] = \
+        {"verilator": "Verilator 4.038 2020-07-11 (a different host)"}
+    other_toolchain.write_text(json.dumps(mutated, indent=2) + "\n")
+    elsewhere = report("reproduce", str(other_toolchain), "--work", str(root / "repro"),
+                       "--records", str(root / "repro" / "records"))
+    check("a rebuild on another toolchain reproduces and says the bytes differ",
+          elsewhere.returncode == 0 and "Rebuilt to different bytes" in elsewhere.stdout,
+          elsewhere.stdout.strip().splitlines()[-1] if elsewhere.stdout else "")
+
+    # The same toolchain producing different bytes is not explained by anything
+    # the bundle declares, so it is refused.
+    unexplained = root / "unexplained.json"
+    mutated = pc.load_document(bundle)
+    mutated["reproduce"]["expects"]["identity"]["implementation"]["artifact_sha256"] = \
+        "1" * 64
+    unexplained.write_text(json.dumps(mutated, indent=2) + "\n")
+    refused = report("reproduce", str(unexplained), "--work", str(root / "repro"),
+                     "--records", str(root / "repro" / "records"))
+    check("the same toolchain producing different bytes is refused",
+          refused.returncode != 0 and "tool identities are identical" in refused.stdout,
+          refused.stdout.strip().splitlines()[-1] if refused.stdout else "")
+
     wrong_level = root / "wrong-level.json"
     mutated = pc.load_document(bundle)
     mutated["reproduce"]["expects"]["evidence_level"] = \

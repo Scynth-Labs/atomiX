@@ -15,6 +15,8 @@ verifiable, and replaceable.
   here if you want to use the platform rather than build it.
 - [workflow.md](workflow.md) — the single, maintained build, test, and deploy
   command reference (profile selection, all checks, formal, and the FPGA flow).
+  Its [experiments section](workflow.md#34c-experiments-one-workload-several-implementations-and-targets)
+  covers running a plan, comparing its records, and publishing them as pages.
 - [verification.md](verification.md) — shared CI/nightly suite manifest,
   coverage ladder, stage logs, timeouts, and extension rules.
 - [dependencies.md](dependencies.md) — dependency tiers and compatibility

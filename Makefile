@@ -48,6 +48,7 @@ help:
 	@echo "  make adapter-check      # prove the execution adapters' refusals"
 	@echo "  make experiment-sweep-check # prove bounded, resumable sweep behaviour"
 	@echo "  make experiment-report  # compare one plan's records and explain the gaps"
+	@echo "  make experiment-pages   # render those records as a static site"
 	@echo "  make live-check         # Live FPGA telemetry + shell-isolation RTL, unit and SoC"
 	@echo "  make evolution-check    # bounded kernel-evolve tiers in Primer RAM"
 	@echo "  make fitness-check      # deterministic Live FPGA fitness contract"
@@ -201,6 +202,22 @@ experiment-export:
 
 experiment-reproduce:
 	$(PYTHON) tools/experiment_report.py reproduce $(EXPERIMENT_BUNDLE)
+
+# Render the committed records as a static site: one page per experiment, every
+# result one click from the record that produced it, and the commands to check
+# it locally. The site is generated, so it lives in the ignored build tree and
+# is published from CI rather than committed.
+PAGES_OUTPUT ?= build/pages
+experiment-pages:
+	$(PYTHON) tools/experiment_pages.py build --output $(PAGES_OUTPUT)
+
+# Two claims: the generator is deterministic, so a published page cannot have
+# been edited into something nicer than its records; and the rules survived
+# rendering -- excluded candidates are still named, artifact hashes are still
+# shown, and a page with two measurement domains still says they do not
+# compare.
+experiment-pages-check: experiment-pages
+	$(PYTHON) tools/experiment_pages.py check --output $(PAGES_OUTPUT)
 
 # Re-run a recorded candidate and compare identities, oracle outputs, and the
 # cycle counts that are supposed to be deterministic.
@@ -545,11 +562,11 @@ web-page-check:
 
 # Covers all supplied simulation profiles, including the deliberately minimal
 # alternate CPU. FPGA P&R and physical-board validation remain separate gates.
-component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check
+component-test: config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-pages-check
 	$(MAKE) software CONFIG=configs/sim-hello.json
 	$(MAKE) sim CONFIG=configs/sim-delayed.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-delayed
 	$(MAKE) sim CONFIG=configs/sim-delayed-passthrough-cache.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=10000 BUILD_ID=component-passthrough-cache
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-run experiment-report experiment-export experiment-reproduce experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight component-test web web-check web-bench web-compare web-compare-check web-page-check
