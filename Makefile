@@ -353,6 +353,7 @@ toolchain-llvm:
 FUZZ_TIMEOUT ?= 120
 ANALYSIS_FUZZ_JSON ?= build/static-analysis/fuzz.json
 fuzz-loader:
+	$(PYTHON) tools/fuzz_report.py --self-test
 	$(PYTHON) tools/fuzz_report.py --timeout $(FUZZ_TIMEOUT) \
 	  --json $(ANALYSIS_FUZZ_JSON)
 

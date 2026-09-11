@@ -297,7 +297,17 @@ int loader_load_args(struct task *task, const uint8_t *image, uint32_t size,
    * fetches a stale line: the failure is an illegal instruction inside the new
    * program's text, at an address that disassembles to something perfectly
    * legal, and it moves when the program's size changes. */
+  /* This component is also compiled into the native libFuzzer harness.  That
+   * harness checks the parser and virtual-memory writes, but it never executes
+   * the loaded RISC-V instructions, so there is no host instruction cache to
+   * synchronize.  Keep the real architectural operation explicit while
+   * allowing that same source to remain the code under test on a non-RISC-V
+   * analysis host. */
+#if defined(__riscv)
   __asm__ volatile("fence.i" ::: "memory");
+#else
+  __asm__ volatile("" ::: "memory");
+#endif
 
   *entry_out = e_entry;
   *sp_out = sp;

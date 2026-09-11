@@ -88,6 +88,26 @@ def finding(tool, rule, path, line, col, message):
             "column": col, "severity": "error", "message": message}
 
 
+def diagnostic_excerpt(output, limit=500):
+    """Keep an actionable line when a tool fails outside known diagnostics."""
+    lines = [line.strip() for line in output.splitlines() if line.strip()]
+    for marker in (" error: ", "fatal error:", "make: ***"):
+        for line in lines:
+            if marker in line:
+                return line[:limit]
+    return (lines[-1] if lines else "no diagnostic output")[:limit]
+
+
+def self_test():
+    sample = """clang command\nloader.c:300:20: error: invalid instruction mnemonic 'fence.i'\nmake: *** failed\n"""
+    assert diagnostic_excerpt(sample) == (
+        "loader.c:300:20: error: invalid instruction mnemonic 'fence.i'")
+    assert diagnostic_excerpt("") == "no diagnostic output"
+    assert len(diagnostic_excerpt("error: " + "x" * 1000, 80)) == 80
+    print("fuzz report diagnostics: PASS")
+    return 0
+
+
 def parse(output, target):
     """Sanitizer and libFuzzer diagnostics, as findings."""
     lines = output.splitlines()
@@ -150,7 +170,12 @@ def main(argv=None):
     ap.add_argument("--timeout", type=int, default=120,
                     help="seconds per target (the nightly budget is larger)")
     ap.add_argument("--runs", type=int, default=200000)
+    ap.add_argument("--self-test", action="store_true",
+                    help="check diagnostic parsing without running fuzzers")
     args = ap.parse_args(argv)
+
+    if args.self_test:
+        return self_test()
 
     findings, reports = [], []
     for target in TARGETS:
@@ -166,10 +191,15 @@ def main(argv=None):
         # "clean" because the output did not match a regex would be the worst
         # possible outcome for a tool whose whole job is not losing findings.
         if result.returncode != 0 and not found:
+            excerpt = diagnostic_excerpt(output)
             found = [finding("libfuzzer", "nonzero-exit", target["dir"], 1, 1,
                              f"fuzz target '{target['name']}' exited "
                              f"{result.returncode} with no diagnostic this tool "
-                             f"recognised; see the run log")]
+                             f"recognised: {excerpt}")]
+            # subprocess output is captured so it can be parsed. Preserve the
+            # complete diagnostic in CI when parsing itself is what failed.
+            if output:
+                print(output.rstrip(), file=sys.stderr)
         findings += found
         reports.append({"name": target["name"], "what": target["what"],
                         "state": "FAIL" if found else "PASS",
