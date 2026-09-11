@@ -55,6 +55,10 @@ DOMAIN_TITLES = {
         "Simulator wall time (a cost of Verilator, not of the design)",
     "org.atomix.domain.device-resources":
         "Device resources (only at an evidence level that can contain them)",
+    "org.atomix.domain.iss-retired-instructions":
+        "ISS retired instructions (deterministic in aXsim; not RTL cycles)",
+    "org.atomix.domain.emulator-guest-counters":
+        "Emulator guest counters (QEMU virtual time; not target cycles)",
 }
 CLAIM_TITLES = {
     "org.atomix.same-artifact":

@@ -20,6 +20,23 @@ kind of evidence can and cannot support.
 > and recorded what happened, including what went wrong.  Reading a walkthrough
 > written by the person who wrote the code proves nothing about a newcomer.
 
+Start from a fresh checkout and record the exact revision before installing or
+running anything:
+
+```bash
+git clone https://github.com/scynth-labs/atomiX.git
+cd atomiX
+git rev-parse HEAD
+```
+
+If someone supplied the checkout, record that as help and run `git status
+--short`; a participant result must say whether it began from an unmodified
+tree. Use the [pilot report template](experiment-alpha-pilot-template.md) so
+the two independent results capture the same acceptance evidence. The reports
+must collectively cover both paths; their repository location and naming are
+documented in
+[`research/experiments/pilots/`](../research/experiments/pilots/README.md).
+
 ## Path A — native only
 
 ### What you need
@@ -76,17 +93,28 @@ make experiment-run ONLY=saxpy-native REPETITIONS=25
 
 The record's `execution.repetitions` and its host-elapsed method string both
 change, and the second run is *not* reused from the first, because repetitions
-are part of the reuse key.  Now change something that should not matter:
+are part of the reuse key. Now repeat that same declared choice:
 
 ```bash
-make experiment-run ONLY=saxpy-native
+make experiment-run ONLY=saxpy-native REPETITIONS=25
 ```
 
-That one is reused — the inputs are identical to a result already on disk, so
-the runner says `reused` and executes nothing.  Editing `sw/native/saxpy_i32.c`,
-or changing `-O2` to `-O1` in
+That one is reused — every input is identical to the immediately preceding
+result on disk, so the runner says `reused` and executes nothing. Returning to
+the default of five repetitions is another declared change and therefore runs
+again. Editing `sw/native/saxpy_i32.c`, or changing `-O2` to `-O1` in
 [the plan](../research/experiments/saxpy-native-vs-rtl.json), makes it stale
 again.
+
+Finally, replay a result recorded by someone else:
+
+```bash
+make experiment-replay RECORD=research/experiments/records/saxpy-native.json
+```
+
+The deterministic identities and oracle output must match. Host elapsed time
+is printed but not asserted because this is a different execution on a
+different machine or at a different moment.
 
 ### What this evidence does not support
 
@@ -193,10 +221,14 @@ Record these separately, because they answer different questions:
 1. **Prerequisites and setup** — everything before the first `make`, including
    installing tools and reading this page.
 2. **Build** — the first run's elapsed time, which is mostly compilation.
-   Do not fold it into interaction time; it is real, and hiding it would make
-   the walkthrough look faster than it is.
-3. **Interaction** — from the first command to the first comparison you
-   understood.  The target is fifteen minutes after prerequisites.
+3. **Interaction** — active time after that first run spent reading the report,
+   changing a choice, and replaying a record. Do not fold compilation into this
+   number.
+
+Also record **time to first understood comparison** as build time plus the
+interaction time up to that point. The target is fifteen minutes after
+prerequisites. This total preserves the user-facing target while the separate
+numbers show whether compilation or interaction caused friction.
 
 Also record, in your own words:
 

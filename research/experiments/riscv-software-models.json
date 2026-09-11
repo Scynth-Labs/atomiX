@@ -1,0 +1,190 @@
+{
+  "schema": {"id": "org.atomix.experiment-plan", "major": 1, "minor": 1},
+  "kind": "experiment-plan",
+  "id": "org.atomix.experiment.riscv-software-models",
+  "revision": 1,
+  "summary": "One RV32IM ELF on aXsim and QEMU virt, checked by exact UART-visible output while each model keeps its own counter semantics",
+  "claim": "org.atomix.same-artifact",
+  "workload": {
+    "id": "org.atomix.workload.cpu-perf-mix",
+    "revision": 1,
+    "parameters": {"array_words": 256},
+    "cases": ["resident-integer-mix"]
+  },
+  "implementations": [
+    {
+      "id": "org.atomix.implementation.cpu-perf-rv32-elf",
+      "class": "org.atomix.riscv-baremetal-image",
+      "summary": "The cpu_perf RV32IM/ILP32 ELF, unchanged between the ISS and emulator",
+      "requires": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.riscv-baremetal-elf",
+        "org.atomix.capability.m-mode-entry"
+      ],
+      "build": {
+        "kind": "org.atomix.riscv-baremetal-make",
+        "value": {
+          "directory": "sw/baremetal",
+          "target": "build/cpu_perf.elf",
+          "artifact": "sw/baremetal/build/cpu_perf.elf",
+          "toolchain": "gcc"
+        }
+      }
+    }
+  ],
+  "targets": [
+    {
+      "id": "org.atomix.target.axsim-rv32im",
+      "class": "org.atomix.instruction-set-simulator",
+      "adapter": "org.atomix.adapter.axsim",
+      "summary": "The repository's functional RV32IM instruction-set simulator",
+      "capabilities": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.riscv-baremetal-elf",
+        "org.atomix.capability.m-mode-entry",
+        "org.atomix.capability.process-timeout",
+        "org.atomix.capability.deterministic-retired-instructions"
+      ],
+      "measurement_domain": "org.atomix.domain.iss-retired-instructions",
+      "profile": {
+        "kind": "org.atomix.riscv-software-machine",
+        "value": {
+          "machine": "axsim",
+          "isa": "rv32im_zicsr",
+          "abi": "ilp32",
+          "ram_bytes": 131072,
+          "max_instructions": 2000000
+        }
+      }
+    },
+    {
+      "id": "org.atomix.target.qemu-virt-rv32im",
+      "class": "org.atomix.system-emulator",
+      "adapter": "org.atomix.adapter.qemu-riscv32",
+      "summary": "QEMU's RV32 virt system machine with no firmware",
+      "capabilities": [
+        "org.atomix.capability.rv32im",
+        "org.atomix.capability.zicsr",
+        "org.atomix.capability.uart",
+        "org.atomix.capability.test-finisher",
+        "org.atomix.capability.riscv-baremetal-elf",
+        "org.atomix.capability.m-mode-entry",
+        "org.atomix.capability.process-timeout",
+        "org.atomix.capability.qemu-virt"
+      ],
+      "measurement_domain": "org.atomix.domain.emulator-guest-counters",
+      "profile": {
+        "kind": "org.atomix.riscv-software-machine",
+        "value": {
+          "machine": "virt",
+          "isa": "rv32im_zicsr",
+          "abi": "ilp32",
+          "bios": "none"
+        }
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "id": "org.atomix.candidate.cpu-perf-on-axsim",
+      "implementation": "org.atomix.implementation.cpu-perf-rv32-elf",
+      "target": "org.atomix.target.axsim-rv32im",
+      "parameters": {},
+      "work": {"unit": "org.atomix.array-word", "count": 256}
+    },
+    {
+      "id": "org.atomix.candidate.cpu-perf-on-qemu-virt",
+      "implementation": "org.atomix.implementation.cpu-perf-rv32-elf",
+      "target": "org.atomix.target.qemu-virt-rv32im",
+      "parameters": {},
+      "work": {"unit": "org.atomix.array-word", "count": 256}
+    }
+  ],
+  "metrics": [
+    {
+      "id": "org.atomix.metric.work-items",
+      "unit": "org.atomix.unit.item",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.required",
+        "org.atomix.system-emulator": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.repetitions",
+      "unit": "org.atomix.unit.count",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.required",
+        "org.atomix.system-emulator": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.artifact-bytes",
+      "unit": "org.atomix.unit.byte",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.context",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.required",
+        "org.atomix.system-emulator": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.iss-workload-retired-instructions",
+      "unit": "org.atomix.unit.instruction",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.iss-retired-instructions",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.required",
+        "org.atomix.system-emulator": "org.atomix.inapplicable"
+      }
+    },
+    {
+      "id": "org.atomix.metric.iss-total-retired-instructions",
+      "unit": "org.atomix.unit.instruction",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.iss-retired-instructions",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.required",
+        "org.atomix.system-emulator": "org.atomix.inapplicable"
+      }
+    },
+    {
+      "id": "org.atomix.metric.emulator-guest-mcycle",
+      "unit": "org.atomix.unit.cycle",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.emulator-guest-counters",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.inapplicable",
+        "org.atomix.system-emulator": "org.atomix.required"
+      }
+    },
+    {
+      "id": "org.atomix.metric.simulator-host-elapsed-median",
+      "unit": "org.atomix.unit.nanosecond",
+      "direction": "org.atomix.context-only",
+      "domain": "org.atomix.domain.simulator-host-elapsed",
+      "applicability": {
+        "org.atomix.instruction-set-simulator": "org.atomix.optional",
+        "org.atomix.system-emulator": "org.atomix.optional"
+      }
+    }
+  ],
+  "budget": {"max_candidates": 2, "per_candidate_seconds": 120, "repetitions": 1},
+  "policy": {
+    "correctness": "org.atomix.hard-gate",
+    "missing_measurement": "org.atomix.unavailable-not-zero",
+    "ranking": "org.atomix.pareto-no-composite",
+    "cross_domain_ranking": "org.atomix.forbidden",
+    "resource_claims": "org.atomix.require-matched-evidence"
+  },
+  "extensions": {}
+}

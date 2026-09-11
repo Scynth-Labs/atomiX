@@ -554,6 +554,19 @@
         "SIM": "{root}/sim/cosim/obj_dir/axcosim"
       }
     },
+    "iss-emulator-adapters": {
+      "label": "aXsim and QEMU experiment adapters, counters, bounds, and failed replay",
+      "command": [
+        "make",
+        "iss-emulator-check"
+      ],
+      "timeout_seconds": 600,
+      "requires": [
+        "make",
+        "python3",
+        "qemu-system-riscv32"
+      ]
+    },
     "three-platform-baremetal": {
       "label": "Bare-metal agreement across ISS, QEMU, and RTL",
       "command": [
@@ -761,6 +774,7 @@
       "isa-cosim"
     ],
     "three-platform": [
+      "iss-emulator-adapters",
       "three-platform-baremetal",
       "three-platform-kernel"
     ]

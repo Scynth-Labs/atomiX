@@ -102,6 +102,7 @@ class CaseOutcome:
     outputs: dict[str, list[int]]
     repetitions: int
     cycles: dict[str, int] = field(default_factory=dict)
+    measurements: dict[str, tuple[float, str]] = field(default_factory=dict)
     elapsed_ns: list[int] = field(default_factory=list)
     detail: dict[str, Any] = field(default_factory=dict)
 

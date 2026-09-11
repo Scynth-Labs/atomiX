@@ -258,7 +258,7 @@ Compiles the Verilated model to WebAssembly. Load-bearing for nothing: no eviden
 |---|---|---|---|---|
 | Emscripten | optional | `>=3.1` | 6.0.5 | Compiles the Verilated model to WebAssembly |
 | Node | optional | `>=18` | 24.18.0<br>22.16.0 | Headless WASM boot, the side-by-side comparison, and the page check |
-| Chromium or Edge | optional | any | Microsoft Edge (Chromium) on WSL | Renders both browser pages for make web-page-check |
+| Chromium or Edge | optional | any | Microsoft Edge (Chromium) on WSL | Renders the console, comparison, and experiment-handoff pages for make web-page-check |
 
 ### Analysis and second toolchain (optional)
 

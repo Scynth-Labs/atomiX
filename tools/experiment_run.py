@@ -188,6 +188,19 @@ def numbers_from(outcomes: list[execution.CaseOutcome],
             "model cycles including staging and checked readback, summed over cases",
         )
 
+    custom_ids = set.intersection(
+        *(set(outcome.measurements) for outcome in outcomes)
+    ) if outcomes else set()
+    for metric_id in sorted(custom_ids):
+        values = [outcome.measurements[metric_id] for outcome in outcomes]
+        methods = {method for _, method in values}
+        method = methods.pop() if len(methods) == 1 else \
+            "adapter-defined measurement; methods differ across cases"
+        numbers[metric_id] = (
+            sum(value for value, _ in values),
+            method if len(values) == 1 else f"{method}; summed over {len(values)} cases",
+        )
+
     if all(outcome.elapsed_ns for outcome in outcomes):
         # Cases differ in size, so pooling their individual times would compare
         # unlike work. Each repetition's total across the case set is one
@@ -498,6 +511,10 @@ def run_candidate(plan: dict[str, Any], candidate: dict[str, Any],
         outcome.name: {
             "outputs": outcome.outputs,
             "cycles": outcome.cycles,
+            "measurements": {
+                metric_id: {"value": value, "method": method}
+                for metric_id, (value, method) in outcome.measurements.items()
+            },
             "detail": outcome.detail,
         }
         for outcome in result.cases
@@ -541,6 +558,8 @@ DOMAIN_TAGS = {
     "org.atomix.domain.host-elapsed": "host",
     "org.atomix.domain.simulator-host-elapsed": "sim-tool",
     "org.atomix.domain.device-resources": "device",
+    "org.atomix.domain.iss-retired-instructions": "iss",
+    "org.atomix.domain.emulator-guest-counters": "emulator",
 }
 HEADLINE = {
     "org.atomix.domain.model-cycles": "org.atomix.metric.execute-cycles",
@@ -548,6 +567,10 @@ HEADLINE = {
     "org.atomix.domain.simulator-host-elapsed":
         "org.atomix.metric.simulator-host-elapsed-median",
     "org.atomix.domain.device-resources": "org.atomix.metric.lut-used",
+    "org.atomix.domain.iss-retired-instructions":
+        "org.atomix.metric.iss-total-retired-instructions",
+    "org.atomix.domain.emulator-guest-counters":
+        "org.atomix.metric.emulator-guest-mcycle",
 }
 UNIT_NAMES = {
     "org.atomix.unit.cycle": "cycles",
@@ -555,6 +578,7 @@ UNIT_NAMES = {
     "org.atomix.unit.count": "",
     "org.atomix.unit.byte": "bytes",
     "org.atomix.unit.item": "items",
+    "org.atomix.unit.instruction": "instructions",
 }
 
 
@@ -590,9 +614,9 @@ def summarise(records: list[dict[str, Any]], plan: dict[str, Any]) -> None:
     if len(domains - {"sim-tool"}) > 1 or "sim-tool" in domains:
         print(
             "\n  These columns are different measurement domains and are not "
-            "comparable:\n  model cycles describe the design, host time describes "
-            "this machine, and\n  sim-tool time describes Verilator. No ratio "
-            "between them means anything."
+            "comparable. Design/model counters keep the semantics named by "
+            "their adapter; host and sim-tool time describe execution cost on "
+            "this host. No ratio between domains means anything."
         )
     print()
 
@@ -749,6 +773,10 @@ def replay(plan: dict[str, Any], record_path: Path, args: argparse.Namespace,
         reason = fresh["extensions"].get("org.atomix.blocked-reason", {})
         problems.append(f"the replay did not run: {reason.get('detail', fresh['status'])}")
     else:
+        if original["status"] != fresh["status"]:
+            problems.append(
+                f"oracle status changed: {original['status']} -> {fresh['status']}"
+            )
         before = original["correctness"]["output_sha256"]
         after = fresh["correctness"]["output_sha256"]
         if before != after:
@@ -770,6 +798,7 @@ def replay(plan: dict[str, Any], record_path: Path, args: argparse.Namespace,
             # properties of a machine that had other work to do.
             deterministic = domain in {
                 "org.atomix.domain.model-cycles", "org.atomix.domain.context",
+                "org.atomix.domain.iss-retired-instructions",
             }
             if deterministic and first["value"] != second["value"]:
                 problems.append(
@@ -788,8 +817,10 @@ def replay(plan: dict[str, Any], record_path: Path, args: argparse.Namespace,
         for problem in problems:
             print(f"  - {problem}")
         return 1
-    print("\nexperiment replay: PASS (identity, oracle outputs, and deterministic "
-          "cycles reproduced)")
+    result_kind = "failed result" if original["status"] == "org.atomix.fail" \
+        else "passing result"
+    print(f"\nexperiment replay: PASS ({result_kind}, identity, oracle outputs, "
+          "and deterministic values reproduced)")
     return 0
 
 

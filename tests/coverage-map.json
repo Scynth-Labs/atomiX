@@ -112,6 +112,10 @@
       "kind": "suite",
       "stage": "experiment-adapters"
     },
+    ".:iss-emulator-check": {
+      "kind": "suite",
+      "stage": "iss-emulator-adapters"
+    },
     ".:external-component-check": {
       "kind": "suite",
       "stage": "component-composition"

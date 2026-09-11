@@ -13,7 +13,7 @@ Validate everything with:
 make experiment-check
 ```
 
-## The two claims, kept apart
+## The claims, kept apart
 
 `same-binary-cores.json` runs one unchanged `cpu_perf` image on `sim-minimal`,
 `sim-bram`, and `sim-ax2`.  Only the core selection differs, so the spread is
@@ -28,6 +28,12 @@ integer semantics: a host C11 executable and a nine-instruction SIMT kernel on
 the `role.gpu-compute` engine.  Their artifacts have nothing in common; their
 logical inputs and oracle results must match exactly, including the wrap,
 single-element, and SIMT-tail cases pinned by workload revision 2.
+
+`riscv-software-models.json` runs one unchanged RV32IM/ILP32 `cpu_perf` ELF on
+aXsim and QEMU virt. Both must reproduce checksum `0xe9266745`, but their
+counters deliberately do not share a metric: aXsim defines `mcycle`/`minstret`
+as retired instructions, while QEMU's guest `mcycle` follows emulator virtual
+time. Both are kept apart from simulator host duration and RTL model cycles.
 
 A report shows these separately.  One says what a core choice was worth; the
 other says what an implementation choice was worth.  Neither is a score.
@@ -62,6 +68,8 @@ produce metrics from its own domain (context metrics excepted):
 | `org.atomix.domain.host-elapsed` | wall time of the workload's own host execution |
 | `org.atomix.domain.simulator-host-elapsed` | wall time spent *simulating*, which is a cost of the tool, not of the design |
 | `org.atomix.domain.device-resources` | LUTs and friends, at an evidence level that can contain them |
+| `org.atomix.domain.iss-retired-instructions` | aXsim's deterministic retired-instruction counts |
+| `org.atomix.domain.emulator-guest-counters` | counters observed by a guest on a named system emulator; semantics belong to that emulator |
 
 `policy.cross_domain_ranking` must be `org.atomix.forbidden` at schema major 1.
 Native elapsed time, simulator wall time, and model cycles are not one scale,

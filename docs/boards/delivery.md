@@ -41,10 +41,14 @@ level.
 AX-04 is what remains of M0, and it is the one card its implementer cannot
 close. Its walkthroughs are written and tested:
 [experiment-alpha.md](../experiment-alpha.md) has both paths with measured
-local timings. The walkthroughs can be written and tested locally -- a native-only path
-needing no RISC-V or RTL toolchain, and the paired native/RTL path with its
-prerequisites -- but the gate needs two people other than the implementer to
-run them, change a declared choice, and say what the evidence does not support.
+local timings, and its linked pilot template is ready for the two independent
+reports. A 2026-09-12 clean-record rehearsal caught and fixed a misleading
+reuse instruction and verified the native run, report, changed choice, reuse,
+and replay sequence. The walkthroughs can be written and tested locally -- a
+native-only path needing no RISC-V or RTL toolchain, and the paired native/RTL
+path with its prerequisites -- but the gate needs two people other than the
+implementer to run them, change a declared choice, and say what the evidence
+does not support.
 Until those two reproductions are recorded, this stays open no matter how well
 the commands work here.
 

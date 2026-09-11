@@ -13,6 +13,7 @@ from .contract import (
     Execution, Prepared, StaleArtifact, Timeout, Unsupported,
 )
 from .native_cpu import NativeCpuAdapter
+from .riscv_models import AxsimAdapter, QemuRiscvAdapter
 from .rtl_role import RtlRoleAdapter
 from .rtl_soc import RtlSocAdapter
 
@@ -26,5 +27,8 @@ __all__ = [
 def registry() -> dict[str, Adapter]:
     return {
         adapter.adapter_id: adapter
-        for adapter in (NativeCpuAdapter(), RtlRoleAdapter(), RtlSocAdapter())
+        for adapter in (
+            NativeCpuAdapter(), RtlRoleAdapter(), RtlSocAdapter(), AxsimAdapter(),
+            QemuRiscvAdapter(),
+        )
     }

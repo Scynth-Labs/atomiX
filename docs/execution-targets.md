@@ -1,12 +1,12 @@
 # Execution targets and hardware/software co-design
 
 This is the architectural direction for the [platform roadmap](roadmap.md).
-It defines the boundary to implement through [AX-10–AX-13](boards/targets.md).
-AX-01 and AX-10 are now implemented: the adapter boundary lives in
+It defines the boundary implemented through [AX-10–AX-13](boards/targets.md).
+AX-01, AX-10, and AX-12 are now implemented: the adapter boundary lives in
 [`tools/execution/`](../tools/execution/) and the experiment contract in
 [`tools/experiment_contract.py`](../tools/experiment_contract.py). Everything
-this document says about AX-11 to AX-13 and about ASIC work remains a design
-direction rather than a claim about existing code.
+this document says about AX-11, AX-13, and ASIC work remains a design direction
+rather than a claim about existing code.
 
 ## What belongs to the platform
 
@@ -35,7 +35,7 @@ own sweep bounds and scheduling budgets.
 | Target | Intended use | Current foundation / next gate | Limits of its evidence |
 |---|---|---|---|
 | Native host CPU | Software baseline; algorithm, compiler, and runtime experiments | Native reference/oracle code exists; common experiment adapter is AX-10 | Measures the actual host implementation; says nothing about atomiX RTL timing |
-| ISS and system emulator | Fast software, ABI, privilege, and OS experiments | aXsim and QEMU checks exist; common adapters are AX-12 | Functional behavior and explicitly defined model counters; emulator speed is not target clock speed |
+| ISS and system emulator | Fast software, ABI, privilege, and OS experiments | aXsim and QEMU implement the common adapter contract; `make iss-emulator-check` | Functional behavior and explicitly defined model counters; emulator speed is not target clock speed |
 | RTL simulation, native or WASM | Architecture behavior and model cycle comparisons | Verilator and web machine exist; common adapter is AX-10 | Model cycles and correctness; not physical frequency, power, or manufactured behavior |
 | FPGA | Rapid hardware iteration and measured resident execution | Existing flows and Primer results; lab queue remains separate | Exact device, image, payload, and procedure only |
 | Host GPU or other accessible accelerator | Heterogeneous workload implementation and runtime selection | AX-13; no common backend or device availability claimed | Actual selected device/runtime only; no silent CPU fallback presented as accelerator evidence |

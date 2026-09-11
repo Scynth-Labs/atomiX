@@ -156,7 +156,13 @@ implemented; the targets for the underlying tools do not prove a future feature.
   an implementer's walkthrough is preparation, not independent reproduction.
   Prepared: [experiment-alpha.md](experiment-alpha.md) gives the native-only and
   native/RTL walkthroughs with measured local timings, the declared choice to
-  change on each path, and what each participant should record. The gate stays
+  change on each path, and a
+  [pilot report template](experiment-alpha-pilot-template.md) captures checkout
+  identity, separated timing, failures, help, tradeoff, limitation, and replay
+  outcome. A 2026-09-12 native-only rehearsal from an empty records directory
+  passed run, report, non-default repetition, identical-input reuse, and replay;
+  it also corrected an instruction that had expected reuse after changing back
+  to the default repetition count. The gate stays
   open until two people other than its implementer have run one and reported
   their setup, build, and interaction times, their failures, and the help they
   needed.
@@ -306,7 +312,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-12"></a>
 
-- [ ] **AX-12 — ISS and emulator execution adapters.** Connect existing aXsim
+- [x] **AX-12 — ISS and emulator execution adapters.** Connect existing aXsim
   and QEMU entry points to the AX-10 contract. Run a shared supported software
   fixture with exact expected behavior, pin ISA/ABI/machine requirements, and
   reject unsupported role, privilege, or device requests before execution.
@@ -314,6 +320,18 @@ implemented; the targets for the underlying tools do not prove a future feature.
   cycle counts. Test missing-tool reporting, bounded execution, and failed-run
   replay. A missing emulator leaves its gate open rather than quietly selecting
   the ISS; the existing three-platform checks retain their original scope.
+  Closed 2026-09-12: `tools/execution/riscv_models.py` adds separate aXsim and
+  QEMU adapters, and
+  [`riscv-software-models.json`](../research/experiments/riscv-software-models.json)
+  runs one GCC-built RV32IM/ILP32 `cpu_perf` ELF on both. `make
+  iss-emulator-check` requires exact checksum `0xe9266745` and an identical ELF
+  hash, records aXsim's deterministic workload/total retired instructions
+  separately from QEMU's virtual-time guest `mcycle` and simulator host time,
+  rejects role-window, supervisor-entry, and virtio-block requests before
+  execution, reports missing QEMU without fallback, kills a deliberately
+  over-bound QEMU run, and reproduces a retained failed-oracle record. The
+  QEMU-bearing `three-platform` suite passed all three stages; the existing
+  bare-metal and kernel stages remain unchanged simulation/emulation evidence.
 
 <a id="ax-13"></a>
 

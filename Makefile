@@ -48,6 +48,7 @@ help:
 	@echo "  make experiment-check   # validate experiment plans and run records"
 	@echo "  make experiment-run     # run an experiment plan through its adapters"
 	@echo "  make adapter-check      # prove the execution adapters' refusals"
+	@echo "  make iss-emulator-check # aXsim/QEMU adapter contract (Kernel tier)"
 	@echo "  make experiment-sweep-check # prove bounded, resumable sweep behaviour"
 	@echo "  make experiment-report  # compare one plan's records and explain the gaps"
 	@echo "  make experiment-pages   # render those records as a static site"
@@ -151,6 +152,11 @@ experiment-check: comparison-check
 # before execution, and a limit that actually reaches the process group.
 adapter-check:
 	$(PYTHON) tools/adapter_conformance.py
+
+# AX-12's QEMU-bearing adapter gate stays in the Kernel tier and the nightly
+# three-platform job. A missing emulator is a blocker, never an ISS fallback.
+iss-emulator-check:
+	$(PYTHON) tools/iss_emulator_conformance.py
 
 # What a sweep must do when things go wrong: refuse an out-of-range point
 # before building it, survive an interrupt with a usable state file, resume
@@ -592,4 +598,4 @@ component-test: config-check-all personality-check comparison-check experiment-c
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check experiment-sweep-check experiment-report-check experiment-regression-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight external-component-check component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check iss-emulator-check experiment-sweep-check experiment-report-check experiment-regression-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight external-component-check component-test web web-check web-bench web-compare web-compare-check web-page-check

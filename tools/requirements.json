@@ -148,7 +148,7 @@
       "tested": [
         {
           "version": "8.2.10",
-          "evidence": "make -C sw/kernel check-boot"
+          "evidence": "make -C sw/kernel check-boot; make iss-emulator-check"
         }
       ],
       "missing_hint": "the three-platform and aXos checks are skipped without it"

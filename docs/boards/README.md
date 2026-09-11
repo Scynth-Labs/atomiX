@@ -8,7 +8,7 @@ AX-10 closed the same day. No row here is assigned to a person.
 | Board | Purpose | First pull |
 |---|---|---|
 | [Delivery](delivery.md) | Usable experiments, component SDK, reproducible release | AX-04: two independent reproductions of the experiment alpha |
-| [Execution targets](targets.md) | Native execution, compiler/runtime work, emulators, accelerators, and ASIC feasibility | AX-12: wrap aXsim and QEMU in the AX-10 contract; RX-08 audit can start independently |
+| [Execution targets](targets.md) | Native execution, compiler/runtime work, emulators, accelerators, and ASIC feasibility | AX-11: compare declared compiler choices; RX-08 audit can start independently |
 | [Research](research.md) | Test optimization and adaptation value; retire technical uncertainty | RX-04: distinguish unavailable telemetry from observed zero |
 | [Hardware](hardware.md) | Earn repeatable claims on the available Tang Primer 25K Dock | HW-01: consolidate and repeat the exact runtime-image evidence |
 

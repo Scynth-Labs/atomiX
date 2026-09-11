@@ -311,6 +311,7 @@ make -C sim/cosim  test        # Verilator lock-step cosimulation vs the ISS
 
 ### 3.2 Bare-metal, three platforms (ISS · QEMU · RTL)
 ```bash
+make iss-emulator-check  # AX-12 adapter contract: same ELF, distinct counters
 make -C sw/baremetal check-hello check-timer check-preempt check-fencei
 make -C sw/baremetal check-spi check-sd            # RTL-only (SPI-SD path)
 ```
@@ -372,6 +373,7 @@ make personality-check
 make comparison-check
 make experiment-check            # experiment plans, their records, and the contract's gates
 make adapter-check               # the execution adapters' refusals: blocked, unsupported, bounded
+make iss-emulator-check          # aXsim/QEMU adapters; requires the Kernel tier
 make live-check
 make l3-check                    # all-mode L3 shadow, canary, mutation, and rollback
 make ecp5-frame-check            # compressed/full/partial frame decoder contract
@@ -553,7 +555,7 @@ make experiment-replay RECORD=research/experiments/records/saxpy-simt-rtl-lanes-
 make experiment-run RESUME=1                          # keep outcomes already recorded
 ```
 
-Two plans ship, and they make different claims on purpose:
+Three plans ship, and they make different claims on purpose:
 
 - `same-binary-cores.json` loads one unchanged `cpu_perf` image into
   `sim-minimal`, `sim-bram`, and `sim-ax2`.  The records carry one payload
@@ -562,6 +564,10 @@ Two plans ship, and they make different claims on purpose:
   `role.gpu-compute` against the same oracle, including the int32 wrap,
   single-element, and SIMT-tail cases.  Their artifacts share nothing; their
   results must agree exactly.
+- `riscv-software-models.json` runs one RV32IM/ILP32 ELF on aXsim and QEMU
+  `virt`. Both reproduce the exact `cpu_perf` checksum, while aXsim retired
+  instructions, QEMU guest `mcycle`, simulator host duration, and RTL cycles
+  remain different metric domains.
 
 Records go to `build/experiments/records` unless `EXPERIMENT_RECORDS` points
 into the evidence tree, because a scratch run is not evidence.  Every candidate
