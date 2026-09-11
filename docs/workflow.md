@@ -555,7 +555,7 @@ make experiment-replay RECORD=research/experiments/records/saxpy-simt-rtl-lanes-
 make experiment-run RESUME=1                          # keep outcomes already recorded
 ```
 
-Three plans ship, and they make different claims on purpose:
+Four plans ship, and they make different claims on purpose:
 
 - `same-binary-cores.json` loads one unchanged `cpu_perf` image into
   `sim-minimal`, `sim-bram`, and `sim-ax2`.  The records carry one payload
@@ -568,6 +568,11 @@ Three plans ship, and they make different claims on purpose:
   `virt`. Both reproduce the exact `cpu_perf` checksum, while aXsim retired
   instructions, QEMU guest `mcycle`, simulator host duration, and RTL cycles
   remain different metric domains.
+- `saxpy-software-hardware-codesign.json` first holds the source, algorithm,
+  layout, runtime policy, workload, and host fixed while GCC changes from `-O0`
+  to `-O2`; it then runs a complete two-algorithm by two-lane RTL control. Its
+  factor table is derived from the build selectors and effective component
+  profiles rather than copied into labels.
 
 Records go to `build/experiments/records` unless `EXPERIMENT_RECORDS` points
 into the evidence tree, because a scratch run is not evidence.  Every candidate
@@ -602,7 +607,15 @@ whose inputs have not changed.
 ```bash
 make experiment-sweep-check      # the sweep's own failure modes
 make experiment-regression-check # the deterministic preview CPU gate
+make codesign-check              # AX-11 controlled-factor and replay gate
 ```
+
+`codesign-check` proves that a held factor cannot drift, a factorial control
+cannot omit a combination, compiler flags invalidate reuse, executable,
+compiler, and runtime-library identities are retained, a wrong result is
+excluded, and one hardware/software result replays exactly. The recorded result
+is a useful negative one: four lanes improve both kernels, but replacing
+multiply-by-three with two additions costs cycles at both widths.
 
 The per-change regression gate reruns the `same-binary-cores` preview subset:
 the unchanged `cpu_perf` payload on `sim-minimal`, `sim-bram`, and `sim-ax2`.

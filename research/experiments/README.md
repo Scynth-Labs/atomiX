@@ -35,6 +35,16 @@ counters deliberately do not share a metric: aXsim defines `mcycle`/`minstret`
 as retired instructions, while QEMU's guest `mcycle` follows emulator virtual
 time. Both are kept apart from simulator host duration and RTL model cycles.
 
+`saxpy-software-hardware-codesign.json` makes two controlled comparisons. The
+first changes only GCC's optimization configuration (`-O0`/`-O2`) for one
+native source. The second is a complete 2x2 experiment over an actual SIMT
+algorithm input (multiply-immediate or an add chain for `a=3`) and the role's
+manifest-owned lane parameter (1 or 4). Algorithm, layout, runtime policy,
+compiler configuration, and effective machine profile are derived from inputs
+that reach the adapters. The recorded RTL result is 505/240 cycles for
+multiply and 556/258 for the add chain at 1/4 lanes: width helps both, while
+the attempted strength reduction loses at both widths.
+
 A report shows these separately.  One says what a core choice was worth; the
 other says what an implementation choice was worth.  Neither is a score.
 

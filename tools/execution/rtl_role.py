@@ -162,14 +162,49 @@ class RtlRoleAdapter(Adapter):
         if limits.get("power_of_two") and (value <= 0 or value & (value - 1)):
             raise Unsupported(f"{name}={value} is not a power of two")
 
-    def kernel(self, encoder, items: int, a: int) -> list[int]:
-        """SAXPY as nine straight-line SIMT instructions, one thread per element."""
-        return [
+    def selections(self, implementation: dict[str, Any]) -> tuple[str, str, str]:
+        value = implementation["build"]["value"]
+        algorithm = value.get("algorithm", "org.atomix.algorithm.saxpy-multiply-add")
+        layout = value.get("layout", "org.atomix.layout.x-y-out-contiguous")
+        if layout == {"x": 0, "y": "items", "out": "2*items"}:
+            # Schema 1.1's original plan spells the same calling convention as
+            # offsets. Preserve its artifact identity while exposing a stable
+            # factor name to newer controlled experiments.
+            layout = "org.atomix.layout.x-y-out-contiguous"
+        runtime = value.get("runtime_policy", "org.atomix.runtime.single-dispatch-polled")
+        if algorithm not in {
+            "org.atomix.algorithm.saxpy-multiply-add",
+            "org.atomix.algorithm.saxpy-strength-reduced-a3",
+        }:
+            raise Unsupported(f"unknown GPU SAXPY algorithm {algorithm!r}")
+        if layout != "org.atomix.layout.x-y-out-contiguous":
+            raise Unsupported(f"GPU SAXPY harness does not implement layout {layout!r}")
+        if runtime != "org.atomix.runtime.single-dispatch-polled":
+            raise Unsupported(f"GPU SAXPY harness does not implement runtime policy {runtime!r}")
+        return algorithm, layout, runtime
+
+    def kernel(self, encoder, items: int, a: int, algorithm: str) -> list[int]:
+        """Build the selected straight-line SIMT SAXPY implementation."""
+        prefix = [
             encoder.gpu_insn(encoder.GPU_TID, rd=0),               # r0 = tid
             encoder.gpu_insn(encoder.GPU_LDX, rd=1, ra=0),         # r1 = x[tid]
             encoder.gpu_insn(encoder.GPU_ADDI, rd=2, ra=0, imm=items),
             encoder.gpu_insn(encoder.GPU_LDX, rd=3, ra=2),         # r3 = y[tid]
-            encoder.gpu_insn(encoder.GPU_MULI, rd=1, ra=1, imm=a),  # r1 = a*x[tid]
+        ]
+        if algorithm == "org.atomix.algorithm.saxpy-multiply-add":
+            arithmetic = [
+                encoder.gpu_insn(encoder.GPU_MULI, rd=1, ra=1, imm=a),
+            ]
+        else:
+            if a != 3:
+                raise Unsupported(
+                    "strength-reduced-a3 implements only cases whose scalar is 3"
+                )
+            arithmetic = [
+                encoder.gpu_insn(encoder.GPU_ADD, rd=5, ra=1, rb=1),
+                encoder.gpu_insn(encoder.GPU_ADD, rd=1, ra=5, rb=1),
+            ]
+        return prefix + arithmetic + [
             encoder.gpu_insn(encoder.GPU_ADD, rd=1, ra=1, rb=3),   # r1 += y[tid]
             encoder.gpu_insn(encoder.GPU_ADDI, rd=4, ra=0, imm=2 * items),
             encoder.gpu_insn(encoder.GPU_STX, ra=4, rb=1),         # out[tid] = r1
@@ -185,6 +220,7 @@ class RtlRoleAdapter(Adapter):
         description = self.describe(target)
         limits = description.limits
         encoder = load_encoder()
+        algorithm, layout, runtime = self.selections(implementation)
 
         # Semantics this target cannot honour are refused now, with the reason,
         # rather than producing a plausible wrong answer from a truncated
@@ -203,7 +239,7 @@ class RtlRoleAdapter(Adapter):
                     f"case {case['name']}: {items} items exceed this target's "
                     f"limit of {limits['max_items']}"
                 )
-            words = self.kernel(encoder, items, a)
+            words = self.kernel(encoder, items, a, algorithm)
             if len(words) > PROGRAM_WORDS:
                 raise Unsupported("kernel is longer than the engine's program memory")
             programs[case["name"]] = words
@@ -220,6 +256,12 @@ class RtlRoleAdapter(Adapter):
             "programs": {name: [f"{word:08x}" for word in words]
                          for name, words in programs.items()},
         }
+        if "algorithm" in build["value"] or "runtime_policy" in build["value"]:
+            manifest.update({
+                "algorithm": algorithm,
+                "layout": layout,
+                "runtime_policy": runtime,
+            })
         manifest_text = json.dumps(manifest, indent=2, sort_keys=True) + "\n"
         artifact = workdir / "saxpy-simt-programs.json"
         artifact.write_text(manifest_text)
@@ -243,6 +285,9 @@ class RtlRoleAdapter(Adapter):
                 "model": str(model),
                 "parameters": target["profile"]["value"].get("parameters", {}),
                 "artifact_kind": "SIMT kernel instruction words",
+                "algorithm": algorithm,
+                "layout": layout,
+                "runtime_policy": runtime,
             },
         )
 

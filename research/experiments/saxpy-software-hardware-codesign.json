@@ -1,0 +1,126 @@
+{
+  "schema": {"id": "org.atomix.experiment-plan", "major": 1, "minor": 1},
+  "kind": "experiment-plan",
+  "id": "org.atomix.experiment.saxpy-software-hardware-codesign",
+  "revision": 1,
+  "summary": "Controlled SAXPY study: two host compiler configurations, then a two-by-two SIMT algorithm and lane-count experiment",
+  "claim": "org.atomix.same-workload",
+  "workload": {
+    "id": "org.atomix.workload.saxpy-i32",
+    "revision": 2,
+    "parameters": {"items": 50, "a": 3},
+    "cases": ["signed-and-tail", "int32-wrap", "single-element", "simt-lane-tail"]
+  },
+  "implementations": [
+    {
+      "id": "org.atomix.implementation.saxpy-native-gcc-o0",
+      "class": "org.atomix.native-executable",
+      "summary": "Scalar C11 SAXPY built by GCC without optimization",
+      "requires": ["org.atomix.capability.exact-int32-wrap", "org.atomix.capability.host-c11-toolchain", "org.atomix.capability.monotonic-clock"],
+      "build": {"kind": "org.atomix.host-cc", "value": {
+        "source": "sw/native/saxpy_i32.c",
+        "compiler_configuration": {"executable": "gcc", "standard": "c11", "flags": ["-O0", "-Wall", "-Wextra", "-Werror"]},
+        "algorithm": "org.atomix.algorithm.saxpy-scalar-loop",
+        "layout": "org.atomix.layout.separate-contiguous-arrays",
+        "runtime_policy": "org.atomix.runtime.in-process-repetitions"
+      }}
+    },
+    {
+      "id": "org.atomix.implementation.saxpy-native-gcc-o2",
+      "class": "org.atomix.native-executable",
+      "summary": "The same scalar C11 SAXPY built by GCC at O2",
+      "requires": ["org.atomix.capability.exact-int32-wrap", "org.atomix.capability.host-c11-toolchain", "org.atomix.capability.monotonic-clock"],
+      "build": {"kind": "org.atomix.host-cc", "value": {
+        "source": "sw/native/saxpy_i32.c",
+        "compiler_configuration": {"executable": "gcc", "standard": "c11", "flags": ["-O2", "-Wall", "-Wextra", "-Werror"]},
+        "algorithm": "org.atomix.algorithm.saxpy-scalar-loop",
+        "layout": "org.atomix.layout.separate-contiguous-arrays",
+        "runtime_policy": "org.atomix.runtime.in-process-repetitions"
+      }}
+    },
+    {
+      "id": "org.atomix.implementation.saxpy-simt-multiply",
+      "class": "org.atomix.simt-kernel-program",
+      "summary": "SIMT SAXPY using the engine's multiply-immediate operation",
+      "requires": ["org.atomix.capability.exact-int32-wrap", "org.atomix.capability.role-window", "org.atomix.capability.doorbell", "org.atomix.capability.status-poll", "org.atomix.capability.simt", "org.atomix.capability.programmable-kernel", "org.atomix.capability.flat-global-memory", "org.atomix.capability.tail-predication"],
+      "build": {"kind": "org.atomix.gpu-compute-program", "value": {
+        "encoder": "sw/host/gpu_programs.py",
+        "immediate_bits": 17,
+        "algorithm": "org.atomix.algorithm.saxpy-multiply-add",
+        "layout": "org.atomix.layout.x-y-out-contiguous",
+        "runtime_policy": "org.atomix.runtime.single-dispatch-polled"
+      }}
+    },
+    {
+      "id": "org.atomix.implementation.saxpy-simt-add-chain",
+      "class": "org.atomix.simt-kernel-program",
+      "summary": "SIMT SAXPY replacing multiplication by three with two wrapping additions",
+      "requires": ["org.atomix.capability.exact-int32-wrap", "org.atomix.capability.role-window", "org.atomix.capability.doorbell", "org.atomix.capability.status-poll", "org.atomix.capability.simt", "org.atomix.capability.programmable-kernel", "org.atomix.capability.flat-global-memory", "org.atomix.capability.tail-predication"],
+      "build": {"kind": "org.atomix.gpu-compute-program", "value": {
+        "encoder": "sw/host/gpu_programs.py",
+        "immediate_bits": 17,
+        "algorithm": "org.atomix.algorithm.saxpy-strength-reduced-a3",
+        "layout": "org.atomix.layout.x-y-out-contiguous",
+        "runtime_policy": "org.atomix.runtime.single-dispatch-polled"
+      }}
+    }
+  ],
+  "targets": [
+    {
+      "id": "org.atomix.target.host-cpu",
+      "class": "org.atomix.native-host",
+      "adapter": "org.atomix.adapter.native-cpu",
+      "summary": "Development-host process execution",
+      "capabilities": ["org.atomix.capability.exact-int32-wrap", "org.atomix.capability.host-c11-toolchain", "org.atomix.capability.monotonic-clock", "org.atomix.capability.process-timeout"],
+      "measurement_domain": "org.atomix.domain.host-elapsed",
+      "profile": null
+    },
+    {
+      "id": "org.atomix.target.role-gpu-compute-sim",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-role-simulator",
+      "summary": "Selectable role.gpu-compute model with a controlled lane parameter",
+      "capabilities": ["org.atomix.capability.exact-int32-wrap", "org.atomix.capability.role-window", "org.atomix.capability.doorbell", "org.atomix.capability.status-poll", "org.atomix.capability.simt", "org.atomix.capability.programmable-kernel", "org.atomix.capability.flat-global-memory", "org.atomix.capability.tail-predication", "org.atomix.capability.deterministic-model-cycles", "org.atomix.capability.process-timeout"],
+      "measurement_domain": "org.atomix.domain.model-cycles",
+      "profile": {"kind": "org.atomix.component-selection", "value": {
+        "component": "components/role/gpu-compute/component.json",
+        "top": "axrole",
+        "parameters": {"lanes": 1, "data_words": 4096}
+      }}
+    }
+  ],
+  "candidates": [
+    {"id": "org.atomix.candidate.codesign-native-o0", "implementation": "org.atomix.implementation.saxpy-native-gcc-o0", "target": "org.atomix.target.host-cpu", "parameters": {}, "work": {"unit": "org.atomix.output-element", "count": 17}},
+    {"id": "org.atomix.candidate.codesign-native-o2", "implementation": "org.atomix.implementation.saxpy-native-gcc-o2", "target": "org.atomix.target.host-cpu", "parameters": {}, "work": {"unit": "org.atomix.output-element", "count": 17}},
+    {"id": "org.atomix.candidate.codesign-simt-multiply", "implementation": "org.atomix.implementation.saxpy-simt-multiply", "target": "org.atomix.target.role-gpu-compute-sim", "parameters": {}, "work": {"unit": "org.atomix.output-element", "count": 17}, "sweep": {"target_parameters": {"lanes": [1, 4]}}},
+    {"id": "org.atomix.candidate.codesign-simt-add-chain", "implementation": "org.atomix.implementation.saxpy-simt-add-chain", "target": "org.atomix.target.role-gpu-compute-sim", "parameters": {}, "work": {"unit": "org.atomix.output-element", "count": 17}, "sweep": {"target_parameters": {"lanes": [1, 4]}}}
+  ],
+  "metrics": [
+    {"id": "org.atomix.metric.work-items", "unit": "org.atomix.unit.item", "direction": "org.atomix.context-only", "domain": "org.atomix.domain.context", "applicability": {"org.atomix.native-host": "org.atomix.required", "org.atomix.rtl-simulator": "org.atomix.required"}},
+    {"id": "org.atomix.metric.repetitions", "unit": "org.atomix.unit.count", "direction": "org.atomix.context-only", "domain": "org.atomix.domain.context", "applicability": {"org.atomix.native-host": "org.atomix.required", "org.atomix.rtl-simulator": "org.atomix.required"}},
+    {"id": "org.atomix.metric.artifact-bytes", "unit": "org.atomix.unit.byte", "direction": "org.atomix.context-only", "domain": "org.atomix.domain.context", "applicability": {"org.atomix.native-host": "org.atomix.required", "org.atomix.rtl-simulator": "org.atomix.required"}},
+    {"id": "org.atomix.metric.execute-cycles", "unit": "org.atomix.unit.cycle", "direction": "org.atomix.lower-is-better", "domain": "org.atomix.domain.model-cycles", "applicability": {"org.atomix.native-host": "org.atomix.inapplicable", "org.atomix.rtl-simulator": "org.atomix.required"}},
+    {"id": "org.atomix.metric.total-cycles", "unit": "org.atomix.unit.cycle", "direction": "org.atomix.lower-is-better", "domain": "org.atomix.domain.model-cycles", "applicability": {"org.atomix.native-host": "org.atomix.inapplicable", "org.atomix.rtl-simulator": "org.atomix.required"}},
+    {"id": "org.atomix.metric.host-elapsed-median", "unit": "org.atomix.unit.nanosecond", "direction": "org.atomix.lower-is-better", "domain": "org.atomix.domain.host-elapsed", "applicability": {"org.atomix.native-host": "org.atomix.required", "org.atomix.rtl-simulator": "org.atomix.inapplicable"}},
+    {"id": "org.atomix.metric.host-elapsed-minimum", "unit": "org.atomix.unit.nanosecond", "direction": "org.atomix.lower-is-better", "domain": "org.atomix.domain.host-elapsed", "applicability": {"org.atomix.native-host": "org.atomix.required", "org.atomix.rtl-simulator": "org.atomix.inapplicable"}},
+    {"id": "org.atomix.metric.host-elapsed-maximum", "unit": "org.atomix.unit.nanosecond", "direction": "org.atomix.context-only", "domain": "org.atomix.domain.host-elapsed", "applicability": {"org.atomix.native-host": "org.atomix.required", "org.atomix.rtl-simulator": "org.atomix.inapplicable"}},
+    {"id": "org.atomix.metric.simulator-host-elapsed-median", "unit": "org.atomix.unit.nanosecond", "direction": "org.atomix.context-only", "domain": "org.atomix.domain.simulator-host-elapsed", "applicability": {"org.atomix.native-host": "org.atomix.inapplicable", "org.atomix.rtl-simulator": "org.atomix.optional"}}
+  ],
+  "budget": {"max_candidates": 6, "per_candidate_seconds": 900, "repetitions": 9},
+  "policy": {"correctness": "org.atomix.hard-gate", "missing_measurement": "org.atomix.unavailable-not-zero", "ranking": "org.atomix.pareto-no-composite", "cross_domain_ranking": "org.atomix.forbidden", "resource_claims": "org.atomix.require-matched-evidence"},
+  "extensions": {
+    "org.atomix.codesign": {
+      "factors": [
+        {"id": "org.atomix.factor.compiler", "class": "org.atomix.factor.software", "source": "implementation.build.value.compiler_configuration"},
+        {"id": "org.atomix.factor.algorithm", "class": "org.atomix.factor.software", "source": "implementation.build.value.algorithm"},
+        {"id": "org.atomix.factor.layout", "class": "org.atomix.factor.software", "source": "implementation.build.value.layout"},
+        {"id": "org.atomix.factor.runtime-policy", "class": "org.atomix.factor.software", "source": "implementation.build.value.runtime_policy"},
+        {"id": "org.atomix.factor.machine", "class": "org.atomix.factor.hardware", "source": "target.profile"}
+      ],
+      "controls": [
+        {"id": "org.atomix.control.compiler-only", "candidates": ["org.atomix.candidate.codesign-native-o0", "org.atomix.candidate.codesign-native-o2"], "vary": ["org.atomix.factor.compiler"], "hold": ["org.atomix.factor.algorithm", "org.atomix.factor.layout", "org.atomix.factor.runtime-policy", "org.atomix.factor.machine"]},
+        {"id": "org.atomix.control.algorithm-by-lanes", "candidates": ["org.atomix.candidate.codesign-simt-multiply-lanes-1", "org.atomix.candidate.codesign-simt-multiply-lanes-4", "org.atomix.candidate.codesign-simt-add-chain-lanes-1", "org.atomix.candidate.codesign-simt-add-chain-lanes-4"], "vary": ["org.atomix.factor.algorithm", "org.atomix.factor.machine"], "hold": ["org.atomix.factor.compiler", "org.atomix.factor.layout", "org.atomix.factor.runtime-policy"]}
+      ]
+    }
+  }
+}

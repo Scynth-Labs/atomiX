@@ -1,0 +1,60 @@
+{
+  "schema": {
+    "id": "org.atomix.experiment-run-state",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "experiment-run-state",
+  "id": "org.atomix.experiment-run.saxpy-software-hardware-codesign",
+  "revision": 1,
+  "summary": "What one run of org.atomix.experiment.saxpy-software-hardware-codesign attempted, reused, and never tried",
+  "plan": {
+    "id": "org.atomix.experiment.saxpy-software-hardware-codesign",
+    "revision": 1
+  },
+  "budget": {
+    "max_candidates": 6,
+    "per_candidate_seconds": 900,
+    "repetitions": 9,
+    "run_seconds": null
+  },
+  "candidates": {
+    "org.atomix.candidate.codesign-native-o0": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "codesign-native-o0.json",
+      "timestamp_utc": "2026-09-11T20:06:55Z"
+    },
+    "org.atomix.candidate.codesign-native-o2": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "codesign-native-o2.json",
+      "timestamp_utc": "2026-09-11T20:06:56Z"
+    },
+    "org.atomix.candidate.codesign-simt-multiply-lanes-1": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "codesign-simt-multiply-lanes-1.json",
+      "timestamp_utc": "2026-09-11T20:06:58Z"
+    },
+    "org.atomix.candidate.codesign-simt-multiply-lanes-4": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "codesign-simt-multiply-lanes-4.json",
+      "timestamp_utc": "2026-09-11T20:06:59Z"
+    },
+    "org.atomix.candidate.codesign-simt-add-chain-lanes-1": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "codesign-simt-add-chain-lanes-1.json",
+      "timestamp_utc": "2026-09-11T20:07:01Z"
+    },
+    "org.atomix.candidate.codesign-simt-add-chain-lanes-4": {
+      "status": "org.atomix.pass",
+      "disposition": "org.atomix.attempted",
+      "record": "codesign-simt-add-chain-lanes-4.json",
+      "timestamp_utc": "2026-09-11T20:07:02Z"
+    }
+  },
+  "extensions": {}
+}

@@ -299,7 +299,7 @@ implemented; the targets for the underlying tools do not prove a future feature.
 
 <a id="ax-11"></a>
 
-- [ ] **AX-11 — Software/hardware co-design experiment.** Represent compiler
+- [x] **AX-11 — Software/hardware co-design experiment.** Represent compiler
   choices, algorithm/layout variants, runtime policy, and machine parameters as
   separately identified candidate inputs. Start with two compiler configurations
   on one native workload; hold logical semantics and inputs constant and pass
@@ -309,6 +309,22 @@ implemented; the targets for the underlying tools do not prove a future feature.
   controls that show which change caused each result. Close with a replayable
   comparison, correctness failures excluded, and an explicit tradeoff or null
   result. Do not require a new compiler IR or change aXos to run host workloads.
+  Closed 2026-09-12: [`saxpy-software-hardware-codesign.json`](../research/experiments/saxpy-software-hardware-codesign.json)
+  derives compiler, algorithm, layout, runtime-policy, and effective-machine
+  factors from the selectors that actually reach each adapter. Its compiler
+  control holds one C source and workload fixed across GCC `-O0` and `-O2`,
+  producing distinct build and executable hashes while retaining the compiler
+  executable, compiler hash/version, and dynamic-library hashes. Its complete
+  2x2 RTL control changes multiply-immediate versus a two-add strength reduction
+  and one versus four manifest-owned lanes. All six candidates pass four exact
+  oracle cases. Four lanes reduce the two algorithms from 505 to 240 and 556 to
+  258 model cycles respectively; the add-chain loses at both widths, an explicit
+  null result for that software optimization. `make codesign-check` runs 12
+  assertions covering held-factor drift, incomplete/confounded controls,
+  execution, identities, compiler-setting cache invalidation, exact replay,
+  oracle-failure exclusion, and the recorded conclusion. It runs as
+  `codesign-experiment` in CI and nightly. This is native execution and RTL
+  simulation evidence, not FPGA performance.
 
 <a id="ax-12"></a>
 

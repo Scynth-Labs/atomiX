@@ -12,7 +12,7 @@ ASIC dependency audit can start independently without a board or PDK.
 |---|---|---|---|---|
 | [AX-10: native CPU and RTL execution adapters](../design-checklist.md#ax-10) | P0 | Done | AX-01 | Define the adapter contract and implement one native integer workload against the shared oracle, without invoking FPGA or RISC-V tools |
 | [AX-12: ISS and emulator adapters](../design-checklist.md#ax-12) | P1 | Done | AX-10 | Separate aXsim/QEMU adapters run one exact ELF fixture; QEMU-required conformance covers refusals, bounds, and failed replay |
-| [AX-11: compiler/runtime and hardware co-design experiments](../design-checklist.md#ax-11) | P1 | Ready | AX-10, AX-02, AX-03 | Compare two declared compiler choices on one native workload with separate artifact identities and the same oracle |
+| [AX-11: compiler/runtime and hardware co-design experiments](../design-checklist.md#ax-11) | P1 | Done | AX-10, AX-02, AX-03 | GCC `-O0`/`-O2` and a complete SIMT-algorithm/lane-count control passed exact oracles with replayable identities |
 | [RX-08: ASIC portability dependency audit](../research-checklist.md#rx-08) | P1 | Ready | Existing RTL and manifests | Inventory memory, arithmetic, initialization, reset/clock, and I/O assumptions for one small block; identify required technology boundaries |
 | [AX-13: external accelerator backend](../design-checklist.md#ax-13) | P2 | Next | AX-10, AX-03; a supported device/runtime for execution | Inventory available compute devices and choose one workload/adapter only when an actual target is accessible |
 | [RX-09: technology-mapped implementation feasibility](../research-checklist.md#rx-09) | P2 | Next | RX-08; accessible libraries, tools, and compute budget | Specify a bounded synthesis/physical-design experiment for the audited block, with named constraints and required reports |
@@ -51,3 +51,7 @@ the existing simulator or FPGA suite cannot certify an unimplemented backend.
   guest-counter domains. One ELF and exact checksum prove functional agreement;
   no QEMU counter is ranked as an ISS or RTL cycle, and missing QEMU never falls
   back to aXsim.
+- 2026-09-12: closed AX-11 with a six-candidate SAXPY experiment. Compiler
+  settings are separate executable identities, and the complete algorithm by
+  lane-count control records a negative strength-reduction result without
+  mixing native elapsed time with deterministic RTL cycles.

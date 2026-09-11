@@ -19,6 +19,10 @@
       "kind": "suite",
       "stage": "research-contracts"
     },
+    ".:codesign-check": {
+      "kind": "suite",
+      "stage": "codesign-experiment"
+    },
     ".:component-list": {
       "kind": "informational",
       "note": "lists the component catalogue"

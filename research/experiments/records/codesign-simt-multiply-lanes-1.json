@@ -1,0 +1,222 @@
+{
+  "schema": {
+    "id": "org.atomix.experiment-record",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "experiment-record",
+  "id": "org.atomix.experiment-record.codesign-simt-multiply-lanes-1",
+  "revision": 1,
+  "summary": "codesign-simt-multiply-lanes-1: 4 oracle cases passed on org.atomix.target.role-gpu-compute-sim",
+  "claim": "org.atomix.observation",
+  "plan": {
+    "id": "org.atomix.experiment.saxpy-software-hardware-codesign",
+    "revision": 1
+  },
+  "candidate": "org.atomix.candidate.codesign-simt-multiply-lanes-1",
+  "status": "org.atomix.pass",
+  "identity": {
+    "implementation": {
+      "id": "org.atomix.implementation.saxpy-simt-multiply",
+      "artifact_sha256": "b4592f0f57e37c5d43b1a20f20bf0abcb7fe69f1e8a9aea99d88e263b96a9f13",
+      "build_sha256": "88b6f7571134ca2281f6fcd50c641ca20a1738a7e6eb4482651c457b3876e6b2",
+      "tools": {
+        "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b"
+      }
+    },
+    "target": {
+      "id": "org.atomix.target.role-gpu-compute-sim",
+      "class": "org.atomix.rtl-simulator",
+      "adapter": "org.atomix.adapter.rtl-role-simulator",
+      "build_sha256": "07d698a28261454ded7529f4a2d58a2a8dad476b0485068aeb22fe706e427019",
+      "profile_sha256": "ef0263172982de44605ee9889e356c1eea8d8847e993e803a395a682ac8c99a3"
+    }
+  },
+  "execution": {
+    "repetitions": 1,
+    "limit_seconds": 900,
+    "elapsed_seconds": 0.02221,
+    "termination": "org.atomix.completed"
+  },
+  "source": {
+    "commit": "43e65d2cec96879ee735ba575b9667f1261c1671",
+    "dirty": true,
+    "diff_sha256": "0f4ec1849a32441af120745ed69a64223920d717f606f93ec214335aefe67395"
+  },
+  "environment": {
+    "evidence_level": "org.atomix.simulation",
+    "timestamp_utc": "2026-09-11T20:06:56Z",
+    "board": null,
+    "device": null,
+    "tools": {
+      "verilator": "Verilator 5.050 2026-07-01 rev v5.050-60-g3d2421f3b"
+    }
+  },
+  "correctness": {
+    "status": "org.atomix.pass",
+    "oracle_cases": 4,
+    "output_sha256": "d5f6f988af3a7b4d87731efbb4df7daf1ff2e2f53b66bf8a2fd76477763545c4",
+    "method": "independent built-in oracle recomputed from the case inputs (tools/personality_contract.py)"
+  },
+  "measurements": {
+    "org.atomix.metric.work-items": {
+      "value": 17,
+      "unit": "org.atomix.unit.item",
+      "status": "org.atomix.measured",
+      "method": "logical work of the executed cases, from the workload definition"
+    },
+    "org.atomix.metric.repetitions": {
+      "value": 1,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "timed executions of each case"
+    },
+    "org.atomix.metric.artifact-bytes": {
+      "value": 144,
+      "unit": "org.atomix.unit.byte",
+      "status": "org.atomix.measured",
+      "method": "SIMT kernel instruction words, hashed as b4592f0f57e3"
+    },
+    "org.atomix.metric.execute-cycles": {
+      "value": 505,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.measured",
+      "method": "model cycles from job start to observed completion, summed over cases"
+    },
+    "org.atomix.metric.total-cycles": {
+      "value": 617,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.measured",
+      "method": "model cycles including staging and checked readback, summed over cases"
+    },
+    "org.atomix.metric.host-elapsed-median": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.rtl-simulator has no such quantity"
+    },
+    "org.atomix.metric.host-elapsed-minimum": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.rtl-simulator has no such quantity"
+    },
+    "org.atomix.metric.host-elapsed-maximum": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.rtl-simulator has no such quantity"
+    },
+    "org.atomix.metric.simulator-host-elapsed-median": {
+      "value": 5108184.5,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "wall time of the simulator process per case; a cost of the tool, not of the design"
+    }
+  },
+  "extensions": {
+    "org.atomix.target-limits": {
+      "max_items": 1365,
+      "immediate_minimum": -65536,
+      "immediate_maximum": 65535,
+      "program_words": 64,
+      "data_words": 4096
+    },
+    "org.atomix.target-parameters": {
+      "lanes": 1
+    },
+    "org.atomix.implementation-detail": {
+      "parameters": {
+        "lanes": 1,
+        "data_words": 4096
+      },
+      "artifact_kind": "SIMT kernel instruction words",
+      "algorithm": "org.atomix.algorithm.saxpy-multiply-add",
+      "layout": "org.atomix.layout.x-y-out-contiguous",
+      "runtime_policy": "org.atomix.runtime.single-dispatch-polled"
+    },
+    "org.atomix.reuse": {
+      "fingerprint": "f916cf451918fcc8dcc45b78ecdbe1f4911a1e11e7eccaaed12e3c6d8702303b",
+      "key": "e789af41aebb384f10249a7c57ad745b3db6f370dbd2540856776e1daaa7910a"
+    },
+    "org.atomix.case-outcomes": {
+      "signed-and-tail": {
+        "outputs": {
+          "out": [
+            13,
+            14,
+            -21,
+            52,
+            65
+          ]
+        },
+        "cycles": {
+          "execute": 148,
+          "total": 179
+        },
+        "measurements": {},
+        "detail": {
+          "simulator_elapsed_ns": 5037684,
+          "program_words": 9
+        }
+      },
+      "int32-wrap": {
+        "outputs": {
+          "out": [
+            2147483646,
+            2147483647,
+            0,
+            2147483644
+          ]
+        },
+        "cycles": {
+          "execute": 119,
+          "total": 146
+        },
+        "measurements": {},
+        "detail": {
+          "simulator_elapsed_ns": 7275552,
+          "program_words": 9
+        }
+      },
+      "single-element": {
+        "outputs": {
+          "out": [
+            2147483644
+          ]
+        },
+        "cycles": {
+          "execute": 32,
+          "total": 47
+        },
+        "measurements": {},
+        "detail": {
+          "simulator_elapsed_ns": 5178685,
+          "program_words": 9
+        }
+      },
+      "simt-lane-tail": {
+        "outputs": {
+          "out": [
+            2,
+            4,
+            6,
+            8,
+            10,
+            12,
+            14
+          ]
+        },
+        "cycles": {
+          "execute": 206,
+          "total": 245
+        },
+        "measurements": {},
+        "detail": {
+          "simulator_elapsed_ns": 4717637,
+          "program_words": 9
+        }
+      }
+    }
+  }
+}

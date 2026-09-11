@@ -46,6 +46,7 @@ help:
 	@echo "  make personality-check  # validate open compute-personality contracts"
 	@echo "  make comparison-check   # validate research comparison/evidence contracts"
 	@echo "  make experiment-check   # validate experiment plans and run records"
+	@echo "  make codesign-check     # AX-11 controlled compiler/software/hardware experiment"
 	@echo "  make experiment-run     # run an experiment plan through its adapters"
 	@echo "  make adapter-check      # prove the execution adapters' refusals"
 	@echo "  make iss-emulator-check # aXsim/QEMU adapter contract (Kernel tier)"
@@ -178,6 +179,13 @@ experiment-report-check:
 # identity, and a one-cycle threshold breach all fail the gate.
 experiment-regression-check:
 	$(PYTHON) tools/experiment_regression_check.py
+
+# AX-11's controlled comparisons: compiler configurations are actual build
+# inputs, the algorithm/lane experiment is a complete factorial control, and
+# identity changes, replay, oracle exclusion, and the resulting null result are
+# all checked rather than inferred from a passing run.
+codesign-check:
+	$(PYTHON) tools/codesign_conformance.py
 
 # Run one plan through its adapters. Records land outside tracked source
 # unless RECORDS points into the evidence tree, because a scratch run is not
@@ -598,4 +606,4 @@ component-test: config-check-all personality-check comparison-check experiment-c
 	$(MAKE) sim CONFIG=configs/sim-finisher.json RAM_INIT_FILE="$(abspath sw/baremetal/build/hello.hex)" MAX_CYCLES=100 BUILD_ID=component-finisher
 	$(MAKE) software CONFIG=configs/sim-axos.json
 
-.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check iss-emulator-check experiment-sweep-check experiment-report-check experiment-regression-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight external-component-check component-test web web-check web-bench web-compare web-compare-check web-page-check
+.PHONY: help load fpga-loader fpga-loader-primer doctor requirements requirements-check component-list component-show config-check config-check-all personality-check comparison-check experiment-check adapter-check iss-emulator-check experiment-sweep-check experiment-report-check experiment-regression-check codesign-check experiment-run experiment-report experiment-export experiment-reproduce experiment-pages experiment-pages-check experiment-replay live-check evolution-check fitness-check registry-check policy-check live-sim-check l3-contract-check l3-check ecp5-frame-check pr-gate-check diagram-check brand brand-check static-analysis toolchain-llvm fuzz-loader fuzz-coverage verification-check coverage-map formal-coverage example-replay bug-report bug-report-check evidence-views verify-smoke nightly-integrated sim software fpga kernel-primer runtime-primer fpga-kernel-primer fpga-runtime-primer primer-runtime-preflight external-component-check component-test web web-check web-bench web-compare web-compare-check web-page-check

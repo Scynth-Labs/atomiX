@@ -143,6 +143,20 @@
         "verilator"
       ]
     },
+    "codesign-experiment": {
+      "label": "AX-11 controlled compiler configuration and software-by-hardware factorial experiment",
+      "command": [
+        "make",
+        "codesign-check"
+      ],
+      "timeout_seconds": 1800,
+      "requires": [
+        "make",
+        "python3",
+        "gcc",
+        "verilator"
+      ]
+    },
     "experiment-regression": {
       "label": "Deterministic preview CPU experiment: exact oracle, cycle and size bounds, identity matching, and injected failures",
       "command": [
@@ -716,6 +730,7 @@
     ],
     "ci-integration": [
       "experiment-adapters",
+      "codesign-experiment",
       "experiment-regression",
       "runtime-payload",
       "doc-examples",
@@ -730,6 +745,7 @@
     "nightly-integrated": [
       "native-adapter-conformance",
       "experiment-adapters",
+      "codesign-experiment",
       "experiment-regression",
       "experiment-full-sweep",
       "runtime-payload",

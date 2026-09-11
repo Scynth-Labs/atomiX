@@ -437,6 +437,14 @@ def run_candidate(plan: dict[str, Any], candidate: dict[str, Any],
         "profile_sha256": prepared.profile_sha256,
     })
     record["environment"]["tools"].update(prepared.tools)
+    # Adapter-private launch paths live under the disposable work directory.
+    # Retain reproducible implementation facts, never a pathname that only
+    # existed on the machine which happened to run the experiment.
+    recorded_detail = {
+        name: value for name, value in prepared.detail.items() if name != "model"
+    }
+    if recorded_detail:
+        record["extensions"]["org.atomix.implementation-detail"] = recorded_detail
     key = reuse_key(plan, candidate, cases, repetitions, record["identity"])
     record["extensions"]["org.atomix.reuse"] = {"fingerprint": digest, "key": key}
     # Second chance: the artifact this run built hashes the same as the one the

@@ -231,6 +231,40 @@ def render(plan: dict[str, Any], workload: dict[str, Any], cases: list[dict[str,
               f"{(identity['target']['profile_sha256'] or 'none')[:12]:<14} "
               f"{tools[:60]}")
 
+    codesign = plan.get("extensions", {}).get("org.atomix.codesign")
+    if codesign:
+        factors = codesign["factors"]
+        print("\n  Controlled co-design inputs")
+        print("    " + f"{'candidate':<24}" + "".join(
+            f"{short(factor['id']):>26}" for factor in factors
+        ))
+        expanded = {candidate["id"]: candidate for candidate in ec.plan_candidates(plan)}
+        for name in eligible:
+            values = ec.codesign_factor_values(plan, expanded[name])
+            cells = ""
+            for factor in factors:
+                value = values[factor["id"]]
+                if isinstance(value, dict):
+                    if factor["source"].endswith("compiler_configuration"):
+                        value = " ".join([
+                            str(value.get("executable", "?")),
+                            *[str(flag) for flag in value.get("flags", [])],
+                        ])
+                    elif "value" in value and isinstance(value["value"], dict) and \
+                            "parameters" in value["value"]:
+                        value = ",".join(
+                            f"{key}={selected}" for key, selected in
+                            sorted(value["value"]["parameters"].items())
+                        )
+                    else:
+                        value = json.dumps(value, sort_keys=True, separators=(",", ":"))
+                elif value is None:
+                    value = "--"
+                else:
+                    value = short(str(value))
+                cells += f"{str(value)[:25]:>26}"
+            print(f"    {short(name):<24}{cells}")
+
     domains = sorted({metric["domain"] for metric in plan["metrics"]})
     compared: set[str] = set()
     for domain in domains:

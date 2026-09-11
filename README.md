@@ -64,7 +64,10 @@ ranking across measurement domains. Two fixtures ship: one `cpu_perf` image on
 three cores (70,650 / 42,978 / 25,729 cycles at one payload hash and three
 machine hashes), and one SAXPY workload implemented twice — a host C executable
 and a SIMT kernel swept over 1, 2, 4, and 8 lanes (505 / 332 / 240 / 212 model
-cycles). Those three CPU candidates are also the deterministic preview
+cycles). A controlled co-design plan additionally compares GCC `-O0`/`-O2` and
+a complete two-algorithm by two-lane RTL matrix, retaining a negative result
+when replacing multiply-by-three with additions loses at both widths. Those
+three CPU candidates are also the deterministic preview
 regression subset checked by `make experiment-regression-check`; host elapsed
 time remains diagnostic. [Start here](docs/experiment-alpha.md) to run either.
 

@@ -1,0 +1,213 @@
+{
+  "schema": {
+    "id": "org.atomix.experiment-record",
+    "major": 1,
+    "minor": 0
+  },
+  "kind": "experiment-record",
+  "id": "org.atomix.experiment-record.codesign-native-o2",
+  "revision": 1,
+  "summary": "codesign-native-o2: 4 oracle cases passed on org.atomix.target.host-cpu",
+  "claim": "org.atomix.observation",
+  "plan": {
+    "id": "org.atomix.experiment.saxpy-software-hardware-codesign",
+    "revision": 1
+  },
+  "candidate": "org.atomix.candidate.codesign-native-o2",
+  "status": "org.atomix.pass",
+  "identity": {
+    "implementation": {
+      "id": "org.atomix.implementation.saxpy-native-gcc-o2",
+      "artifact_sha256": "e8a062c4ae806e2721bdae30f54c222846bc2568ca6477d20f609acaa792bf4e",
+      "build_sha256": "4c01dc75fc95cb393112d0b6f7b0edf98d08ad81175db5df7a6ebf709ee6bb01",
+      "tools": {
+        "x86_64-linux-gnu-gcc-11": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+        "runtime:libc.so.6": "b2cf6c33b74d2f22543b7a469a75b538911e690f769d0b238843a49465b83793",
+        "runtime:ld-linux-x86-64.so.2": "41daf7836f7fce21a40ca63a00c5caf21b05a35a76ccc075d86f1716212cdf01"
+      }
+    },
+    "target": {
+      "id": "org.atomix.target.host-cpu",
+      "class": "org.atomix.native-host",
+      "adapter": "org.atomix.adapter.native-cpu",
+      "build_sha256": null,
+      "profile_sha256": null
+    }
+  },
+  "execution": {
+    "repetitions": 9,
+    "limit_seconds": 900,
+    "elapsed_seconds": 0.006948,
+    "termination": "org.atomix.completed"
+  },
+  "source": {
+    "commit": "43e65d2cec96879ee735ba575b9667f1261c1671",
+    "dirty": true,
+    "diff_sha256": "0f4ec1849a32441af120745ed69a64223920d717f606f93ec214335aefe67395"
+  },
+  "environment": {
+    "evidence_level": "org.atomix.native-execution",
+    "timestamp_utc": "2026-09-11T20:06:55Z",
+    "board": null,
+    "device": "x86_64",
+    "tools": {
+      "cc": "cc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+      "x86_64-linux-gnu-gcc-11": "gcc (Ubuntu 11.4.0-1ubuntu1~22.04.3) 11.4.0",
+      "runtime:libc.so.6": "b2cf6c33b74d2f22543b7a469a75b538911e690f769d0b238843a49465b83793",
+      "runtime:ld-linux-x86-64.so.2": "41daf7836f7fce21a40ca63a00c5caf21b05a35a76ccc075d86f1716212cdf01"
+    }
+  },
+  "correctness": {
+    "status": "org.atomix.pass",
+    "oracle_cases": 4,
+    "output_sha256": "d5f6f988af3a7b4d87731efbb4df7daf1ff2e2f53b66bf8a2fd76477763545c4",
+    "method": "independent built-in oracle recomputed from the case inputs (tools/personality_contract.py)"
+  },
+  "measurements": {
+    "org.atomix.metric.work-items": {
+      "value": 17,
+      "unit": "org.atomix.unit.item",
+      "status": "org.atomix.measured",
+      "method": "logical work of the executed cases, from the workload definition"
+    },
+    "org.atomix.metric.repetitions": {
+      "value": 9,
+      "unit": "org.atomix.unit.count",
+      "status": "org.atomix.measured",
+      "method": "timed executions of each case"
+    },
+    "org.atomix.metric.artifact-bytes": {
+      "value": 16504,
+      "unit": "org.atomix.unit.byte",
+      "status": "org.atomix.measured",
+      "method": "host executable, hashed as e8a062c4ae80"
+    },
+    "org.atomix.metric.execute-cycles": {
+      "value": null,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.native-host has no such quantity"
+    },
+    "org.atomix.metric.total-cycles": {
+      "value": null,
+      "unit": "org.atomix.unit.cycle",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.native-host has no such quantity"
+    },
+    "org.atomix.metric.host-elapsed-median": {
+      "value": 164,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "CLOCK_MONOTONIC around the kernel only, 9 repetitions of the whole case set"
+    },
+    "org.atomix.metric.host-elapsed-minimum": {
+      "value": 139,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "CLOCK_MONOTONIC around the kernel only, 9 repetitions of the whole case set"
+    },
+    "org.atomix.metric.host-elapsed-maximum": {
+      "value": 586,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.measured",
+      "method": "CLOCK_MONOTONIC around the kernel only, 9 repetitions of the whole case set"
+    },
+    "org.atomix.metric.simulator-host-elapsed-median": {
+      "value": null,
+      "unit": "org.atomix.unit.nanosecond",
+      "status": "org.atomix.inapplicable",
+      "method": "org.atomix.native-host has no such quantity"
+    }
+  },
+  "extensions": {
+    "org.atomix.target-limits": {
+      "max_items": 1048576
+    },
+    "org.atomix.implementation-detail": {
+      "source": "sw/native/saxpy_i32.c",
+      "artifact_kind": "host executable",
+      "compiler_executable": "/usr/bin/x86_64-linux-gnu-gcc-11",
+      "compiler_sha256": "821af3c74506283c179ca413bb33e6b528805a4dd8a5c09df125e5ad560a9e89",
+      "runtime_libraries": [
+        {
+          "path": "/lib/x86_64-linux-gnu/libc.so.6",
+          "sha256": "b2cf6c33b74d2f22543b7a469a75b538911e690f769d0b238843a49465b83793"
+        },
+        {
+          "path": "/lib64/ld-linux-x86-64.so.2",
+          "sha256": "41daf7836f7fce21a40ca63a00c5caf21b05a35a76ccc075d86f1716212cdf01"
+        }
+      ],
+      "algorithm": "org.atomix.algorithm.saxpy-scalar-loop",
+      "layout": "org.atomix.layout.separate-contiguous-arrays",
+      "runtime_policy": "org.atomix.runtime.in-process-repetitions"
+    },
+    "org.atomix.reuse": {
+      "fingerprint": null,
+      "key": "58270c0491ce22dd6cd87e06b2af14ab1ca8e54880e898f13e3e39055dd92ca4"
+    },
+    "org.atomix.case-outcomes": {
+      "signed-and-tail": {
+        "outputs": {
+          "out": [
+            13,
+            14,
+            -21,
+            52,
+            65
+          ]
+        },
+        "cycles": {},
+        "measurements": {},
+        "detail": {
+          "process_elapsed_seconds": 0.0018684740061871707
+        }
+      },
+      "int32-wrap": {
+        "outputs": {
+          "out": [
+            2147483646,
+            2147483647,
+            0,
+            2147483644
+          ]
+        },
+        "cycles": {},
+        "measurements": {},
+        "detail": {
+          "process_elapsed_seconds": 0.0017459650407545269
+        }
+      },
+      "single-element": {
+        "outputs": {
+          "out": [
+            2147483644
+          ]
+        },
+        "cycles": {},
+        "measurements": {},
+        "detail": {
+          "process_elapsed_seconds": 0.0015673229936510324
+        }
+      },
+      "simt-lane-tail": {
+        "outputs": {
+          "out": [
+            2,
+            4,
+            6,
+            8,
+            10,
+            12,
+            14
+          ]
+        },
+        "cycles": {},
+        "measurements": {},
+        "detail": {
+          "process_elapsed_seconds": 0.0017663310281932354
+        }
+      }
+    }
+  }
+}

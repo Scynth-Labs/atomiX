@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import copy
 import itertools
+import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -216,6 +217,103 @@ def plan_candidates(plan: dict[str, Any]) -> list[dict[str, Any]]:
     for candidate in plan["candidates"]:
         result.extend(sweep_candidates(candidate))
     return result
+
+
+def _factor_source(plan: dict[str, Any], candidate: dict[str, Any], source: str) -> Any:
+    """Read one co-design factor from the actual build/profile input it names."""
+    implementation = next(
+        item for item in plan["implementations"]
+        if item["id"] == candidate["implementation"]
+    )
+    target = plan_target(plan, candidate)
+    roots = {"implementation": implementation, "target": target}
+    parts = source.split(".")
+    value: Any = roots.get(parts[0])
+    if value is None:
+        raise KeyError(source)
+    for part in parts[1:]:
+        if not isinstance(value, dict) or part not in value:
+            return None
+        value = value[part]
+    return value
+
+
+def codesign_factor_values(plan: dict[str, Any], candidate: dict[str, Any]) -> dict[str, Any]:
+    extension = plan.get("extensions", {}).get("org.atomix.codesign")
+    if not extension:
+        return {}
+    return {
+        factor["id"]: _factor_source(plan, candidate, factor["source"])
+        for factor in extension["factors"]
+    }
+
+
+def validate_codesign(path: Path, plan: dict[str, Any]) -> None:
+    """Validate controlled comparisons without copying build choices into labels.
+
+    Factor values are read from the implementation build selector and effective
+    target profile. A report therefore shows inputs that really reached an
+    adapter, while each control proves that its stated held factors are equal.
+    """
+    extension = plan.get("extensions", {}).get("org.atomix.codesign")
+    if extension is None:
+        return
+    extension = pc.object_value(path, extension, "extensions.org.atomix.codesign")
+    pc.exact_keys(path, extension, "extensions.org.atomix.codesign", {"factors", "controls"})
+    factors = pc.list_value(path, extension["factors"], "codesign.factors")
+    factor_ids: set[str] = set()
+    for index, raw in enumerate(factors):
+        name = f"codesign.factors[{index}]"
+        factor = pc.object_value(path, raw, name)
+        pc.exact_keys(path, factor, name, {"id", "class", "source"})
+        pc.namespaced(path, factor["id"], f"{name}.id")
+        pc.namespaced(path, factor["class"], f"{name}.class")
+        if factor["id"] in factor_ids:
+            raise pc.error(path, f"duplicate co-design factor {factor['id']!r}")
+        factor_ids.add(factor["id"])
+        if not isinstance(factor["source"], str) or not factor["source"].startswith(
+                ("implementation.", "target.")):
+            raise pc.error(path, f"{name}.source must select implementation.* or target.*")
+
+    candidates = {item["id"]: item for item in plan_candidates(plan)}
+    controls = pc.list_value(path, extension["controls"], "codesign.controls")
+    for index, raw in enumerate(controls):
+        name = f"codesign.controls[{index}]"
+        control = pc.object_value(path, raw, name)
+        pc.exact_keys(path, control, name, {"id", "candidates", "vary", "hold"})
+        pc.namespaced(path, control["id"], f"{name}.id")
+        selected_ids = pc.namespaced_list(path, control["candidates"], f"{name}.candidates")
+        selected = []
+        for candidate_id in selected_ids:
+            if candidate_id not in candidates:
+                raise pc.error(path, f"{name} names unknown expanded candidate {candidate_id!r}")
+            selected.append(candidates[candidate_id])
+        if len(selected) < 2:
+            raise pc.error(path, f"{name} needs at least two candidates")
+        vary = set(pc.namespaced_list(path, control["vary"], f"{name}.vary"))
+        hold = set(pc.namespaced_list(path, control["hold"], f"{name}.hold"))
+        if vary & hold or vary | hold != factor_ids:
+            raise pc.error(path, f"{name} must classify every factor exactly once as vary or hold")
+        vectors = [codesign_factor_values(plan, candidate) for candidate in selected]
+        for factor_id in hold:
+            values = {json.dumps(vector[factor_id], sort_keys=True) for vector in vectors}
+            if len(values) != 1:
+                raise pc.error(path, f"{name} claims to hold {factor_id!r}, but it changes")
+        varying_values = {
+            factor_id: {json.dumps(vector[factor_id], sort_keys=True) for vector in vectors}
+            for factor_id in vary
+        }
+        if any(len(values) < 2 for values in varying_values.values()):
+            raise pc.error(path, f"{name} names a varying factor that never changes")
+        combinations = {
+            tuple(json.dumps(vector[factor_id], sort_keys=True) for factor_id in sorted(vary))
+            for vector in vectors
+        }
+        expected = 1
+        for values in varying_values.values():
+            expected *= len(values)
+        if len(combinations) != expected or len(selected) != expected:
+            raise pc.error(path, f"{name} is confounded or incomplete: expected a {expected}-point factorial control")
 
 
 def validate_candidate(path: Path, value: Any, index: int) -> dict[str, Any]:
@@ -430,6 +528,7 @@ def validate_plan(path: Path, document: dict[str, Any]) -> None:
             "schema major 1; host elapsed time, simulator wall time, and model "
             "cycles are not a common scale"
         )
+    validate_codesign(path, document)
 
 
 def validate_source(path: Path, value: Any, template: bool) -> None:
